@@ -43,6 +43,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{DB09F381
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EVNexus.AuthService.Tests", "AuthenticationService\tests\EVNexus.AuthService.Tests\EVNexus.AuthService.Tests.csproj", "{8ADEC015-2574-4462-8959-20376CD4AEB3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EVNexus.ApiGateway", "ApiGateway\EVNexus.ApiGateway.csproj", "{F291D1A9-0516-4C33-8EA1-F844E720577A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -84,6 +86,10 @@ Global
 		{8ADEC015-2574-4462-8959-20376CD4AEB3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8ADEC015-2574-4462-8959-20376CD4AEB3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8ADEC015-2574-4462-8959-20376CD4AEB3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F291D1A9-0516-4C33-8EA1-F844E720577A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F291D1A9-0516-4C33-8EA1-F844E720577A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F291D1A9-0516-4C33-8EA1-F844E720577A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F291D1A9-0516-4C33-8EA1-F844E720577A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{639BAFD9-ADCC-4562-AB19-5EC653FE521A} = {D46B4888-59F6-43C2-A5E3-57DD183A85A6}
