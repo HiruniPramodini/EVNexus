@@ -1,0 +1,6 @@
+@EVNexus.DashboardService_HostAddress = http://localhost:5111
+
+GET {{EVNexus.DashboardService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

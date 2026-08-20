@@ -1,0 +1,6 @@
+@EVNexus.MapService_HostAddress = http://localhost:5032
+
+GET {{EVNexus.MapService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
