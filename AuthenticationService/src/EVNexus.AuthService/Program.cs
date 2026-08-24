@@ -1,5 +1,9 @@
+using System.Text;
+using EVNexus.AuthService.Configuration;
 using EVNexus.AuthService.Data;
 using EVNexus.AuthService.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -7,13 +11,70 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
+// Configure JWT Settings & Authentication
+var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
+builder.Services.Configure<JwtSettings>(jwtSection);
+var jwtSettings = jwtSection.Get<JwtSettings>() ?? new JwtSettings();
+
+var jwtKey = string.IsNullOrWhiteSpace(jwtSettings.Key)
+    ? "EVNexus_SuperSecret_JwtAuthentication_Key_2026_Enterprise_Secure!"
+    : jwtSettings.Key;
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.RequireHttpsMetadata = false;
+    options.SaveToken = true;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ValidateIssuer = true,
+        ValidIssuer = string.IsNullOrWhiteSpace(jwtSettings.Issuer) ? "EVNexus.AuthService" : jwtSettings.Issuer,
+        ValidateAudience = true,
+        ValidAudience = string.IsNullOrWhiteSpace(jwtSettings.Audience) ? "EVNexus.Microservices" : jwtSettings.Audience,
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
+// Configure Swagger with JWT Bearer support
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "EVNexus Authentication & Profile Service",
         Version = "v1",
-        Description = "Microservice managing authentication, user/company profiles, and multi-tenant onboarding."
+        Description = "Microservice managing authentication, JWT token issuing, multi-tenant company onboarding, and protected profiles."
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
@@ -33,6 +94,7 @@ builder.Services.AddSingleton<IDbConnectionFactory, MySqlDbConnectionFactory>();
 builder.Services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICompanyAuthService, CompanyAuthService>();
 
 var app = builder.Build();
@@ -56,8 +118,9 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowAll");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
-app.Run();
+await app.RunAsync();
