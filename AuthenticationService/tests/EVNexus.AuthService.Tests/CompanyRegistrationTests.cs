@@ -20,11 +20,13 @@ public class CompanyRegistrationTests
     {
         _tenantRepoMock = new Mock<ITenantRepository>();
         _passwordHasherMock = new Mock<IPasswordHasher>();
+        var jwtTokenServiceMock = new Mock<IJwtTokenService>();
         var loggerMock = new Mock<ILogger<CompanyAuthService>>();
 
         _sut = new CompanyAuthService(
             _tenantRepoMock.Object,
             _passwordHasherMock.Object,
+            jwtTokenServiceMock.Object,
             loggerMock.Object
         );
     }
