@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { registerCompany } from '../services/api';
 
-export default function CompanyRegisterForm() {
+export default function CompanyRegisterForm({ onSwitchToLogin }) {
   const [formData, setFormData] = useState({
     companyName: '',
     registrationNumber: '',
@@ -253,8 +253,30 @@ export default function CompanyRegisterForm() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <button type="button" className="submit-btn" onClick={handleReset} style={{ margin: 0, background: 'var(--primary-600)' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+            {onSwitchToLogin && (
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={onSwitchToLogin}
+                style={{ margin: 0, flex: '1 1 200px' }}
+              >
+                <span>Sign In to Company Portal</span>
+                <ArrowRight size={18} />
+              </button>
+            )}
+            <button
+              type="button"
+              className="submit-btn"
+              onClick={handleReset}
+              style={{
+                margin: 0,
+                background: 'var(--bg-page)',
+                color: 'var(--text-main)',
+                border: '1px solid var(--border-subtle)',
+                flex: '1 1 200px'
+              }}
+            >
               <span>Register Another Company</span>
             </button>
           </div>
@@ -530,6 +552,29 @@ export default function CompanyRegisterForm() {
             </>
           )}
         </button>
+
+        {onSwitchToLogin && (
+          <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Already registered your company?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToLogin}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--primary-600)',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: '0 0.2rem'
+                }}
+              >
+                Sign In
+              </button>
+            </p>
+          </div>
+        )}
       </form>
     </div>
   );
