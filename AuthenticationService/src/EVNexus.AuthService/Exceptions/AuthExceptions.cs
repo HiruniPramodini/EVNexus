@@ -29,3 +29,25 @@ public class DuplicateRegistrationNumberException : Exception
     {
     }
 }
+
+public class InvalidCredentialsException : Exception
+{
+    public InvalidCredentialsException(string message = "Invalid email or password.")
+        : base(message)
+    {
+    }
+
+    public InvalidCredentialsException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+public class TenantNotFoundException : Exception
+{
+    public TenantNotFoundException(string tenantId)
+        : base($"Company with Tenant ID '{tenantId}' was not found.")
+    {
+    }
+}
+
