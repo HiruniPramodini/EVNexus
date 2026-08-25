@@ -31,6 +31,7 @@ Environment Variables
 Development Workflow
 Testing
 Future Improvements
+
 Contributors
 
 🚗 About the Project
@@ -65,3 +66,6 @@ Monitor charging activity
 View dashboard analytics
 View predicted charging demand
 Analyze peak-hour trends
+
+Contributors
+
