@@ -32,3 +32,36 @@ Development Workflow
 Testing
 Future Improvements
 Contributors
+
+🚗 About the Project
+
+Traditional EV charging platforms often operate independently, requiring drivers to use different applications for different charging providers.
+
+EVNexus provides a unified multi-tenant platform where multiple charging companies can participate in the same ecosystem.
+
+EV Drivers
+
+Drivers can:
+
+Register and authenticate
+Find EV charging points
+View charging point information
+View predicted busy/free status
+Start charging sessions
+Complete charging sessions
+Pay using an internal wallet
+View wallet balance
+View charging history
+Charging Companies
+
+Charging companies can:
+
+Register their organization
+Authenticate securely
+Add charging points
+Update charging point information
+Remove charging points
+Monitor charging activity
+View dashboard analytics
+View predicted charging demand
+Analyze peak-hour trends
