@@ -1,1 +1,8 @@
-# EVNexus 
+⚡ EVNexus
+Multi-Tenant EV Charging Management & Intelligent Charging Platform
+
+EVNexus is a multi-tenant electric vehicle (EV) charging platform designed to connect EV charging companies and EV drivers through a unified system.
+
+The platform allows charging companies to manage their charging stations and monitor charging activity, while EV drivers can discover charging points, view availability, charge their vehicles, and make payments through an internal wallet.
+
+EVNexus also incorporates AI-based peak-hour forecasting to predict charging demand for individual charging points over the next seven days.
