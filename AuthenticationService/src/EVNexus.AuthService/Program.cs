@@ -93,9 +93,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IDbConnectionFactory, MySqlDbConnectionFactory>();
 builder.Services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
+builder.Services.AddScoped<IDriverRepository, DriverRepository>();
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICompanyAuthService, CompanyAuthService>();
+builder.Services.AddScoped<IDriverAuthService, DriverAuthService>();
 
 var app = builder.Build();
 
