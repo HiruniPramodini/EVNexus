@@ -11,6 +11,7 @@ namespace EVNexus.AuthService.Services;
 public interface IJwtTokenService
 {
     (string Token, int ExpiresInSeconds) GenerateToken(Tenant tenant);
+    (string Token, int ExpiresInSeconds) GenerateDriverToken(Driver driver);
 }
 
 public class JwtTokenService : IJwtTokenService
@@ -45,6 +46,42 @@ public class JwtTokenService : IJwtTokenService
             new("role", tenant.Role),
             new("company_name", tenant.CompanyName),
             new("registration_number", tenant.RegistrationNumber),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = expiresAt,
+            Issuer = _jwtSettings.Issuer,
+            Audience = _jwtSettings.Audience,
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var tokenString = tokenHandler.WriteToken(token);
+
+        return (tokenString, (int)expiryDuration.TotalSeconds);
+    }
+
+    public (string Token, int ExpiresInSeconds) GenerateDriverToken(Driver driver)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
+        var expiryDuration = TimeSpan.FromMinutes(_jwtSettings.ExpiryMinutes > 0 ? _jwtSettings.ExpiryMinutes : 60);
+        var expiresAt = DateTime.UtcNow.Add(expiryDuration);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, driver.DriverId),
+            new(ClaimTypes.NameIdentifier, driver.DriverId),
+            new("driver_id", driver.DriverId),
+            new(JwtRegisteredClaimNames.Email, driver.Email),
+            new(ClaimTypes.Email, driver.Email),
+            new(JwtRegisteredClaimNames.Name, driver.Name),
+            new(ClaimTypes.Name, driver.Name),
+            new(ClaimTypes.Role, driver.Role),
+            new("role", driver.Role),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
