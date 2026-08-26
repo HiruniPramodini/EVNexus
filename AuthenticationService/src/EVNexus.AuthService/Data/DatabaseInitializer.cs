@@ -25,7 +25,7 @@ public class DatabaseInitializer : IDatabaseInitializer
             _logger.LogInformation("Initializing Auth database schema...");
             await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
 
-            const string createTenantsTableSql = @"
+            const string createTablesSql = @"
                 CREATE TABLE IF NOT EXISTS tenants (
                     tenant_id VARCHAR(50) PRIMARY KEY,
                     company_name VARCHAR(255) NOT NULL,
@@ -41,9 +41,34 @@ public class DatabaseInitializer : IDatabaseInitializer
                     INDEX idx_business_email (business_email),
                     INDEX idx_registration_number (registration_number)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS drivers (
+                    driver_id VARCHAR(50) PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    phone VARCHAR(50) NOT NULL,
+                    password_hash VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL DEFAULT 'Driver',
+                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_driver_email (email)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS wallets (
+                    wallet_id VARCHAR(50) PRIMARY KEY,
+                    driver_id VARCHAR(50) NOT NULL UNIQUE,
+                    balance DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
+                    currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_wallet_driver_id (driver_id),
+                    CONSTRAINT fk_wallets_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
-            await using var command = new MySqlCommand(createTenantsTableSql, connection);
+            await using var command = new MySqlCommand(createTablesSql, connection);
             await command.ExecuteNonQueryAsync(cancellationToken);
             _logger.LogInformation("Auth database schema initialized successfully.");
         }
