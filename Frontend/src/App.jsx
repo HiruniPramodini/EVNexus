@@ -3,7 +3,9 @@ import Navbar from './components/Navbar';
 import CompanyLoginPage from './pages/CompanyLoginPage';
 import CompanyRegisterPage from './pages/CompanyRegisterPage';
 import CompanyDashboard from './components/CompanyDashboard';
+import DriverLoginPage from './pages/DriverLoginPage';
 import DriverRegisterPage from './pages/DriverRegisterPage';
+import DriverDashboard from './components/DriverDashboard';
 import { getStoredUser, getAuthToken, clearAuthSession } from './services/api';
 
 export default function App() {
@@ -19,12 +21,20 @@ export default function App() {
   const [activeView, setActiveView] = useState(() => {
     const user = getStoredUser();
     const token = getAuthToken();
-    return user && token ? 'dashboard' : 'login';
+    if (user && token) {
+      return user.role === 'Driver' || user.driverId ? 'driver-dashboard' : 'dashboard';
+    }
+    return 'login';
   });
 
-  const handleLoginSuccess = (loginData) => {
+  const handleCompanyLoginSuccess = (loginData) => {
     setAuthUser(loginData);
     setActiveView('dashboard');
+  };
+
+  const handleDriverLoginSuccess = (loginData) => {
+    setAuthUser(loginData);
+    setActiveView('driver-dashboard');
   };
 
   const handleLogout = () => {
@@ -37,15 +47,32 @@ export default function App() {
     if (activeView === 'dashboard' && authUser) {
       return <CompanyDashboard authUser={authUser} onLogout={handleLogout} />;
     }
+    if (activeView === 'driver-dashboard' && authUser) {
+      return <DriverDashboard authUser={authUser} onLogout={handleLogout} />;
+    }
     if (activeView === 'register') {
       return <CompanyRegisterPage onSwitchToLogin={() => setActiveView('login')} />;
     }
-    if (activeView === 'driver') {
-      return <DriverRegisterPage onSwitchToCompany={() => setActiveView(authUser ? 'dashboard' : 'login')} />;
+    if (activeView === 'driver-login') {
+      return (
+        <DriverLoginPage
+          onLoginSuccess={handleDriverLoginSuccess}
+          onSwitchToRegister={() => setActiveView('driver-register')}
+          onSwitchToCompany={() => setActiveView('login')}
+        />
+      );
+    }
+    if (activeView === 'driver-register' || activeView === 'driver') {
+      return (
+        <DriverRegisterPage
+          onSwitchToLogin={() => setActiveView('driver-login')}
+          onSwitchToCompany={() => setActiveView('login')}
+        />
+      );
     }
     return (
       <CompanyLoginPage
-        onLoginSuccess={handleLoginSuccess}
+        onLoginSuccess={handleCompanyLoginSuccess}
         onSwitchToRegister={() => setActiveView('register')}
       />
     );
