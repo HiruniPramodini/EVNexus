@@ -12,6 +12,7 @@ namespace EVNexus.AuthService.Controllers;
 [Produces("application/json")]
 public class AuthController : ControllerBase
 {
+    private const string ValidationFailedMessage = "Validation failed.";
     private readonly ICompanyAuthService _companyAuthService;
     private readonly IDriverAuthService _driverAuthService;
     private readonly ILogger<AuthController> _logger;
@@ -48,7 +49,7 @@ public class AuthController : ControllerBase
                 .Select(e => e.ErrorMessage)
                 .ToList();
 
-            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
         }
 
         try
@@ -94,7 +95,7 @@ public class AuthController : ControllerBase
                 .Select(e => e.ErrorMessage)
                 .ToList();
 
-            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
         }
 
         try
@@ -175,7 +176,7 @@ public class AuthController : ControllerBase
                 .Select(e => e.ErrorMessage)
                 .ToList();
 
-            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
         }
 
         try
@@ -192,6 +193,87 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Unexpected error occurred during driver registration.");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<object>.Fail("An unexpected error occurred while processing your driver registration. Please try again later."));
+        }
+    }
+
+    /// <summary>
+    /// Authenticates EV driver credentials and issues a signed JWT access token containing driver ID and role.
+    /// </summary>
+    /// <param name="request">Driver login credentials (email and password)</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>JWT Access token with Driver ID and role claims</returns>
+    [HttpPost("driver/login")]
+    [ProducesResponseType(typeof(ApiResponse<DriverLoginResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> LoginDriver(
+        [FromBody] DriverLoginRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        try
+        {
+            var result = await _driverAuthService.LoginDriverAsync(request, cancellationToken);
+            return Ok(ApiResponse<DriverLoginResponseDto>.Ok(result, "Driver login successful."));
+        }
+        catch (InvalidCredentialsException ex)
+        {
+            return Unauthorized(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred during driver login.");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An unexpected error occurred while processing your login. Please try again later."));
+        }
+    }
+
+    /// <summary>
+    /// Protected endpoint that returns the authenticated EV driver's profile and charging wallet balance.
+    /// Requires a valid Bearer JWT token with Driver ID and Driver role claim.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Driver profile and wallet details</returns>
+    [HttpGet("driver/profile")]
+    [Authorize(Roles = "Driver")]
+    [ProducesResponseType(typeof(ApiResponse<DriverProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDriverProfile(CancellationToken cancellationToken)
+    {
+        var driverId = User.FindFirstValue("driver_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(driverId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Driver identification claim is missing from authentication token."));
+        }
+
+        try
+        {
+            var profile = await _driverAuthService.GetDriverProfileAsync(driverId, cancellationToken);
+            return Ok(ApiResponse<DriverProfileResponseDto>.Ok(profile, "Driver profile retrieved successfully."));
+        }
+        catch (DriverNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while retrieving driver profile for Driver {DriverId}", driverId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while retrieving profile information."));
         }
     }
 }
