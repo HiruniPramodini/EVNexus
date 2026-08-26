@@ -13,11 +13,16 @@ namespace EVNexus.AuthService.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly ICompanyAuthService _companyAuthService;
+    private readonly IDriverAuthService _driverAuthService;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(ICompanyAuthService companyAuthService, ILogger<AuthController> logger)
+    public AuthController(
+        ICompanyAuthService companyAuthService,
+        IDriverAuthService driverAuthService,
+        ILogger<AuthController> logger)
     {
         _companyAuthService = companyAuthService;
+        _driverAuthService = driverAuthService;
         _logger = logger;
     }
 
@@ -145,6 +150,48 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Unexpected error occurred while retrieving company profile for Tenant {TenantId}", tenantId);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<object>.Fail("An error occurred while retrieving profile information."));
+        }
+    }
+
+    /// <summary>
+    /// Registers a new EV driver with personal details and automatically creates an associated zero-balance wallet record.
+    /// </summary>
+    /// <param name="request">Driver registration details</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Registration confirmation with Driver ID, Wallet ID, and zero initial balance</returns>
+    [HttpPost("driver/register")]
+    [ProducesResponseType(typeof(ApiResponse<DriverRegisterResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> RegisterDriver(
+        [FromBody] DriverRegisterRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+
+            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+        }
+
+        try
+        {
+            var result = await _driverAuthService.RegisterDriverAsync(request, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, ApiResponse<DriverRegisterResponseDto>.Ok(result, "Driver registered successfully with an active zero-balance wallet."));
+        }
+        catch (DuplicateEmailException ex)
+        {
+            return Conflict(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred during driver registration.");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An unexpected error occurred while processing your driver registration. Please try again later."));
         }
     }
 }
