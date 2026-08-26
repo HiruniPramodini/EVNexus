@@ -7,6 +7,7 @@ export function getAuthToken() {
   try {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   } catch (e) {
+    console.warn('Failed to retrieve auth token from localStorage', e);
     return null;
   }
 }
@@ -16,6 +17,7 @@ export function getStoredUser() {
     const raw = localStorage.getItem(USER_STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
+    console.warn('Failed to retrieve stored user from localStorage', e);
     return null;
   }
 }
@@ -29,7 +31,14 @@ export function setAuthSession(authData) {
       tenantId: authData?.tenantId,
       companyName: authData?.companyName,
       businessEmail: authData?.businessEmail,
-      role: authData?.role,
+      driverId: authData?.driverId,
+      name: authData?.name,
+      email: authData?.email,
+      phone: authData?.phone,
+      walletId: authData?.walletId,
+      walletBalance: authData?.walletBalance,
+      currency: authData?.currency || 'USD',
+      role: authData?.role || 'Driver',
       expiresIn: authData?.expiresIn,
       tokenType: authData?.tokenType || 'Bearer',
       issuedAt: new Date().toISOString()
@@ -146,3 +155,32 @@ export async function registerDriver(driverData) {
   return handleResponse(response, 'Driver registration failed. Please check your details.');
 }
 
+export async function loginDriver(credentials) {
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      email: credentials.email?.trim(),
+      password: credentials.password
+    })
+  });
+
+  return handleResponse(response, 'Invalid email or password.');
+}
+
+export async function getDriverProfile(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve driver profile.');
+}
