@@ -1,6 +1,7 @@
 using System.Text;
 using EVNexus.AuthService.Configuration;
 using EVNexus.AuthService.Data;
+using EVNexus.AuthService.Middleware;
 using EVNexus.AuthService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -94,6 +95,8 @@ builder.Services.AddSingleton<IDbConnectionFactory, MySqlDbConnectionFactory>();
 builder.Services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 builder.Services.AddScoped<ITenantRepository, TenantRepository>();
 builder.Services.AddScoped<IDriverRepository, DriverRepository>();
+builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<IStationRepository, StationRepository>();
 builder.Services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICompanyAuthService, CompanyAuthService>();
@@ -121,6 +124,7 @@ if (app.Environment.IsDevelopment())
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
+app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();

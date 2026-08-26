@@ -66,6 +66,48 @@ public class DatabaseInitializer : IDatabaseInitializer
                     INDEX idx_wallet_driver_id (driver_id),
                     CONSTRAINT fk_wallets_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS charging_stations (
+                    station_id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    location VARCHAR(255) NOT NULL,
+                    latitude DECIMAL(10, 8) NULL,
+                    longitude DECIMAL(11, 8) NULL,
+                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    total_ports INT NOT NULL DEFAULT 1,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_stations_tenant (tenant_id),
+                    CONSTRAINT fk_stations_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS tariffs (
+                    tariff_id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    price_per_kwh DECIMAL(10, 4) NOT NULL,
+                    idle_fee_per_minute DECIMAL(10, 4) NOT NULL DEFAULT 0.00,
+                    currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_tariffs_tenant (tenant_id),
+                    CONSTRAINT fk_tariffs_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS company_users (
+                    user_id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    role VARCHAR(50) NOT NULL DEFAULT 'Operator',
+                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_company_users_tenant (tenant_id),
+                    CONSTRAINT fk_company_users_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
             await using var command = new MySqlCommand(createTablesSql, connection);

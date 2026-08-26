@@ -59,3 +59,15 @@ public class DriverNotFoundException : Exception
     }
 }
 
+public class CrossTenantAccessException : Exception
+{
+    public CrossTenantAccessException(string message = "Cross-tenant access forbidden. You cannot access or modify data belonging to another tenant.")
+        : base(message)
+    {
+    }
+
+    public CrossTenantAccessException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

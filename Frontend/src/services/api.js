@@ -184,3 +184,45 @@ export async function getDriverProfile(token) {
 
   return handleResponse(response, 'Failed to retrieve driver profile.');
 }
+
+export async function getCompanyStations(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/stations`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve stations for tenant.');
+}
+
+export async function createCompanyStation(stationData, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/stations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to create charging station.');
+}
+
+export async function testCrossTenantAccess(targetTenantId, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/tenants/${encodeURIComponent(targetTenantId)}/stations`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Cross-tenant request completed.');
+}

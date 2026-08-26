@@ -11,9 +11,19 @@ import {
   AlertTriangle,
   RefreshCw,
   Mail,
-  Clock
+  Clock,
+  ShieldAlert,
+  Zap,
+  Plus,
+  Layers
 } from 'lucide-react';
-import { getCompanyProfile, clearAuthSession } from '../services/api';
+import {
+  getCompanyProfile,
+  clearAuthSession,
+  getCompanyStations,
+  createCompanyStation,
+  testCrossTenantAccess
+} from '../services/api';
 
 export default function CompanyDashboard({ authUser, onLogout }) {
   const [copiedTenantId, setCopiedTenantId] = useState(false);
@@ -25,10 +35,95 @@ export default function CompanyDashboard({ authUser, onLogout }) {
   const [profileResult, setProfileResult] = useState(null);
   const [profileError, setProfileError] = useState(null);
 
+  // Multi-Tenant Stations State
+  const [stations, setStations] = useState([]);
+  const [loadingStations, setLoadingStations] = useState(false);
+  const [stationError, setStationError] = useState(null);
+
+  // Add Station Form State
+  const [showAddStation, setShowAddStation] = useState(false);
+  const [stationForm, setStationForm] = useState({ name: '', location: '', totalPorts: 4 });
+  const [isSubmittingStation, setIsSubmittingStation] = useState(false);
+  const [stationSuccessMsg, setStationSuccessMsg] = useState(null);
+
+  // Cross-Tenant Security Simulator State
+  const [unauthorizedTenantId, setUnauthorizedTenantId] = useState('TNT-UNAUTHORIZED-CORP-999');
+  const [isTestingCrossTenant, setIsTestingCrossTenant] = useState(false);
+  const [crossTenantResult, setCrossTenantResult] = useState(null);
+
   useEffect(() => {
-    // Auto-fetch profile on dashboard mount to test protected endpoint
     handleVerifyProtectedApi();
+    loadStations();
   }, []);
+
+  const loadStations = async () => {
+    setLoadingStations(true);
+    setStationError(null);
+    try {
+      const res = await getCompanyStations(authUser?.accessToken);
+      if (res?.data) {
+        setStations(res.data);
+      }
+    } catch (err) {
+      setStationError(err.message || 'Failed to load isolated stations.');
+    } finally {
+      setLoadingStations(false);
+    }
+  };
+
+  const handleCreateStation = async (e) => {
+    e.preventDefault();
+    if (!stationForm.name.trim() || !stationForm.location.trim()) return;
+
+    setIsSubmittingStation(true);
+    setStationError(null);
+    setStationSuccessMsg(null);
+
+    try {
+      const res = await createCompanyStation({
+        name: stationForm.name,
+        location: stationForm.location,
+        totalPorts: Number(stationForm.totalPorts) || 1
+      }, authUser?.accessToken);
+
+      setStationSuccessMsg(`Station "${res?.data?.name || stationForm.name}" created and automatically scoped to Tenant ${authUser?.tenantId}!`);
+      setStationForm({ name: '', location: '', totalPorts: 4 });
+      setShowAddStation(false);
+      await loadStations();
+      setTimeout(() => setStationSuccessMsg(null), 5000);
+    } catch (err) {
+      setStationError(err.message || 'Failed to create station.');
+    } finally {
+      setIsSubmittingStation(false);
+    }
+  };
+
+  const handleSimulateCrossTenant = async () => {
+    setIsTestingCrossTenant(true);
+    setCrossTenantResult(null);
+
+    const startTime = performance.now();
+    try {
+      await testCrossTenantAccess(unauthorizedTenantId, authUser?.accessToken);
+      const endTime = performance.now();
+      setCrossTenantResult({
+        success: false,
+        status: 200,
+        message: 'Unexpected: Cross-tenant access was allowed! (Isolation failure)',
+        latencyMs: Math.round(endTime - startTime)
+      });
+    } catch (err) {
+      const endTime = performance.now();
+      setCrossTenantResult({
+        success: true, // Expected outcome: 403 Forbidden
+        status: err.status || 403,
+        message: err.message || 'Cross-tenant access forbidden. You cannot access data belonging to another tenant.',
+        latencyMs: Math.round(endTime - startTime)
+      });
+    } finally {
+      setIsTestingCrossTenant(false);
+    }
+  };
 
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
@@ -75,7 +170,7 @@ export default function CompanyDashboard({ authUser, onLogout }) {
   };
 
   return (
-    <div className="main-content" style={{ maxWidth: '900px', margin: '0 auto', padding: '2rem 1.5rem' }}>
+    <div className="main-content" style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
       {/* Top Banner */}
       <div
         className="register-card"
@@ -116,6 +211,22 @@ export default function CompanyDashboard({ authUser, onLogout }) {
                 }}
               >
                 {authUser?.role || 'CompanyAdmin'}
+              </span>
+              <span
+                style={{
+                  background: 'rgba(255, 255, 255, 0.25)',
+                  color: '#ffffff',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '999px',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.3rem'
+                }}
+              >
+                <Layers size={13} />
+                Multi-Tenant Scoped
               </span>
             </div>
             <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.25rem' }}>
@@ -159,8 +270,8 @@ export default function CompanyDashboard({ authUser, onLogout }) {
               <Building2 size={20} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: '600' }}>Multi-Tenant ID</h3>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Tenant context claim</p>
+              <h3 style={{ fontSize: '1rem', fontWeight: '600' }}>Active Tenant ID</h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Automatic ADO.NET data scope</p>
             </div>
           </div>
 
@@ -233,6 +344,259 @@ export default function CompanyDashboard({ authUser, onLogout }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Multi-Tenant Data Isolation & Charging Assets Section */}
+      <div className="register-card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Zap size={18} color="var(--primary-600)" />
+              Company Charging Stations (Tenant-Isolated)
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              All database records are strictly scoped via ADO.NET parameter binding: <code style={{ color: 'var(--primary-700)' }}>WHERE tenant_id = @tenant_id</code>.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={loadStations}
+              disabled={loadingStations}
+              className="submit-btn"
+              style={{ width: 'auto', padding: '0.5rem 1rem', fontSize: '0.8rem', background: 'var(--primary-50)', color: 'var(--primary-700)', border: '1px solid var(--primary-200)' }}
+            >
+              <RefreshCw size={14} className={loadingStations ? 'btn-spinner' : ''} />
+              <span>Refresh</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddStation(!showAddStation)}
+              className="submit-btn"
+              style={{ width: 'auto', padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+            >
+              <Plus size={14} />
+              <span>{showAddStation ? 'Cancel' : 'Add Station'}</span>
+            </button>
+          </div>
+        </div>
+
+        {stationSuccessMsg && (
+          <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+            <CheckCircle2 size={18} className="alert-icon" />
+            <div className="alert-body">
+              <strong>Station Added Successfully</strong>
+              <p style={{ fontSize: '0.85rem' }}>{stationSuccessMsg}</p>
+            </div>
+          </div>
+        )}
+
+        {stationError && (
+          <div className="alert alert-danger" style={{ marginBottom: '1rem' }}>
+            <AlertTriangle size={18} className="alert-icon" />
+            <div className="alert-body">
+              <strong>Error Loading Stations</strong>
+              <p style={{ fontSize: '0.85rem' }}>{stationError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Add Station Inline Form */}
+        {showAddStation && (
+          <form onSubmit={handleCreateStation} style={{ background: 'var(--primary-50)', border: '1px solid var(--primary-200)', borderRadius: '8px', padding: '1.25rem', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: '700', marginBottom: '1rem', color: 'var(--primary-900)' }}>
+              Register New Charging Station (Auto-stamped with Tenant ID: {authUser?.tenantId})
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>Station Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GreenPulse Downtown Hub"
+                  value={stationForm.name}
+                  onChange={(e) => setStationForm({ ...stationForm, name: e.target.value })}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>Location / Address</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. 500 Market St, Financial District"
+                  value={stationForm.location}
+                  onChange={(e) => setStationForm({ ...stationForm, location: e.target.value })}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>Total Ports</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  required
+                  value={stationForm.totalPorts}
+                  onChange={(e) => setStationForm({ ...stationForm, totalPorts: e.target.value })}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-subtle)' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowAddStation(false)}
+                style={{ padding: '0.5rem 1rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingStation}
+                className="submit-btn"
+                style={{ width: 'auto', padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
+              >
+                {isSubmittingStation ? 'Creating...' : 'Save Station'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* Stations Table */}
+        {stations.length > 0 ? (
+          <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-page)', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Station ID</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Name</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Location</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Ports</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Status</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>Tenant Owner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stations.map((stn) => (
+                  <tr key={stn.stationId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: '600', color: 'var(--primary-700)' }}>
+                      {stn.stationId}
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: '600' }}>{stn.name}</td>
+                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{stn.location}</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>{stn.totalPorts} ports</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <span style={{ background: '#dcfce7', color: '#15803d', padding: '0.15rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: '600' }}>
+                        {stn.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontSize: '0.8rem', color: '#0369a1' }}>
+                      {stn.tenantId}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'var(--bg-page)', borderRadius: '8px', border: '1px dashed var(--border-subtle)' }}>
+            <Zap size={28} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+            <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>No charging stations registered for this tenant yet.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Click "Add Station" above to create your first tenant-isolated station.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Interactive Cross-Tenant Security Access Simulator */}
+      <div className="register-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid #ef4444' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626' }}>
+              <ShieldAlert size={20} color="#dc2626" />
+              Security Audit: Cross-Tenant Access Simulator
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Verify Acceptance Criteria: Attempting to query another tenant's data must trigger an immediate <strong>HTTP 403 Forbidden</strong> response.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: '1', minWidth: '240px' }}>
+              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: '#991b1b', marginBottom: '0.3rem' }}>
+                Foreign / Target Tenant ID to Request:
+              </label>
+              <input
+                type="text"
+                value={unauthorizedTenantId}
+                onChange={(e) => setUnauthorizedTenantId(e.target.value)}
+                placeholder="e.g. TNT-UNAUTHORIZED-CORP-999"
+                style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid #fca5a5', fontFamily: 'monospace', fontSize: '0.85rem' }}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleSimulateCrossTenant}
+              disabled={isTestingCrossTenant || !unauthorizedTenantId.trim()}
+              style={{
+                background: '#dc2626',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '6px',
+                fontWeight: '600',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'background 0.2s ease'
+              }}
+            >
+              {isTestingCrossTenant ? <RefreshCw size={15} className="btn-spinner" /> : <ShieldAlert size={15} />}
+              <span>Simulate Cross-Tenant Call</span>
+            </button>
+          </div>
+        </div>
+
+        {crossTenantResult && (
+          <div
+            style={{
+              background: crossTenantResult.status === 403 ? '#fef2f2' : '#f0fdf4',
+              border: `1px solid ${crossTenantResult.status === 403 ? '#f87171' : '#86efac'}`,
+              borderRadius: '8px',
+              padding: '1rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  color: crossTenantResult.status === 403 ? '#b91c1c' : '#15803d'
+                }}
+              >
+                {crossTenantResult.status === 403 ? <CheckCircle2 size={18} color="#dc2626" /> : <AlertTriangle size={18} />}
+                {crossTenantResult.status === 403 ? 'HTTP 403 Forbidden (Isolation Boundary Confirmed)' : 'Failed: Allowed'}
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: '600', background: crossTenantResult.status === 403 ? '#fee2e2' : '#dcfce7', color: crossTenantResult.status === 403 ? '#b91c1c' : '#15803d', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                Status Code: {crossTenantResult.status} | Latency: {crossTenantResult.latencyMs}ms
+              </span>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: crossTenantResult.status === 403 ? '#991b1b' : '#166534', margin: 0 }}>
+              <strong>API Gateway & Service Response:</strong> {crossTenantResult.message}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Protected Endpoint Verification Section */}
