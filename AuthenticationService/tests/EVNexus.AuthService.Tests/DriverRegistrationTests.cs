@@ -17,17 +17,20 @@ public class DriverRegistrationTests
 {
     private readonly Mock<IDriverRepository> _driverRepoMock;
     private readonly Mock<IPasswordHasher> _passwordHasherMock;
+    private readonly Mock<IJwtTokenService> _jwtTokenServiceMock;
     private readonly DriverAuthService _sut; // System Under Test
 
     public DriverRegistrationTests()
     {
         _driverRepoMock = new Mock<IDriverRepository>();
         _passwordHasherMock = new Mock<IPasswordHasher>();
+        _jwtTokenServiceMock = new Mock<IJwtTokenService>();
         var loggerMock = new Mock<ILogger<DriverAuthService>>();
 
         _sut = new DriverAuthService(
             _driverRepoMock.Object,
             _passwordHasherMock.Object,
+            _jwtTokenServiceMock.Object,
             loggerMock.Object
         );
     }
