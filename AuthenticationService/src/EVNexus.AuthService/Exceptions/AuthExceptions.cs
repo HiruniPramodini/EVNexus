@@ -51,3 +51,11 @@ public class TenantNotFoundException : Exception
     }
 }
 
+public class DriverNotFoundException : Exception
+{
+    public DriverNotFoundException(string driverId)
+        : base($"Driver with Driver ID '{driverId}' was not found.")
+    {
+    }
+}
+
