@@ -1,10 +1,13 @@
 import React from 'react';
 import DriverRegisterForm from '../components/DriverRegisterForm';
 
-export default function DriverRegisterPage({ onSwitchToCompany }) {
+export default function DriverRegisterPage({ onSwitchToLogin, onSwitchToCompany }) {
   return (
     <main className="main-content">
-      <DriverRegisterForm onSwitchToCompany={onSwitchToCompany} />
+      <DriverRegisterForm
+        onSwitchToLogin={onSwitchToLogin}
+        onSwitchToCompany={onSwitchToCompany}
+      />
     </main>
   );
 }
