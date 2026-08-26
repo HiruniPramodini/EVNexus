@@ -127,3 +127,22 @@ export async function getCompanyProfile(token) {
 
   return handleResponse(response, 'Failed to retrieve company profile.');
 }
+
+export async function registerDriver(driverData) {
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      name: driverData.name?.trim(),
+      email: driverData.email?.trim(),
+      phone: driverData.phone?.trim(),
+      password: driverData.password
+    })
+  });
+
+  return handleResponse(response, 'Driver registration failed. Please check your details.');
+}
+
