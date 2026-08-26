@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { registerDriver } from '../services/api';
 
-export default function DriverRegisterForm({ onSwitchToCompany }) {
+export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany }) {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -270,13 +270,30 @@ export default function DriverRegisterForm({ onSwitchToCompany }) {
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1.5rem' }}>
+            {onSwitchToLogin && (
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={onSwitchToLogin}
+                style={{
+                  margin: 0,
+                  background: 'var(--primary-600)',
+                  flex: '1 1 200px'
+                }}
+              >
+                <span>Sign In to Driver Account</span>
+                <ArrowRight size={18} />
+              </button>
+            )}
             <button
               type="button"
               className="submit-btn"
               onClick={handleReset}
               style={{
                 margin: 0,
-                background: 'var(--primary-600)',
+                background: onSwitchToLogin ? 'var(--bg-page)' : 'var(--primary-600)',
+                color: onSwitchToLogin ? 'var(--text-main)' : '#fff',
+                border: '1px solid var(--border-subtle)',
                 flex: '1 1 200px'
               }}
             >
@@ -296,7 +313,6 @@ export default function DriverRegisterForm({ onSwitchToCompany }) {
                 }}
               >
                 <span>Go to Company Portal</span>
-                <ArrowRight size={18} />
               </button>
             )}
           </div>
@@ -534,9 +550,30 @@ export default function DriverRegisterForm({ onSwitchToCompany }) {
           )}
         </button>
 
-        {onSwitchToCompany && (
-          <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          {onSwitchToLogin && (
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0 }}>
+              Already have an EV driver account?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToLogin}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--primary-600)',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  padding: '0 0.2rem'
+                }}
+              >
+                Sign In
+              </button>
+            </p>
+          )}
+
+          {onSwitchToCompany && (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
               Are you an EV Enterprise or Station Operator?{' '}
               <button
                 type="button"
@@ -544,17 +581,17 @@ export default function DriverRegisterForm({ onSwitchToCompany }) {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'var(--primary-600)',
+                  color: 'var(--primary-700)',
                   fontWeight: '600',
                   cursor: 'pointer',
-                  padding: 0
+                  padding: '0 0.2rem'
                 }}
               >
                 Switch to Company Portal
               </button>
             </p>
-          </div>
-        )}
+          )}
+        </div>
       </form>
     </div>
   );
