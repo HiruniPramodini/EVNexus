@@ -52,6 +52,18 @@ export default function App() {
     });
   };
 
+  const handleDriverProfileUpdated = (updatedProfile) => {
+    setAuthUser((prev) => {
+      const merged = {
+        ...prev,
+        name: updatedProfile.name || prev?.name,
+        phone: updatedProfile.phone || prev?.phone
+      };
+      updateStoredUser(merged);
+      return merged;
+    });
+  };
+
   const handleLogout = () => {
     clearAuthSession();
     setAuthUser(null);
@@ -69,7 +81,13 @@ export default function App() {
       );
     }
     if (activeView === 'driver-dashboard' && authUser) {
-      return <DriverDashboard authUser={authUser} onLogout={handleLogout} />;
+      return (
+        <DriverDashboard
+          authUser={authUser}
+          onLogout={handleLogout}
+          onUpdateProfile={handleDriverProfileUpdated}
+        />
+      );
     }
     if (activeView === 'register') {
       return <CompanyRegisterPage onSwitchToLogin={() => setActiveView('login')} />;
