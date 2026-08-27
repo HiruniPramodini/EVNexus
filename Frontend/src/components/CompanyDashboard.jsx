@@ -15,14 +15,16 @@ import {
   ShieldAlert,
   Zap,
   Plus,
-  Layers
+  Layers,
+  Lock
 } from 'lucide-react';
 import {
   getCompanyProfile,
   clearAuthSession,
   getCompanyStations,
   createCompanyStation,
-  testCrossTenantAccess
+  testCrossTenantAccess,
+  testCompanyAccessToDriverEndpoint
 } from '../services/api';
 
 export default function CompanyDashboard({ authUser, onLogout }) {
@@ -50,6 +52,10 @@ export default function CompanyDashboard({ authUser, onLogout }) {
   const [unauthorizedTenantId, setUnauthorizedTenantId] = useState('TNT-UNAUTHORIZED-CORP-999');
   const [isTestingCrossTenant, setIsTestingCrossTenant] = useState(false);
   const [crossTenantResult, setCrossTenantResult] = useState(null);
+
+  // RBAC Security Simulator State
+  const [isTestingRbac, setIsTestingRbac] = useState(false);
+  const [rbacResult, setRbacResult] = useState(null);
 
   useEffect(() => {
     handleVerifyProtectedApi();
@@ -122,6 +128,34 @@ export default function CompanyDashboard({ authUser, onLogout }) {
       });
     } finally {
       setIsTestingCrossTenant(false);
+    }
+  };
+
+  const handleTestRbacSecurity = async () => {
+    setIsTestingRbac(true);
+    setRbacResult(null);
+    const startTime = performance.now();
+    try {
+      const res = await testCompanyAccessToDriverEndpoint(authUser?.accessToken);
+      const endTime = performance.now();
+      setRbacResult({
+        status: 200,
+        success: true,
+        data: res,
+        latencyMs: Math.round(endTime - startTime),
+        message: 'Unexpected: Cross-role access was granted.'
+      });
+    } catch (err) {
+      const endTime = performance.now();
+      setRbacResult({
+        status: err.status || 403,
+        success: false,
+        errorMsg: err.message || 'Cross-role access forbidden. Role check enforced.',
+        errors: err.errors || [],
+        latencyMs: Math.round(endTime - startTime)
+      });
+    } finally {
+      setIsTestingRbac(false);
     }
   };
 
@@ -595,6 +629,86 @@ export default function CompanyDashboard({ authUser, onLogout }) {
             <p style={{ fontSize: '0.85rem', color: crossTenantResult.status === 403 ? '#991b1b' : '#166534', margin: 0 }}>
               <strong>API Gateway & Service Response:</strong> {crossTenantResult.message}
             </p>
+          </div>
+        )}
+      </div>
+
+      {/* RBAC Security Simulator Card */}
+      <div className="register-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid #dc2626' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.75rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)' }}>
+              <Lock size={18} color="#dc2626" />
+              Role-Based Access Control (RBAC) Simulator
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Simulates an unauthorized cross-role API request: sends this <strong>CompanyAdmin</strong> JWT token to the driver-only endpoint (<code style={{ color: '#dc2626' }}>GET /api/driver/wallet</code>). The backend <code>RoleAuthorizationMiddleware</code> must reject with <strong>403 Forbidden</strong> and log an audit warning.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleTestRbacSecurity}
+            disabled={isTestingRbac}
+            style={{
+              background: '#dc2626',
+              color: '#ffffff',
+              border: 'none',
+              padding: '0.55rem 1.2rem',
+              borderRadius: '6px',
+              fontWeight: '600',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)',
+              transition: 'background 0.2s ease'
+            }}
+          >
+            {isTestingRbac ? <RefreshCw size={15} className="spinner-icon" /> : <ShieldAlert size={15} />}
+            <span>Simulate Company -&gt; Driver Access</span>
+          </button>
+        </div>
+
+        {rbacResult && (
+          <div
+            style={{
+              background: rbacResult.status === 403 ? '#fef2f2' : '#f0fdf4',
+              border: `1px solid ${rbacResult.status === 403 ? '#f87171' : '#86efac'}`,
+              borderRadius: '8px',
+              padding: '1rem',
+              marginTop: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontWeight: '700',
+                  fontSize: '0.9rem',
+                  color: rbacResult.status === 403 ? '#b91c1c' : '#15803d'
+                }}
+              >
+                {rbacResult.status === 403 ? <CheckCircle2 size={18} color="#dc2626" /> : <AlertTriangle size={18} />}
+                {rbacResult.status === 403 ? 'HTTP 403 Forbidden (RBAC Enforcement Verified)' : 'Failed: Allowed'}
+              </span>
+              <span style={{ fontSize: '0.75rem', fontWeight: '600', background: rbacResult.status === 403 ? '#fee2e2' : '#dcfce7', color: rbacResult.status === 403 ? '#b91c1c' : '#15803d', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                Status Code: {rbacResult.status} | Latency: {rbacResult.latencyMs}ms
+              </span>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: rbacResult.status === 403 ? '#991b1b' : '#166534', margin: 0 }}>
+              <strong>API Gateway & Service Response:</strong> {rbacResult.errorMsg}
+            </p>
+            {rbacResult.errors?.length > 0 && (
+              <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: '#b91c1c' }}>
+                {rbacResult.errors.map((e, idx) => (
+                  <div key={`company-rbac-err-${idx}`}>• {e}</div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

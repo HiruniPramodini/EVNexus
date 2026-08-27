@@ -1,6 +1,8 @@
 using System.Security.Claims;
+using EVNexus.AuthService.Attributes;
 using EVNexus.AuthService.DTOs;
 using EVNexus.AuthService.Exceptions;
+using EVNexus.AuthService.Security;
 using EVNexus.AuthService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -123,6 +125,7 @@ public class AuthController : ControllerBase
     /// <returns>Company profile details</returns>
     [HttpGet("company/profile")]
     [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
     [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
@@ -246,6 +249,7 @@ public class AuthController : ControllerBase
     /// <returns>Driver profile and wallet details</returns>
     [HttpGet("driver/profile")]
     [Authorize(Roles = "Driver")]
+    [RequireRole(AppRoles.Driver)]
     [ProducesResponseType(typeof(ApiResponse<DriverProfileResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]

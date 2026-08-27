@@ -226,3 +226,45 @@ export async function testCrossTenantAccess(targetTenantId, token) {
 
   return handleResponse(response, 'Cross-tenant request completed.');
 }
+
+export async function getDriverWallet(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve driver wallet.');
+}
+
+export async function testDriverAccessToCompanyEndpoint(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/stations`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Driver access to company endpoint completed.');
+}
+
+export async function testCompanyAccessToDriverEndpoint(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Company access to driver endpoint completed.');
+}
