@@ -97,3 +97,16 @@ public class EmailVerificationException : Exception
     {
     }
 }
+
+public class InvalidCurrentPasswordException : Exception
+{
+    public InvalidCurrentPasswordException(string message = "Current password is incorrect.")
+        : base(message)
+    {
+    }
+
+    public InvalidCurrentPasswordException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
