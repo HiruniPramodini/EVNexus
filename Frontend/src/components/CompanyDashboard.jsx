@@ -16,10 +16,19 @@ import {
   Zap,
   Plus,
   Layers,
-  Lock
+  Lock,
+  Edit3,
+  Phone,
+  MapPin,
+  Image as ImageIcon,
+  Sparkles,
+  X,
+  ExternalLink
 } from 'lucide-react';
 import {
   getCompanyProfile,
+  updateCompanyProfile,
+  requestEmailChange,
   clearAuthSession,
   getCompanyStations,
   createCompanyStation,
@@ -27,10 +36,39 @@ import {
   testCompanyAccessToDriverEndpoint
 } from '../services/api';
 
-export default function CompanyDashboard({ authUser, onLogout }) {
+const PRESET_LOGOS = [
+  { label: 'GreenPulse', url: 'https://images.unsplash.com/photo-1558441719-8b489c652756?w=200' },
+  { label: 'Voltera EV', url: 'https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=200' },
+  { label: 'CleanGrid', url: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=200' },
+  { label: 'EcoCharge', url: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=200' }
+];
+
+export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }) {
   const [copiedTenantId, setCopiedTenantId] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showFullToken, setShowFullToken] = useState(false);
+
+  // Profile Management State
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileFormData, setProfileFormData] = useState({
+    companyName: authUser?.companyName || '',
+    phone: authUser?.phone || '',
+    address: authUser?.address || '',
+    logoUrl: authUser?.logoUrl || '',
+    businessEmail: authUser?.businessEmail || '',
+    emailVerificationCode: ''
+  });
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(null);
+  const [profileUpdateError, setProfileUpdateError] = useState(null);
+  const [profileUpdateValidationErrors, setProfileUpdateValidationErrors] = useState([]);
+
+  // Email re-verification state
+  const [showEmailChangeSection, setShowEmailChangeSection] = useState(false);
+  const [newEmailToVerify, setNewEmailToVerify] = useState('');
+  const [isRequestingEmailCode, setIsRequestingEmailCode] = useState(false);
+  const [emailCodeSentInfo, setEmailCodeSentInfo] = useState(null);
+  const [emailCodeError, setEmailCodeError] = useState(null);
 
   // Protected API Test State
   const [isVerifying, setIsVerifying] = useState(false);
@@ -186,6 +224,21 @@ export default function CompanyDashboard({ authUser, onLogout }) {
         latencyMs: Math.round(endTime - startTime),
         timestamp: new Date().toLocaleTimeString()
       });
+
+      if (response.data) {
+        setProfileFormData((prev) => ({
+          ...prev,
+          companyName: response.data.companyName || prev.companyName,
+          phone: response.data.phone || prev.phone,
+          address: response.data.address || prev.address,
+          logoUrl: response.data.logoUrl || prev.logoUrl,
+          businessEmail: response.data.businessEmail || prev.businessEmail
+        }));
+
+        if (response.data.companyName !== authUser?.companyName || response.data.logoUrl !== authUser?.logoUrl) {
+          onUpdateProfile?.(response.data);
+        }
+      }
     } catch (err) {
       setProfileError({
         message: err.message || 'Failed to authenticate token against protected endpoint.',
@@ -196,12 +249,93 @@ export default function CompanyDashboard({ authUser, onLogout }) {
     }
   };
 
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    setProfileUpdateError(null);
+    setProfileUpdateSuccess(null);
+    setProfileUpdateValidationErrors([]);
+
+    try {
+      const payload = {
+        companyName: profileFormData.companyName,
+        phone: profileFormData.phone,
+        address: profileFormData.address,
+        logoUrl: profileFormData.logoUrl,
+        businessEmail: profileFormData.businessEmail,
+        emailVerificationCode: profileFormData.emailVerificationCode
+      };
+
+      const res = await updateCompanyProfile(payload, authUser?.accessToken);
+      if (res?.data) {
+        setProfileUpdateSuccess('Company profile updated successfully! Changes reflected immediately.');
+        setProfileResult((prev) => ({
+          ...prev,
+          data: res.data,
+          timestamp: new Date().toLocaleTimeString()
+        }));
+        onUpdateProfile?.(res.data);
+        setShowEmailChangeSection(false);
+        setEmailCodeSentInfo(null);
+        setProfileFormData((prev) => ({
+          ...prev,
+          companyName: res.data.companyName,
+          phone: res.data.phone,
+          address: res.data.address,
+          logoUrl: res.data.logoUrl || '',
+          businessEmail: res.data.businessEmail,
+          emailVerificationCode: ''
+        }));
+        setTimeout(() => {
+          setProfileUpdateSuccess(null);
+          setShowEditProfileModal(false);
+        }, 1500);
+      }
+    } catch (err) {
+      setProfileUpdateError(err.message || 'Failed to update company profile.');
+      if (err.errors && Array.isArray(err.errors)) {
+        setProfileUpdateValidationErrors(err.errors);
+      }
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleRequestVerificationCode = async () => {
+    if (!newEmailToVerify.trim()) {
+      setEmailCodeError('Please provide a valid new business email address.');
+      return;
+    }
+
+    setIsRequestingEmailCode(true);
+    setEmailCodeError(null);
+    setEmailCodeSentInfo(null);
+
+    try {
+      const res = await requestEmailChange(newEmailToVerify.trim(), authUser?.accessToken);
+      setEmailCodeSentInfo(res?.data || { verificationCode: '123456', newBusinessEmail: newEmailToVerify });
+      setProfileFormData((prev) => ({
+        ...prev,
+        businessEmail: newEmailToVerify.trim(),
+        emailVerificationCode: res?.data?.verificationCode || ''
+      }));
+    } catch (err) {
+      setEmailCodeError(err.message || 'Failed to request email verification code.');
+    } finally {
+      setIsRequestingEmailCode(false);
+    }
+  };
+
   const handleLogoutClick = () => {
     clearAuthSession();
     if (onLogout) {
       onLogout();
     }
   };
+
+  const activeLogoUrl = profileResult?.data?.logoUrl || authUser?.logoUrl;
+  const activeCompanyName = profileResult?.data?.companyName || authUser?.companyName || 'Enterprise Company';
+  const activeBusinessEmail = profileResult?.data?.businessEmail || authUser?.businessEmail;
 
   return (
     <div className="main-content" style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
@@ -215,83 +349,151 @@ export default function CompanyDashboard({ authUser, onLogout }) {
           boxShadow: '0 10px 25px -5px rgba(2, 132, 199, 0.3)'
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <span
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                <ShieldCheck size={13} />
-                Authenticated Session
-              </span>
-              <span
-                style={{
-                  background: '#10b981',
-                  color: '#ffffff',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600'
-                }}
-              >
-                {authUser?.role || 'CompanyAdmin'}
-              </span>
-              <span
-                style={{
-                  background: 'rgba(255, 255, 255, 0.25)',
-                  color: '#ffffff',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                <Layers size={13} />
-                Multi-Tenant Scoped
-              </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            {/* Company Logo / Avatar */}
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '14px',
+                background: '#ffffff',
+                border: '2px solid rgba(255, 255, 255, 0.4)',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                flexShrink: 0
+              }}
+            >
+              {activeLogoUrl ? (
+                <img
+                  src={activeLogoUrl}
+                  alt={`${activeCompanyName} Logo`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <Building2 size={32} color="#0284c7" />
+              )}
             </div>
-            <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.25rem' }}>
-              {authUser?.companyName || 'Enterprise Company'}
-            </h1>
-            <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Mail size={15} /> {authUser?.businessEmail}
-            </p>
+
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  Authenticated Session
+                </span>
+                <span
+                  style={{
+                    background: '#10b981',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  {authUser?.role || 'CompanyAdmin'}
+                </span>
+                <span
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem'
+                  }}
+                >
+                  <Layers size={13} />
+                  Multi-Tenant Scoped
+                </span>
+              </div>
+              <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.25rem' }}>
+                {activeCompanyName}
+              </h1>
+              <p style={{ color: 'rgba(255, 255, 255, 0.85)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Mail size={15} /> {activeBusinessEmail}
+              </p>
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleLogoutClick}
-            className="header-logout-btn"
-            style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              border: '1px solid rgba(255, 255, 255, 0.3)',
-              color: '#ffffff',
-              padding: '0.5rem 1rem',
-              borderRadius: '8px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setProfileUpdateError(null);
+                setProfileUpdateSuccess(null);
+                setProfileUpdateValidationErrors([]);
+                setProfileFormData({
+                  companyName: profileResult?.data?.companyName || authUser?.companyName || '',
+                  phone: profileResult?.data?.phone || authUser?.phone || '',
+                  address: profileResult?.data?.address || authUser?.address || '',
+                  logoUrl: profileResult?.data?.logoUrl || authUser?.logoUrl || '',
+                  businessEmail: profileResult?.data?.businessEmail || authUser?.businessEmail || '',
+                  emailVerificationCode: ''
+                });
+                setShowEditProfileModal(true);
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.22)',
+                border: '1px solid rgba(255, 255, 255, 0.4)',
+                color: '#ffffff',
+                padding: '0.55rem 1.1rem',
+                borderRadius: '8px',
+                fontWeight: '600',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <Edit3 size={15} />
+              <span>Edit Profile</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogoutClick}
+              className="header-logout-btn"
+              style={{
+                background: 'rgba(255, 255, 255, 0.15)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                color: '#ffffff',
+                padding: '0.55rem 1rem',
+                borderRadius: '8px',
+                fontWeight: '600',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LogOut size={16} />
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -379,6 +581,564 @@ export default function CompanyDashboard({ authUser, onLogout }) {
           </div>
         </div>
       </div>
+
+      {/* Company Business Profile & Brand Identity Card */}
+      <div className="register-card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ background: 'var(--primary-100)', color: 'var(--primary-700)', padding: '0.6rem', borderRadius: '10px' }}>
+              <Building2 size={22} />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                Company Profile & Business Details
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                Manage verified organization identity, contact credentials, and brand logo.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setProfileUpdateError(null);
+              setProfileUpdateSuccess(null);
+              setProfileUpdateValidationErrors([]);
+              setProfileFormData({
+                companyName: profileResult?.data?.companyName || authUser?.companyName || '',
+                phone: profileResult?.data?.phone || authUser?.phone || '',
+                address: profileResult?.data?.address || authUser?.address || '',
+                logoUrl: profileResult?.data?.logoUrl || authUser?.logoUrl || '',
+                businessEmail: profileResult?.data?.businessEmail || authUser?.businessEmail || '',
+                emailVerificationCode: ''
+              });
+              setShowEditProfileModal(true);
+            }}
+            className="submit-btn"
+            style={{ width: 'auto', padding: '0.55rem 1.1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
+          >
+            <Edit3 size={15} />
+            <span>Edit Profile Details</span>
+          </button>
+        </div>
+
+        {/* Profile Content Showcase */}
+        <div
+          style={{
+            background: 'var(--bg-page)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '12px',
+            padding: '1.25rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1.5rem',
+            alignItems: 'center'
+          }}
+        >
+          {/* Brand Logo & Name Box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+            <div
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '16px',
+                background: '#ffffff',
+                border: '2px solid var(--border-subtle)',
+                boxShadow: '0 4px 10px rgba(0, 0, 0, 0.05)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden',
+                flexShrink: 0
+              }}
+            >
+              {activeLogoUrl ? (
+                <img
+                  src={activeLogoUrl}
+                  alt={`${activeCompanyName} Brand`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                />
+              ) : (
+                <Building2 size={36} color="var(--primary-600)" />
+              )}
+            </div>
+
+            <div>
+              <span
+                style={{
+                  background: '#dcfce7',
+                  color: '#15803d',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: '999px',
+                  display: 'inline-block',
+                  marginBottom: '0.35rem'
+                }}
+              >
+                ● Active Profile
+              </span>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-main)', marginBottom: '0.2rem' }}>
+                {activeCompanyName}
+              </h3>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Reg #: <strong style={{ color: 'var(--text-main)' }}>{profileResult?.data?.registrationNumber || 'Pending'}</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Contact Details Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.9rem', fontSize: '0.85rem' }}>
+            <div>
+              <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.15rem' }}>
+                BUSINESS EMAIL
+              </span>
+              <span style={{ fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Mail size={14} color="var(--primary-600)" />
+                {activeBusinessEmail}
+              </span>
+              <span style={{ fontSize: '0.72rem', color: '#15803d', display: 'flex', alignItems: 'center', gap: '0.2rem', marginTop: '0.15rem' }}>
+                <Lock size={11} /> Verified (Requires re-verification to change)
+              </span>
+            </div>
+
+            <div>
+              <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.15rem' }}>
+                PHONE NUMBER
+              </span>
+              <span style={{ fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Phone size={14} color="var(--primary-600)" />
+                {profileResult?.data?.phone || authUser?.phone || 'Not provided'}
+              </span>
+            </div>
+
+            <div>
+              <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.15rem' }}>
+                REGISTERED ADDRESS
+              </span>
+              <span style={{ fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <MapPin size={14} color="var(--primary-600)" />
+                {profileResult?.data?.address || authUser?.address || 'Not provided'}
+              </span>
+            </div>
+
+            <div>
+              <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.15rem' }}>
+                LAST PROFILE UPDATE
+              </span>
+              <span style={{ fontWeight: '500', color: 'var(--text-main)' }}>
+                {profileResult?.data?.updatedAt ? new Date(profileResult.data.updatedAt).toLocaleString() : 'Just now'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Edit Profile Modal Dialog */}
+      {showEditProfileModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div
+            className="register-card"
+            style={{
+              width: '100%',
+              maxWidth: '620px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              margin: 0,
+              padding: '1.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.25)',
+              position: 'relative'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <Building2 size={20} color="var(--primary-600)" />
+                <h3 style={{ fontSize: '1.15rem', fontWeight: '700', margin: 0 }}>
+                  Edit Company Profile & Brand
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Success Alert */}
+            {profileUpdateSuccess && (
+              <div className="alert alert-success" style={{ marginBottom: '1rem' }}>
+                <CheckCircle2 size={18} className="alert-icon" />
+                <div className="alert-body">
+                  <strong>Success</strong>
+                  <p style={{ fontSize: '0.85rem' }}>{profileUpdateSuccess}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error Alert */}
+            {profileUpdateError && (
+              <div className="alert alert-danger" style={{ marginBottom: '1rem' }}>
+                <AlertTriangle size={18} className="alert-icon" />
+                <div className="alert-body">
+                  <strong>Update Failed</strong>
+                  <p style={{ fontSize: '0.85rem' }}>{profileUpdateError}</p>
+                  {profileUpdateValidationErrors?.length > 0 && (
+                    <ul style={{ marginTop: '0.35rem', paddingLeft: '1.2rem', fontSize: '0.8rem' }}>
+                      {profileUpdateValidationErrors.map((err, idx) => (
+                        <li key={`profile-val-err-${idx}`}>{err}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveProfile}>
+              {/* Company Name */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem' }}>
+                  Business / Company Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={profileFormData.companyName}
+                  onChange={(e) => setProfileFormData({ ...profileFormData, companyName: e.target.value })}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.9rem' }}
+                  placeholder="e.g. GreenDrive Energy Inc."
+                />
+              </div>
+
+              {/* Phone and Address */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem' }}>
+                    Contact Phone *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={profileFormData.phone}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, phone: e.target.value })}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.9rem' }}
+                    placeholder="+1 555 123 4567"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem' }}>
+                    Registered Address *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={profileFormData.address}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, address: e.target.value })}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.9rem' }}
+                    placeholder="100 Clean Energy Blvd, Austin, TX"
+                  />
+                </div>
+              </div>
+
+              {/* Company Logo and Presets */}
+              <div style={{ marginBottom: '1.25rem', background: 'var(--bg-page)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-subtle)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <ImageIcon size={16} color="var(--primary-600)" />
+                    Company Logo URL
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Paste URL or click preset</span>
+                </div>
+
+                {/* Preset Logo Badges */}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
+                  {PRESET_LOGOS.map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setProfileFormData({ ...profileFormData, logoUrl: preset.url })}
+                      style={{
+                        background: profileFormData.logoUrl === preset.url ? 'var(--primary-600)' : 'var(--bg-card)',
+                        color: profileFormData.logoUrl === preset.url ? '#ffffff' : 'var(--text-main)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: '6px',
+                        padding: '0.25rem 0.55rem',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.3rem'
+                      }}
+                    >
+                      <Sparkles size={12} />
+                      <span>{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <input
+                    type="url"
+                    value={profileFormData.logoUrl || ''}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, logoUrl: e.target.value })}
+                    style={{ flex: 1, padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                    placeholder="https://example.com/logo.png"
+                  />
+                  <div
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      background: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      flexShrink: 0
+                    }}
+                  >
+                    {profileFormData.logoUrl ? (
+                      <img
+                        src={profileFormData.logoUrl}
+                        alt="Preview"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <Building2 size={20} color="var(--text-muted)" />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Business Email with Re-verification Security Protection */}
+              <div
+                style={{
+                  marginBottom: '1.25rem',
+                  background: 'rgba(2, 132, 199, 0.05)',
+                  border: '1px solid rgba(2, 132, 199, 0.25)',
+                  borderRadius: '10px',
+                  padding: '1rem'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <Lock size={14} color="#0284c7" />
+                    Business Email (Protected)
+                  </label>
+                  <span
+                    style={{
+                      background: '#dbeafe',
+                      color: '#1d4ed8',
+                      fontSize: '0.7rem',
+                      fontWeight: '700',
+                      padding: '0.15rem 0.5rem',
+                      borderRadius: '999px'
+                    }}
+                  >
+                    🔒 Re-Verification Enforced
+                  </span>
+                </div>
+
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
+                  Business email cannot be changed without re-verification. An authorization code is required.
+                </p>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <input
+                    type="email"
+                    readOnly={!showEmailChangeSection}
+                    disabled={!showEmailChangeSection}
+                    value={profileFormData.businessEmail}
+                    onChange={(e) => setProfileFormData({ ...profileFormData, businessEmail: e.target.value })}
+                    style={{
+                      flex: 1,
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      background: showEmailChangeSection ? '#ffffff' : 'rgba(0,0,0,0.03)',
+                      color: showEmailChangeSection ? 'var(--text-main)' : 'var(--text-muted)',
+                      fontSize: '0.85rem'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEmailChangeSection(!showEmailChangeSection);
+                      setEmailCodeSentInfo(null);
+                      setEmailCodeError(null);
+                    }}
+                    style={{
+                      background: showEmailChangeSection ? 'transparent' : 'var(--primary-50)',
+                      border: '1px solid var(--primary-200)',
+                      color: 'var(--primary-700)',
+                      padding: '0.55rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {showEmailChangeSection ? 'Cancel Email Change' : 'Change Email...'}
+                  </button>
+                </div>
+
+                {/* Email Re-verification Flow Section */}
+                {showEmailChangeSection && (
+                  <div
+                    style={{
+                      marginTop: '0.9rem',
+                      padding: '0.9rem',
+                      background: '#ffffff',
+                      border: '1px dashed #0284c7',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#0369a1', marginBottom: '0.5rem' }}>
+                      Step 1: Request Verification Code for New Business Email
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                      <input
+                        type="email"
+                        placeholder="new.email@company.com"
+                        value={newEmailToVerify}
+                        onChange={(e) => setNewEmailToVerify(e.target.value)}
+                        style={{ flex: 1, padding: '0.45rem 0.65rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                      />
+                      <button
+                        type="button"
+                        disabled={isRequestingEmailCode}
+                        onClick={handleRequestVerificationCode}
+                        style={{
+                          background: 'var(--primary-600)',
+                          color: '#ffffff',
+                          border: 'none',
+                          padding: '0.45rem 0.85rem',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}
+                      >
+                        <Send size={13} className={isRequestingEmailCode ? 'btn-spinner' : ''} />
+                        <span>{isRequestingEmailCode ? 'Generating...' : 'Get Code'}</span>
+                      </button>
+                    </div>
+
+                    {emailCodeError && (
+                      <div style={{ color: '#b91c1c', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                        ⚠️ {emailCodeError}
+                      </div>
+                    )}
+
+                    {emailCodeSentInfo && (
+                      <div
+                        style={{
+                          background: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '6px',
+                          padding: '0.6rem',
+                          fontSize: '0.8rem',
+                          color: '#065f46',
+                          marginBottom: '0.6rem'
+                        }}
+                      >
+                        <strong>Verification Code Generated:</strong>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                          <code style={{ fontSize: '1rem', fontWeight: '700', color: '#047857', letterSpacing: '0.1em' }}>
+                            {emailCodeSentInfo.verificationCode}
+                          </code>
+                          <span style={{ fontSize: '0.72rem', color: '#047857' }}>(Valid 15m - auto-filled into form)</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#0369a1', marginBottom: '0.35rem' }}>
+                      Step 2: Enter 6-Digit Verification Code
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="e.g. 123456"
+                      value={profileFormData.emailVerificationCode}
+                      onChange={(e) => setProfileFormData({ ...profileFormData, emailVerificationCode: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        letterSpacing: '0.08em'
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Form Action Buttons */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  style={{
+                    padding: '0.55rem 1.1rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingProfile}
+                  className="submit-btn"
+                  style={{ width: 'auto', padding: '0.55rem 1.4rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {isUpdatingProfile ? (
+                    <>
+                      <RefreshCw size={15} className="btn-spinner" />
+                      <span>Saving Profile...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={15} />
+                      <span>Save Profile Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Multi-Tenant Data Isolation & Charging Assets Section */}
       <div className="register-card" style={{ marginBottom: '1.5rem' }}>

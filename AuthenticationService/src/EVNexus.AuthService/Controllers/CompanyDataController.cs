@@ -23,15 +23,18 @@ public class CompanyDataController : ControllerBase
     private readonly IStationRepository _stationRepository;
     private readonly ITenantContext _tenantContext;
     private readonly ILogger<CompanyDataController> _logger;
+    private readonly ICompanyAuthService? _companyAuthService;
 
     public CompanyDataController(
         IStationRepository stationRepository,
         ITenantContext tenantContext,
-        ILogger<CompanyDataController> logger)
+        ILogger<CompanyDataController> logger,
+        ICompanyAuthService? companyAuthService = null)
     {
         _stationRepository = stationRepository;
         _tenantContext = tenantContext;
         _logger = logger;
+        _companyAuthService = companyAuthService;
     }
 
     private string? GetCallerTenantId()
@@ -39,6 +42,98 @@ public class CompanyDataController : ControllerBase
         return _tenantContext.TenantId
             ?? User.FindFirstValue("tenant_id")
             ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+    }
+
+    /// <summary>
+    /// Returns the current company's profile details including logo and contact information.
+    /// </summary>
+    [HttpGet("profile")]
+    [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProfile(CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented,
+                ApiResponse<object>.Fail("Profile service not configured."));
+        }
+
+        try
+        {
+            var profile = await _companyAuthService.GetCompanyProfileAsync(tenantId, cancellationToken);
+            return Ok(ApiResponse<CompanyProfileResponseDto>.Ok(profile, "Company profile retrieved successfully."));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Updates the current company's profile details (name, phone, address, logo).
+    /// </summary>
+    [HttpPut("profile")]
+    [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateProfile(
+        [FromBody] UpdateCompanyProfileRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+        }
+
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented,
+                ApiResponse<object>.Fail("Profile service not configured."));
+        }
+
+        try
+        {
+            var updated = await _companyAuthService.UpdateCompanyProfileAsync(tenantId, request, cancellationToken);
+            return Ok(ApiResponse<CompanyProfileResponseDto>.Ok(updated, "Company profile updated successfully."));
+        }
+        catch (BusinessEmailChangeRequiresVerificationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (DuplicateEmailException ex)
+        {
+            return Conflict(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
     }
 
     /// <summary>

@@ -33,6 +33,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                     business_email VARCHAR(255) NOT NULL UNIQUE,
                     phone VARCHAR(50) NOT NULL,
                     address TEXT NOT NULL,
+                    logo_url LONGTEXT NULL,
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL DEFAULT 'CompanyAdmin',
                     status VARCHAR(50) NOT NULL DEFAULT 'Active',
@@ -40,6 +41,18 @@ public class DatabaseInitializer : IDatabaseInitializer
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_business_email (business_email),
                     INDEX idx_registration_number (registration_number)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS email_verification_tokens (
+                    token_id VARCHAR(50) PRIMARY KEY,
+                    tenant_id VARCHAR(50) NOT NULL,
+                    new_email VARCHAR(255) NOT NULL,
+                    verification_code VARCHAR(50) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_evt_tenant (tenant_id),
+                    CONSTRAINT fk_evt_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
                 CREATE TABLE IF NOT EXISTS drivers (
@@ -112,6 +125,32 @@ public class DatabaseInitializer : IDatabaseInitializer
 
             await using var command = new MySqlCommand(createTablesSql, connection);
             await command.ExecuteNonQueryAsync(cancellationToken);
+
+            // Migration: Ensure logo_url exists on existing tenants table if it was created in a previous story
+            try
+            {
+                const string checkColSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'tenants' 
+                      AND COLUMN_NAME = 'logo_url';
+                ";
+                await using var checkCmd = new MySqlCommand(checkColSql, connection);
+                var colExists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!colExists)
+                {
+                    const string alterSql = "ALTER TABLE tenants ADD COLUMN logo_url LONGTEXT NULL AFTER address;";
+                    await using var alterCmd = new MySqlCommand(alterSql, connection);
+                    await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated 'tenants' table: added 'logo_url' column.");
+                }
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogDebug(migrationEx, "Column check or migration on 'tenants.logo_url' completed.");
+            }
+
             _logger.LogInformation("Auth database schema initialized successfully.");
         }
         catch (Exception ex)

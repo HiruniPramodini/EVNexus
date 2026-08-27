@@ -71,3 +71,29 @@ public class CrossTenantAccessException : Exception
     {
     }
 }
+
+public class BusinessEmailChangeRequiresVerificationException : Exception
+{
+    public BusinessEmailChangeRequiresVerificationException(string message = "Business email cannot be changed without re-verification.")
+        : base(message)
+    {
+    }
+
+    public BusinessEmailChangeRequiresVerificationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+public class EmailVerificationException : Exception
+{
+    public EmailVerificationException(string message = "Invalid or expired email verification code.")
+        : base(message)
+    {
+    }
+
+    public EmailVerificationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}

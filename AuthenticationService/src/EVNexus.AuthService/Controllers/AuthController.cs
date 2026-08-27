@@ -158,6 +158,126 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Updates the authenticated company's profile details (name, phone, address, logo).
+    /// Enforces that business email cannot be changed without prior re-verification.
+    /// </summary>
+    [HttpPut("company/profile")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateCompanyProfile(
+        [FromBody] UpdateCompanyProfileRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+        }
+
+        var tenantId = User.FindFirstValue("tenant_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Tenant identification claim is missing from authentication token."));
+        }
+
+        try
+        {
+            var updatedProfile = await _companyAuthService.UpdateCompanyProfileAsync(tenantId, request, cancellationToken);
+            return Ok(ApiResponse<CompanyProfileResponseDto>.Ok(updatedProfile, "Company profile updated successfully."));
+        }
+        catch (BusinessEmailChangeRequiresVerificationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (DuplicateEmailException ex)
+        {
+            return Conflict(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while updating company profile for Tenant {TenantId}", tenantId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while updating profile information."));
+        }
+    }
+
+    /// <summary>
+    /// Initiates email re-verification by generating a secure verification code.
+    /// </summary>
+    [HttpPost("company/request-email-change")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<InitiateEmailChangeResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> RequestEmailChange(
+        [FromBody] InitiateEmailChangeRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+        }
+
+        var tenantId = User.FindFirstValue("tenant_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Tenant identification claim is missing from authentication token."));
+        }
+
+        try
+        {
+            var result = await _companyAuthService.InitiateEmailChangeAsync(tenantId, request, cancellationToken);
+            return Ok(ApiResponse<InitiateEmailChangeResponseDto>.Ok(result, "Verification code generated successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (DuplicateEmailException ex)
+        {
+            return Conflict(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while initiating email change for Tenant {TenantId}", tenantId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while initiating email change."));
+        }
+    }
+
+    /// <summary>
     /// Registers a new EV driver with personal details and automatically creates an associated zero-balance wallet record.
     /// </summary>
     /// <param name="request">Driver registration details</param>

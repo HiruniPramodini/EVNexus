@@ -10,6 +10,8 @@ public interface ICompanyAuthService
     Task<CompanyRegisterResponseDto> RegisterCompanyAsync(CompanyRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<CompanyLoginResponseDto> LoginCompanyAsync(CompanyLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<CompanyProfileResponseDto> GetCompanyProfileAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<CompanyProfileResponseDto> UpdateCompanyProfileAsync(string tenantId, UpdateCompanyProfileRequestDto request, CancellationToken cancellationToken = default);
+    Task<InitiateEmailChangeResponseDto> InitiateEmailChangeAsync(string tenantId, InitiateEmailChangeRequestDto request, CancellationToken cancellationToken = default);
 }
 
 public class CompanyAuthService : ICompanyAuthService
@@ -159,9 +161,132 @@ public class CompanyAuthService : ICompanyAuthService
             BusinessEmail = tenant.BusinessEmail,
             Phone = tenant.Phone,
             Address = tenant.Address,
+            LogoUrl = tenant.LogoUrl,
             Role = tenant.Role,
             Status = tenant.Status,
-            CreatedAt = tenant.CreatedAt
+            CreatedAt = tenant.CreatedAt,
+            UpdatedAt = tenant.UpdatedAt
+        };
+    }
+
+    public async Task<CompanyProfileResponseDto> UpdateCompanyProfileAsync(
+        string tenantId,
+        UpdateCompanyProfileRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Processing company profile update for Tenant ID: {TenantId}", tenantId);
+
+        var currentTenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (currentTenant == null)
+        {
+            _logger.LogWarning("Company profile update failed: Tenant ID {TenantId} not found.", tenantId);
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        // Check if business email update is requested
+        if (!string.IsNullOrWhiteSpace(request.BusinessEmail) &&
+            !string.Equals(request.BusinessEmail.Trim(), currentTenant.BusinessEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            var newEmail = request.BusinessEmail.Trim().ToLowerInvariant();
+
+            // Criterion: Business email cannot be changed without re-verification
+            if (string.IsNullOrWhiteSpace(request.EmailVerificationCode))
+            {
+                _logger.LogWarning("Tenant {TenantId} attempted to change business email without verification code.", tenantId);
+                throw new BusinessEmailChangeRequiresVerificationException("Business email cannot be changed without re-verification.");
+            }
+
+            var isValid = await _tenantRepository.ValidateAndConsumeVerificationCodeAsync(
+                tenantId, newEmail, request.EmailVerificationCode.Trim(), cancellationToken);
+
+            if (!isValid)
+            {
+                _logger.LogWarning("Tenant {TenantId} provided invalid or expired verification code for email {Email}.", tenantId, newEmail);
+                throw new EmailVerificationException("Invalid or expired email verification code.");
+            }
+
+            // Ensure email is not already taken by another tenant
+            var isTaken = await _tenantRepository.IsEmailRegisteredAsync(newEmail, cancellationToken);
+            if (isTaken)
+            {
+                _logger.LogWarning("Tenant {TenantId} attempted to change email to {Email} which is already registered.", tenantId, newEmail);
+                throw new DuplicateEmailException(newEmail);
+            }
+
+            await _tenantRepository.UpdateTenantEmailAsync(tenantId, newEmail, cancellationToken);
+            _logger.LogInformation("Business email for Tenant {TenantId} successfully updated to {Email}.", tenantId, newEmail);
+        }
+
+        // Update core company profile details: Name, Phone, Address, Logo
+        var updatedTenant = await _tenantRepository.UpdateTenantProfileAsync(
+            tenantId,
+            request.CompanyName.Trim(),
+            request.Phone.Trim(),
+            request.Address.Trim(),
+            request.LogoUrl?.Trim(),
+            cancellationToken);
+
+        if (updatedTenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        _logger.LogInformation("Company profile for Tenant {TenantId} successfully updated.", tenantId);
+
+        return new CompanyProfileResponseDto
+        {
+            TenantId = updatedTenant.TenantId,
+            CompanyName = updatedTenant.CompanyName,
+            RegistrationNumber = updatedTenant.RegistrationNumber,
+            BusinessEmail = updatedTenant.BusinessEmail,
+            Phone = updatedTenant.Phone,
+            Address = updatedTenant.Address,
+            LogoUrl = updatedTenant.LogoUrl,
+            Role = updatedTenant.Role,
+            Status = updatedTenant.Status,
+            CreatedAt = updatedTenant.CreatedAt,
+            UpdatedAt = updatedTenant.UpdatedAt
+        };
+    }
+
+    public async Task<InitiateEmailChangeResponseDto> InitiateEmailChangeAsync(
+        string tenantId,
+        InitiateEmailChangeRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var currentTenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (currentTenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        var normalizedNewEmail = request.NewBusinessEmail.Trim().ToLowerInvariant();
+        if (string.Equals(normalizedNewEmail, currentTenant.BusinessEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The requested email is already your current registered business email.");
+        }
+
+        var isTaken = await _tenantRepository.IsEmailRegisteredAsync(normalizedNewEmail, cancellationToken);
+        if (isTaken)
+        {
+            throw new DuplicateEmailException(normalizedNewEmail);
+        }
+
+        // Generate 6-digit verification code
+        var verificationCode = Random.Shared.Next(100000, 999999).ToString();
+        var expiresAt = DateTime.UtcNow.AddMinutes(15);
+
+        await _tenantRepository.SaveEmailVerificationCodeAsync(
+            tenantId, normalizedNewEmail, verificationCode, expiresAt, cancellationToken);
+
+        _logger.LogInformation("Generated email change verification code for Tenant {TenantId} to new email {NewEmail}.", tenantId, normalizedNewEmail);
+
+        return new InitiateEmailChangeResponseDto
+        {
+            Message = "Verification code generated successfully. Please enter this code to confirm your new business email.",
+            NewBusinessEmail = normalizedNewEmail,
+            VerificationCode = verificationCode,
+            ExpiresAt = expiresAt
         };
     }
 }

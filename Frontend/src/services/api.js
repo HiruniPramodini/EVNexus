@@ -268,3 +268,55 @@ export async function testCompanyAccessToDriverEndpoint(token) {
 
   return handleResponse(response, 'Company access to driver endpoint completed.');
 }
+
+export function updateStoredUser(partialData) {
+  try {
+    const current = getStoredUser() || {};
+    const merged = { ...current, ...partialData };
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(merged));
+    return merged;
+  } catch (e) {
+    console.error('Failed to update stored user in localStorage', e);
+    return null;
+  }
+}
+
+export async function updateCompanyProfile(profileData, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      companyName: profileData.companyName?.trim(),
+      phone: profileData.phone?.trim(),
+      address: profileData.address?.trim(),
+      logoUrl: profileData.logoUrl?.trim() || null,
+      businessEmail: profileData.businessEmail?.trim() || null,
+      emailVerificationCode: profileData.emailVerificationCode?.trim() || null
+    })
+  });
+
+  return handleResponse(response, 'Failed to update company profile.');
+}
+
+export async function requestEmailChange(newBusinessEmail, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/request-email-change`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      newBusinessEmail: newBusinessEmail?.trim()
+    })
+  });
+
+  return handleResponse(response, 'Failed to request email verification code.');
+}
+
