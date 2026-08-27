@@ -8,6 +8,7 @@ public class Tenant
     public string BusinessEmail { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = "CompanyAdmin";
     public string Status { get; set; } = "Active";

@@ -104,6 +104,21 @@ export default function Navbar({
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
         {authUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            {authUser.logoUrl && !isDriver ? (
+              <img
+                src={authUser.logoUrl}
+                alt={`${authUser.companyName || 'Company'} Logo`}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '8px',
+                  objectFit: 'cover',
+                  border: '1px solid var(--border-subtle)',
+                  background: '#ffffff'
+                }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            ) : null}
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
                 {isDriver ? authUser.name : authUser.companyName}

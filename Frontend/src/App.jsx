@@ -6,7 +6,7 @@ import CompanyDashboard from './components/CompanyDashboard';
 import DriverLoginPage from './pages/DriverLoginPage';
 import DriverRegisterPage from './pages/DriverRegisterPage';
 import DriverDashboard from './components/DriverDashboard';
-import { getStoredUser, getAuthToken, clearAuthSession } from './services/api';
+import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser } from './services/api';
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => {
@@ -37,6 +37,21 @@ export default function App() {
     setActiveView('driver-dashboard');
   };
 
+  const handleProfileUpdated = (updatedProfile) => {
+    setAuthUser((prev) => {
+      const merged = {
+        ...prev,
+        companyName: updatedProfile.companyName || prev?.companyName,
+        phone: updatedProfile.phone || prev?.phone,
+        address: updatedProfile.address || prev?.address,
+        logoUrl: updatedProfile.logoUrl !== undefined ? updatedProfile.logoUrl : prev?.logoUrl,
+        businessEmail: updatedProfile.businessEmail || prev?.businessEmail
+      };
+      updateStoredUser(merged);
+      return merged;
+    });
+  };
+
   const handleLogout = () => {
     clearAuthSession();
     setAuthUser(null);
@@ -45,7 +60,13 @@ export default function App() {
 
   const renderCurrentView = () => {
     if (activeView === 'dashboard' && authUser) {
-      return <CompanyDashboard authUser={authUser} onLogout={handleLogout} />;
+      return (
+        <CompanyDashboard
+          authUser={authUser}
+          onLogout={handleLogout}
+          onUpdateProfile={handleProfileUpdated}
+        />
+      );
     }
     if (activeView === 'driver-dashboard' && authUser) {
       return <DriverDashboard authUser={authUser} onLogout={handleLogout} />;
