@@ -12,6 +12,8 @@ public interface ICompanyAuthService
     Task<CompanyProfileResponseDto> GetCompanyProfileAsync(string tenantId, CancellationToken cancellationToken = default);
     Task<CompanyProfileResponseDto> UpdateCompanyProfileAsync(string tenantId, UpdateCompanyProfileRequestDto request, CancellationToken cancellationToken = default);
     Task<InitiateEmailChangeResponseDto> InitiateEmailChangeAsync(string tenantId, InitiateEmailChangeRequestDto request, CancellationToken cancellationToken = default);
+    Task<VerifyEmailResponseDto> VerifyCompanyEmailAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task<InitiateEmailChangeResponseDto> ResendCompanyVerificationCodeAsync(string email, CancellationToken cancellationToken = default);
 }
 
 public class CompanyAuthService : ICompanyAuthService
@@ -61,7 +63,7 @@ public class CompanyAuthService : ICompanyAuthService
         // 4. Securely hash password (never plain text)
         var passwordHash = _passwordHasher.HashPassword(request.Password);
 
-        // 5. Create Tenant entity
+        // 5. Create Tenant entity (unverified by default until email verified)
         var now = DateTime.UtcNow;
         var tenant = new Tenant
         {
@@ -74,13 +76,22 @@ public class CompanyAuthService : ICompanyAuthService
             PasswordHash = passwordHash,
             Role = "CompanyAdmin",
             Status = "Active",
+            IsEmailVerified = false,
             CreatedAt = now,
             UpdatedAt = now
         };
 
         // 6. Persist using parameterized ADO.NET
         await _tenantRepository.CreateTenantAsync(tenant, cancellationToken);
-        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId}", tenantId);
+
+        // 7. Generate 24-hour verification code and link
+        var verificationCode = Random.Shared.Next(100000, 1000000).ToString();
+        var expiresAt = DateTime.UtcNow.AddHours(24);
+
+        await _tenantRepository.SaveEmailVerificationCodeAsync(
+            tenant.TenantId, tenant.BusinessEmail, verificationCode, expiresAt, cancellationToken);
+
+        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId}. Verification code generated with 24-hour expiry.", tenantId);
 
         return new CompanyRegisterResponseDto
         {
@@ -90,7 +101,11 @@ public class CompanyAuthService : ICompanyAuthService
             BusinessEmail = tenant.BusinessEmail,
             Phone = tenant.Phone,
             CreatedAt = tenant.CreatedAt,
-            Message = "Company registered successfully with isolated tenant profile."
+            Message = "Company registered successfully. A verification code has been dispatched. Please verify your email to unlock full platform access.",
+            VerificationCode = verificationCode,
+            VerificationLink = $"/verify-email?email={Uri.EscapeDataString(tenant.BusinessEmail)}&code={verificationCode}",
+            ExpiresAt = expiresAt,
+            IsEmailVerified = false
         };
     }
 
@@ -126,7 +141,7 @@ public class CompanyAuthService : ICompanyAuthService
 
         // 4. Generate signed JWT token with Tenant ID and Role claims
         var (token, expiresInSeconds) = _jwtTokenService.GenerateToken(tenant);
-        _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}", tenant.TenantId, tenant.Role);
+        _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, IsEmailVerified: {Verified}", tenant.TenantId, tenant.Role, tenant.IsEmailVerified);
 
         return new CompanyLoginResponseDto
         {
@@ -136,7 +151,8 @@ public class CompanyAuthService : ICompanyAuthService
             TenantId = tenant.TenantId,
             CompanyName = tenant.CompanyName,
             BusinessEmail = tenant.BusinessEmail,
-            Role = tenant.Role
+            Role = tenant.Role,
+            IsEmailVerified = tenant.IsEmailVerified
         };
     }
 
@@ -164,6 +180,7 @@ public class CompanyAuthService : ICompanyAuthService
             LogoUrl = tenant.LogoUrl,
             Role = tenant.Role,
             Status = tenant.Status,
+            IsEmailVerified = tenant.IsEmailVerified,
             CreatedAt = tenant.CreatedAt,
             UpdatedAt = tenant.UpdatedAt
         };
@@ -285,6 +302,92 @@ public class CompanyAuthService : ICompanyAuthService
         {
             Message = "Verification code generated successfully. Please enter this code to confirm your new business email.",
             NewBusinessEmail = normalizedNewEmail,
+            VerificationCode = verificationCode,
+            ExpiresAt = expiresAt
+        };
+    }
+
+    public async Task<VerifyEmailResponseDto> VerifyCompanyEmailAsync(
+        string email,
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        _logger.LogInformation("Attempting to verify company email for {Email}", normalizedEmail);
+
+        var tenant = await _tenantRepository.GetTenantByEmailAsync(normalizedEmail, cancellationToken);
+        if (tenant == null)
+        {
+            throw new TenantNotFoundException($"Account with email '{normalizedEmail}' was not found.");
+        }
+
+        if (tenant.IsEmailVerified)
+        {
+            return new VerifyEmailResponseDto
+            {
+                IsVerified = true,
+                Email = normalizedEmail,
+                AccountType = "Company",
+                Message = "Account email is already verified. Full platform access is unlocked."
+            };
+        }
+
+        var (success, status) = await _tenantRepository.ValidateAndConsumeTenantRegistrationCodeAsync(normalizedEmail, code, cancellationToken);
+        if (!success)
+        {
+            if (status == "Expired")
+            {
+                throw new VerificationCodeExpiredException("Verification code has expired. Verification links and codes expire after 24 hours. Please request a new code.");
+            }
+            if (status == "AlreadyUsed")
+            {
+                throw new VerificationCodeAlreadyUsedException("Verification code has already been used.");
+            }
+            throw new EmailVerificationException("Invalid verification code or email.");
+        }
+
+        await _tenantRepository.MarkEmailAsVerifiedAsync(tenant.TenantId, cancellationToken);
+        _logger.LogInformation("Company email verified successfully for Tenant ID: {TenantId}", tenant.TenantId);
+
+        return new VerifyEmailResponseDto
+        {
+            IsVerified = true,
+            Email = normalizedEmail,
+            AccountType = "Company",
+            Message = "Email verified successfully! Full platform access is now granted."
+        };
+    }
+
+    public async Task<InitiateEmailChangeResponseDto> ResendCompanyVerificationCodeAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        _logger.LogInformation("Resending verification code for company email: {Email}", normalizedEmail);
+
+        var tenant = await _tenantRepository.GetTenantByEmailAsync(normalizedEmail, cancellationToken);
+        if (tenant == null)
+        {
+            throw new TenantNotFoundException($"Account with email '{normalizedEmail}' was not found.");
+        }
+
+        if (tenant.IsEmailVerified)
+        {
+            throw new AccountAlreadyVerifiedException("Account email is already verified.");
+        }
+
+        var verificationCode = Random.Shared.Next(100000, 1000000).ToString();
+        var expiresAt = DateTime.UtcNow.AddHours(24);
+
+        await _tenantRepository.SaveEmailVerificationCodeAsync(
+            tenant.TenantId, normalizedEmail, verificationCode, expiresAt, cancellationToken);
+
+        _logger.LogInformation("Resent 24-hour verification code for Tenant {TenantId}.", tenant.TenantId);
+
+        return new InitiateEmailChangeResponseDto
+        {
+            Message = "New verification code generated successfully. It will expire in 24 hours.",
+            NewBusinessEmail = normalizedEmail,
             VerificationCode = verificationCode,
             ExpiresAt = expiresAt
         };

@@ -33,4 +33,8 @@ public class DriverRegisterResponseDto
     public string Currency { get; set; } = "USD";
     public DateTime CreatedAt { get; set; }
     public string Message { get; set; } = string.Empty;
+    public string VerificationCode { get; set; } = string.Empty;
+    public string VerificationLink { get; set; } = string.Empty;
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsEmailVerified { get; set; } = false;
 }

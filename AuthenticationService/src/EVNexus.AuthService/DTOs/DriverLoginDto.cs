@@ -24,6 +24,7 @@ public class DriverLoginResponseDto
     public string WalletId { get; set; } = string.Empty;
     public decimal WalletBalance { get; set; }
     public string Currency { get; set; } = "USD";
+    public bool IsEmailVerified { get; set; } = false;
 }
 
 public class DriverProfileResponseDto
@@ -34,6 +35,7 @@ public class DriverProfileResponseDto
     public string Phone { get; set; } = string.Empty;
     public string Role { get; set; } = "Driver";
     public string Status { get; set; } = "Active";
+    public bool IsEmailVerified { get; set; } = false;
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public string WalletId { get; set; } = string.Empty;

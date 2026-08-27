@@ -33,7 +33,9 @@ import {
   getCompanyStations,
   createCompanyStation,
   testCrossTenantAccess,
-  testCompanyAccessToDriverEndpoint
+  testCompanyAccessToDriverEndpoint,
+  verifyEmail,
+  resendVerificationCode
 } from '../services/api';
 
 const PRESET_LOGOS = [
@@ -47,6 +49,15 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const [copiedTenantId, setCopiedTenantId] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showFullToken, setShowFullToken] = useState(false);
+
+  // Email Verification State for New / Unverified Accounts
+  const [isEmailVerified, setIsEmailVerified] = useState(Boolean(authUser?.isEmailVerified));
+  const [verificationCodeInput, setVerificationCodeInput] = useState('');
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [verifyEmailSuccess, setVerifyEmailSuccess] = useState(null);
+  const [verifyEmailError, setVerifyEmailError] = useState(null);
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [resendStatusMsg, setResendStatusMsg] = useState(null);
 
   // Profile Management State
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
@@ -326,6 +337,45 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
     }
   };
 
+  const handleVerifyEmail = async (e) => {
+    e?.preventDefault();
+    if (!verificationCodeInput.trim()) return;
+
+    setIsVerifyingEmail(true);
+    setVerifyEmailError(null);
+    setVerifyEmailSuccess(null);
+
+    try {
+      const emailToVerify = profileResult?.data?.businessEmail || authUser?.businessEmail;
+      const res = await verifyEmail(emailToVerify, verificationCodeInput.trim());
+      setIsEmailVerified(true);
+      setVerifyEmailSuccess(res?.message || 'Email verified successfully! Full platform access is now unlocked.');
+      if (authUser) {
+        authUser.isEmailVerified = true;
+      }
+    } catch (err) {
+      setVerifyEmailError(err.message || 'Invalid or expired verification code. Codes expire after 24 hours.');
+    } finally {
+      setIsVerifyingEmail(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setIsResendingVerification(true);
+    setVerifyEmailError(null);
+    setResendStatusMsg(null);
+
+    try {
+      const emailToVerify = profileResult?.data?.businessEmail || authUser?.businessEmail;
+      const res = await resendVerificationCode(emailToVerify);
+      setResendStatusMsg(res?.message || 'A fresh 24-hour verification code has been dispatched to your email.');
+    } catch (err) {
+      setVerifyEmailError(err.message || 'Failed to resend verification code.');
+    } finally {
+      setIsResendingVerification(false);
+    }
+  };
+
   const handleLogoutClick = () => {
     clearAuthSession();
     if (onLogout) {
@@ -336,6 +386,12 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const activeLogoUrl = profileResult?.data?.logoUrl || authUser?.logoUrl;
   const activeCompanyName = profileResult?.data?.companyName || authUser?.companyName || 'Enterprise Company';
   const activeBusinessEmail = profileResult?.data?.businessEmail || authUser?.businessEmail;
+
+  const getAddStationButtonText = () => {
+    if (showAddStation) return 'Cancel';
+    if (!isEmailVerified) return 'Locked (Verify Email)';
+    return 'Add Station';
+  };
 
   return (
     <div className="main-content" style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
@@ -408,6 +464,23 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                   }}
                 >
                   {authUser?.role || 'CompanyAdmin'}
+                </span>
+                <span
+                  style={{
+                    background: isEmailVerified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    border: isEmailVerified ? '1px solid #10b981' : '1px solid #f59e0b'
+                  }}
+                >
+                  {isEmailVerified ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                  {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
                 </span>
                 <span
                   style={{
@@ -496,6 +569,148 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
           </div>
         </div>
       </div>
+
+      {/* Acceptance Criteria 2: Unverified Account Prompt & Restriction Banner */}
+      {!isEmailVerified && (
+        <div
+          className="register-card animate-fade-in"
+          style={{
+            marginBottom: '1.5rem',
+            border: '2px solid #f59e0b',
+            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%)',
+            boxShadow: '0 8px 24px -4px rgba(245, 158, 11, 0.2)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'rgba(245, 158, 11, 0.15)',
+                color: '#d97706',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <AlertTriangle size={28} />
+            </div>
+
+            <div style={{ flex: 1, minWidth: '280px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#b45309', margin: 0 }}>
+                  Please verify your business email
+                </h3>
+                <span
+                  style={{
+                    background: '#fef3c7',
+                    color: '#b45309',
+                    border: '1px solid #fde68a',
+                    padding: '0.15rem 0.55rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600'
+                  }}
+                >
+                  Full Platform Access Restricted
+                </span>
+              </div>
+
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted, #4b5563)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                Your company workspace is active, but full platform operations (provisioning charging stations, tariff customization, fleet invoicing) are restricted until <strong>{activeBusinessEmail}</strong> is verified. Verification codes are valid for 24 hours.
+              </p>
+
+              {verifyEmailSuccess && (
+                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                  <CheckCircle2 size={16} />
+                  <span>{verifyEmailSuccess}</span>
+                </div>
+              )}
+
+              {verifyEmailError && (
+                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <AlertCircle size={16} />
+                  <span>{verifyEmailError}</span>
+                </div>
+              )}
+
+              {resendStatusMsg && (
+                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+                  <Clock size={16} />
+                  <span>{resendStatusMsg}</span>
+                </div>
+              )}
+
+              {/* Inline Verification Input & Actions */}
+              <form onSubmit={handleVerifyEmail} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  maxLength={6}
+                  value={verificationCodeInput}
+                  onChange={(e) => setVerificationCodeInput(e.target.value)}
+                  style={{
+                    padding: '0.55rem 0.85rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle, #d1d5db)',
+                    fontFamily: 'monospace',
+                    fontSize: '1.05rem',
+                    letterSpacing: '2px',
+                    width: '180px',
+                    textAlign: 'center',
+                    background: 'var(--bg-input, #ffffff)'
+                  }}
+                />
+
+                <button
+                  type="submit"
+                  disabled={isVerifyingEmail || !verificationCodeInput.trim()}
+                  style={{
+                    padding: '0.55rem 1.1rem',
+                    background: '#d97706',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    fontSize: '0.875rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  {isVerifyingEmail ? <RefreshCw size={15} className="spinner" /> : <ShieldCheck size={15} />}
+                  <span>Verify Email</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResendCode}
+                  disabled={isResendingVerification}
+                  style={{
+                    padding: '0.55rem 1rem',
+                    background: 'transparent',
+                    color: '#b45309',
+                    border: '1px solid rgba(217, 119, 6, 0.4)',
+                    borderRadius: '8px',
+                    fontWeight: '600',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  {isResendingVerification ? <RefreshCw size={14} className="spinner" /> : <Clock size={14} />}
+                  <span>Resend Code (Valid 24h)</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Grid of Key Info */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
@@ -1166,15 +1381,33 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
             </button>
             <button
               type="button"
-              onClick={() => setShowAddStation(!showAddStation)}
+              onClick={() => {
+                if (!isEmailVerified) return;
+                setShowAddStation(!showAddStation);
+              }}
+              disabled={!isEmailVerified}
+              title={!isEmailVerified ? 'Email verification required to provision charging stations' : ''}
               className="submit-btn"
-              style={{ width: 'auto', padding: '0.5rem 1rem', fontSize: '0.8rem' }}
+              style={{
+                width: 'auto',
+                padding: '0.5rem 1rem',
+                fontSize: '0.8rem',
+                opacity: !isEmailVerified ? 0.6 : 1,
+                cursor: !isEmailVerified ? 'not-allowed' : 'pointer'
+              }}
             >
-              <Plus size={14} />
-              <span>{showAddStation ? 'Cancel' : 'Add Station'}</span>
+              {!isEmailVerified ? <Lock size={14} /> : <Plus size={14} />}
+              <span>{getAddStationButtonText()}</span>
             </button>
           </div>
         </div>
+
+        {!isEmailVerified && (
+          <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '0.75rem 1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.6rem', color: '#b45309', fontSize: '0.85rem' }}>
+            <Lock size={16} />
+            <span>Station provisioning and tariff modifications are restricted. Please verify your business email above to unlock full platform access.</span>
+          </div>
+        )}
 
         {stationSuccessMsg && (
           <div className="alert alert-success" style={{ marginBottom: '1rem' }}>

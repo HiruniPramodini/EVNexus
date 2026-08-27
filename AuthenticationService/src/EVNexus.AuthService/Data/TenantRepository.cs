@@ -15,6 +15,9 @@ public interface ITenantRepository
     Task<bool> UpdateTenantEmailAsync(string tenantId, string newEmail, CancellationToken cancellationToken = default);
     Task SaveEmailVerificationCodeAsync(string tenantId, string newEmail, string code, DateTime expiresAt, CancellationToken cancellationToken = default);
     Task<bool> ValidateAndConsumeVerificationCodeAsync(string tenantId, string newEmail, string code, CancellationToken cancellationToken = default);
+    Task<bool> MarkEmailAsVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default);
+    Task<bool> IsEmailVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default);
+    Task<(bool Success, string? Status)> ValidateAndConsumeTenantRegistrationCodeAsync(string email, string code, CancellationToken cancellationToken = default);
 }
 
 public class TenantRepository : ITenantRepository
@@ -62,6 +65,7 @@ public class TenantRepository : ITenantRepository
                 password_hash,
                 role,
                 status,
+                is_email_verified,
                 created_at,
                 updated_at
             ) VALUES (
@@ -75,6 +79,7 @@ public class TenantRepository : ITenantRepository
                 @password_hash,
                 @role,
                 @status,
+                @is_email_verified,
                 @created_at,
                 @updated_at
             );
@@ -93,6 +98,7 @@ public class TenantRepository : ITenantRepository
         command.Parameters.Add("@password_hash", MySqlDbType.VarChar, 255).Value = tenant.PasswordHash;
         command.Parameters.Add("@role", MySqlDbType.VarChar, 50).Value = tenant.Role;
         command.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = tenant.Status;
+        command.Parameters.Add("@is_email_verified", MySqlDbType.Bool).Value = tenant.IsEmailVerified;
         command.Parameters.Add("@created_at", MySqlDbType.DateTime).Value = tenant.CreatedAt;
         command.Parameters.Add("@updated_at", MySqlDbType.DateTime).Value = tenant.UpdatedAt;
 
@@ -104,7 +110,7 @@ public class TenantRepository : ITenantRepository
     {
         const string sql = @"
             SELECT tenant_id, company_name, registration_number, business_email, phone, address, logo_url,
-                   password_hash, role, status, created_at, updated_at
+                   password_hash, role, status, is_email_verified, created_at, updated_at
             FROM tenants
             WHERE tenant_id = @tenant_id
             LIMIT 1;
@@ -127,7 +133,7 @@ public class TenantRepository : ITenantRepository
     {
         const string sql = @"
             SELECT tenant_id, company_name, registration_number, business_email, phone, address, logo_url,
-                   password_hash, role, status, created_at, updated_at
+                   password_hash, role, status, is_email_verified, created_at, updated_at
             FROM tenants
             WHERE business_email = @email
             LIMIT 1;
@@ -292,10 +298,101 @@ public class TenantRepository : ITenantRepository
         return true;
     }
 
+    public async Task<bool> MarkEmailAsVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE tenants
+            SET is_email_verified = TRUE,
+                updated_at = @updated_at
+            WHERE tenant_id = @identifier OR business_email = @identifier;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add("@identifier", MySqlDbType.VarChar, 255).Value = tenantIdOrEmail.Trim().ToLowerInvariant();
+        command.Parameters.Add("@updated_at", MySqlDbType.DateTime).Value = DateTime.UtcNow;
+
+        var rows = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rows > 0;
+    }
+
+    public async Task<bool> IsEmailVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT is_email_verified
+            FROM tenants
+            WHERE tenant_id = @identifier OR business_email = @identifier
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add("@identifier", MySqlDbType.VarChar, 255).Value = tenantIdOrEmail.Trim().ToLowerInvariant();
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result != null && Convert.ToBoolean(result);
+    }
+
+    public async Task<(bool Success, string? Status)> ValidateAndConsumeTenantRegistrationCodeAsync(
+        string email,
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        const string selectSql = @"
+            SELECT token_id, is_used, expires_at
+            FROM email_verification_tokens
+            WHERE new_email = @email
+              AND verification_code = @code
+            ORDER BY created_at DESC
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var selectCommand = new MySqlCommand(selectSql, connection);
+        selectCommand.Parameters.Add("@email", MySqlDbType.VarChar, 255).Value = email.Trim().ToLowerInvariant();
+        selectCommand.Parameters.Add("@code", MySqlDbType.VarChar, 50).Value = code.Trim();
+
+        await using var reader = await selectCommand.ExecuteReaderAsync(cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return (false, "NotFound");
+        }
+
+        var tokenId = reader.GetString("token_id");
+        var isUsed = reader.GetBoolean("is_used");
+        var expiresAt = reader.GetDateTime("expires_at");
+        await reader.CloseAsync();
+
+        if (isUsed)
+        {
+            return (false, "AlreadyUsed");
+        }
+
+        if (expiresAt <= DateTime.UtcNow)
+        {
+            return (false, "Expired");
+        }
+
+        const string updateSql = @"
+            UPDATE email_verification_tokens
+            SET is_used = TRUE
+            WHERE token_id = @token_id;
+        ";
+
+        await using var updateCommand = new MySqlCommand(updateSql, connection);
+        updateCommand.Parameters.Add("@token_id", MySqlDbType.VarChar, 50).Value = tokenId;
+        await updateCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        return (true, "Valid");
+    }
+
     private static Tenant MapTenant(MySqlDataReader reader)
     {
         var logoColOrdinal = reader.GetOrdinal("logo_url");
         string? logoUrl = !reader.IsDBNull(logoColOrdinal) ? reader.GetString(logoColOrdinal) : null;
+
+        var verifiedColOrdinal = reader.GetOrdinal("is_email_verified");
+        bool isEmailVerified = !reader.IsDBNull(verifiedColOrdinal) && reader.GetBoolean(verifiedColOrdinal);
 
         return new Tenant
         {
@@ -309,6 +406,7 @@ public class TenantRepository : ITenantRepository
             PasswordHash = reader.GetString("password_hash"),
             Role = reader.GetString("role"),
             Status = reader.GetString("status"),
+            IsEmailVerified = isEmailVerified,
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at")
         };

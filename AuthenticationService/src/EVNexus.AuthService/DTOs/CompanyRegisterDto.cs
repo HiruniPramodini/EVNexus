@@ -42,6 +42,36 @@ public class CompanyRegisterResponseDto
     public string Phone { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
     public string Message { get; set; } = string.Empty;
+    public string VerificationCode { get; set; } = string.Empty;
+    public string VerificationLink { get; set; } = string.Empty;
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsEmailVerified { get; set; } = false;
+}
+
+public class VerifyEmailRequestDto
+{
+    [Required(ErrorMessage = "Email address is required.")]
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Verification code is required.")]
+    [StringLength(50, MinimumLength = 4, ErrorMessage = "Verification code must be between 4 and 50 characters.")]
+    public string VerificationCode { get; set; } = string.Empty;
+}
+
+public class VerifyEmailResponseDto
+{
+    public bool IsVerified { get; set; } = true;
+    public string Email { get; set; } = string.Empty;
+    public string AccountType { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
+public class ResendVerificationRequestDto
+{
+    [Required(ErrorMessage = "Email address is required.")]
+    [EmailAddress(ErrorMessage = "Invalid email format.")]
+    public string Email { get; set; } = string.Empty;
 }
 
 public class ApiResponse<T>
