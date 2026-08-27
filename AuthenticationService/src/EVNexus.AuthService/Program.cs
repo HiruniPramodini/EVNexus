@@ -121,10 +121,13 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseRouting();
+
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseMiddleware<TenantResolutionMiddleware>();
+app.UseRoleAuthorization();
 app.UseAuthorization();
 
 app.MapControllers();

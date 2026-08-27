@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using EVNexus.AuthService.Attributes;
 using EVNexus.AuthService.Data;
 using EVNexus.AuthService.DTOs;
 using EVNexus.AuthService.Exceptions;
 using EVNexus.AuthService.Models;
+using EVNexus.AuthService.Security;
 using EVNexus.AuthService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +15,7 @@ namespace EVNexus.AuthService.Controllers;
 [Route("api/company")]
 [Produces("application/json")]
 [Authorize(Roles = "CompanyAdmin")]
+[RequireRole(AppRoles.CompanyAdmin)]
 public class CompanyDataController : ControllerBase
 {
     private const string ValidTenantClaimsRequiredMessage = "Cross-tenant access forbidden. Valid tenant claims are required.";
