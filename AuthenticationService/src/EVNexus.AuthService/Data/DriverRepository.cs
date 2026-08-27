@@ -11,10 +11,14 @@ public interface IDriverRepository
     Task<Driver?> GetDriverByIdAsync(string driverId, CancellationToken cancellationToken = default);
     Task<Driver?> GetDriverByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<Wallet?> GetWalletByDriverIdAsync(string driverId, CancellationToken cancellationToken = default);
+    Task UpdateDriverProfileAsync(string driverId, string name, string phone, CancellationToken cancellationToken = default);
+    Task UpdateDriverPasswordAsync(string driverId, string passwordHash, CancellationToken cancellationToken = default);
 }
 
 public class DriverRepository : IDriverRepository
 {
+    private const string DriverIdParameter = "@driver_id";
+
     private readonly IDbConnectionFactory _connectionFactory;
 
     public DriverRepository(IDbConnectionFactory connectionFactory)
@@ -66,7 +70,7 @@ public class DriverRepository : IDriverRepository
             ";
 
             await using var driverCommand = new MySqlCommand(insertDriverSql, connection, transaction);
-            driverCommand.Parameters.Add("@driver_id", MySqlDbType.VarChar, 50).Value = driver.DriverId;
+            driverCommand.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driver.DriverId;
             driverCommand.Parameters.Add("@name", MySqlDbType.VarChar, 255).Value = driver.Name;
             driverCommand.Parameters.Add("@email", MySqlDbType.VarChar, 255).Value = driver.Email.Trim().ToLowerInvariant();
             driverCommand.Parameters.Add("@phone", MySqlDbType.VarChar, 50).Value = driver.Phone;
@@ -101,7 +105,7 @@ public class DriverRepository : IDriverRepository
 
             await using var walletCommand = new MySqlCommand(insertWalletSql, connection, transaction);
             walletCommand.Parameters.Add("@wallet_id", MySqlDbType.VarChar, 50).Value = wallet.WalletId;
-            walletCommand.Parameters.Add("@driver_id", MySqlDbType.VarChar, 50).Value = wallet.DriverId;
+            walletCommand.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = wallet.DriverId;
             walletCommand.Parameters.Add("@balance", MySqlDbType.Decimal).Value = wallet.Balance;
             walletCommand.Parameters.Add("@currency", MySqlDbType.VarChar, 10).Value = wallet.Currency;
             walletCommand.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = wallet.Status;
@@ -133,7 +137,7 @@ public class DriverRepository : IDriverRepository
 
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
         await using var command = new MySqlCommand(sql, connection);
-        command.Parameters.Add("@driver_id", MySqlDbType.VarChar, 50).Value = driverId;
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId;
 
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -177,7 +181,7 @@ public class DriverRepository : IDriverRepository
 
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
         await using var command = new MySqlCommand(sql, connection);
-        command.Parameters.Add("@driver_id", MySqlDbType.VarChar, 50).Value = driverId;
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId;
 
         await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
@@ -216,5 +220,41 @@ public class DriverRepository : IDriverRepository
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at")
         };
+    }
+
+    public async Task UpdateDriverProfileAsync(string driverId, string name, string phone, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE drivers
+            SET name = @name,
+                phone = @phone,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE driver_id = @driver_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId;
+        command.Parameters.Add("@name", MySqlDbType.VarChar, 255).Value = name.Trim();
+        command.Parameters.Add("@phone", MySqlDbType.VarChar, 50).Value = phone.Trim();
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    public async Task UpdateDriverPasswordAsync(string driverId, string passwordHash, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE drivers
+            SET password_hash = @password_hash,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE driver_id = @driver_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId;
+        command.Parameters.Add("@password_hash", MySqlDbType.VarChar, 255).Value = passwordHash;
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 }
