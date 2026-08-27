@@ -400,4 +400,112 @@ public class AuthController : ControllerBase
                 ApiResponse<object>.Fail("An error occurred while retrieving profile information."));
         }
     }
+
+    /// <summary>
+    /// Updates the authenticated EV driver's profile details (name and phone number).
+    /// Requires a valid Bearer JWT token with Driver ID and Driver role claim.
+    /// </summary>
+    [HttpPut("driver/profile")]
+    [Authorize(Roles = "Driver")]
+    [RequireRole(AppRoles.Driver)]
+    [ProducesResponseType(typeof(ApiResponse<DriverProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateDriverProfile(
+        [FromBody] UpdateDriverProfileRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        var driverId = User.FindFirstValue("driver_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(driverId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Driver identification claim is missing from authentication token."));
+        }
+
+        try
+        {
+            var updatedProfile = await _driverAuthService.UpdateDriverProfileAsync(driverId, request, cancellationToken);
+            return Ok(ApiResponse<DriverProfileResponseDto>.Ok(updatedProfile, "Driver profile updated successfully."));
+        }
+        catch (DriverNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while updating profile for Driver {DriverId}", driverId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while updating profile information."));
+        }
+    }
+
+    /// <summary>
+    /// Changes the authenticated EV driver's password after confirming their current password.
+    /// Requires a valid Bearer JWT token with Driver ID and Driver role claim.
+    /// </summary>
+    [HttpPut("driver/change-password")]
+    [Authorize(Roles = "Driver")]
+    [RequireRole(AppRoles.Driver)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ChangeDriverPassword(
+        [FromBody] ChangeDriverPasswordRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        var driverId = User.FindFirstValue("driver_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(driverId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Driver identification claim is missing from authentication token."));
+        }
+
+        try
+        {
+            await _driverAuthService.ChangeDriverPasswordAsync(driverId, request, cancellationToken);
+            return Ok(ApiResponse<object>.Ok(new { }, "Password changed successfully."));
+        }
+        catch (InvalidCurrentPasswordException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (DriverNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while changing password for Driver {DriverId}", driverId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while processing password change."));
+        }
+    }
 }
