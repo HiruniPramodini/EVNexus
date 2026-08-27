@@ -36,7 +36,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                     logo_url LONGTEXT NULL,
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL DEFAULT 'CompanyAdmin',
-                    status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    status VARCHAR(50) NOT NULL DEFAULT 'Pending',
                     is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

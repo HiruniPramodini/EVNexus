@@ -106,6 +106,7 @@ builder.Services.AddSingleton<ITokenBlacklistService, TokenBlacklistService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IAccountAuditRepository, AccountAuditRepository>();
 builder.Services.AddScoped<IAccountManagementService, AccountManagementService>();
+builder.Services.AddSingleton<IStatusNotificationService, StatusNotificationService>();
 
 var app = builder.Build();
 

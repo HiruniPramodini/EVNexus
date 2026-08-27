@@ -15,6 +15,7 @@ public class AccountManagementService : IAccountManagementService
     private readonly IDriverRepository _driverRepository;
     private readonly IAccountAuditRepository _auditRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
+    private readonly IStatusNotificationService? _notificationService;
     private readonly ILogger<AccountManagementService> _logger;
 
     public AccountManagementService(
@@ -22,13 +23,15 @@ public class AccountManagementService : IAccountManagementService
         IDriverRepository driverRepository,
         IAccountAuditRepository auditRepository,
         IRefreshTokenRepository refreshTokenRepository,
-        ILogger<AccountManagementService> logger)
+        ILogger<AccountManagementService> logger,
+        IStatusNotificationService? notificationService = null)
     {
         _tenantRepository = tenantRepository;
         _driverRepository = driverRepository;
         _auditRepository = auditRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     public async Task<AccountStatusResponseDto> SuspendCompanyAsync(
@@ -246,5 +249,125 @@ public class AccountManagementService : IAccountManagementService
             PerformedBy = a.PerformedBy,
             Timestamp = a.Timestamp
         }).ToList();
+    }
+
+    public async Task<CompanyApprovalResponseDto> ApproveCompanyAsync(
+        string tenantId,
+        string? notes,
+        string performedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new KeyNotFoundException($"Company with Tenant ID '{tenantId}' was not found.");
+        }
+
+        var previousStatus = tenant.Status;
+        await _tenantRepository.UpdateTenantStatusAsync(tenantId, ActiveStatus, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var audit = new AccountStatusAudit
+        {
+            AuditId = "AUD-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+            AccountId = tenantId,
+            AccountType = "Company",
+            Action = "Approve",
+            PreviousStatus = previousStatus,
+            NewStatus = ActiveStatus,
+            Reason = notes,
+            PerformedBy = performedBy,
+            Timestamp = now
+        };
+
+        await _auditRepository.RecordStatusAuditAsync(audit, cancellationToken);
+
+        SimulatedNotificationDto? notif = null;
+        if (_notificationService != null)
+        {
+            notif = await _notificationService.SendApprovalNotificationAsync(tenant, notes, cancellationToken);
+        }
+
+        _logger.LogInformation("Company {TenantId} approved by {Admin} at {Timestamp}", tenantId, performedBy, now);
+
+        return new CompanyApprovalResponseDto
+        {
+            TenantId = tenantId,
+            CompanyName = tenant.CompanyName,
+            Status = ActiveStatus,
+            PreviousStatus = previousStatus,
+            Action = "Approve",
+            Reason = notes,
+            PerformedBy = performedBy,
+            Timestamp = now,
+            NotificationSent = true,
+            NotificationSummary = notif?.Content ?? $"Simulated approval notification dispatched to {tenant.BusinessEmail}.",
+            Message = $"Company account '{tenant.CompanyName}' has been approved successfully."
+        };
+    }
+
+    public async Task<CompanyApprovalResponseDto> RejectCompanyAsync(
+        string tenantId,
+        string? reason,
+        string performedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new KeyNotFoundException($"Company with Tenant ID '{tenantId}' was not found.");
+        }
+
+        var previousStatus = tenant.Status;
+        const string rejectedStatus = "Rejected";
+        await _tenantRepository.UpdateTenantStatusAsync(tenantId, rejectedStatus, cancellationToken);
+
+        // Invalidate any active refresh tokens immediately
+        await _refreshTokenRepository.RevokeAllUserTokensAsync(tenantId, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var audit = new AccountStatusAudit
+        {
+            AuditId = "AUD-" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant(),
+            AccountId = tenantId,
+            AccountType = "Company",
+            Action = "Reject",
+            PreviousStatus = previousStatus,
+            NewStatus = rejectedStatus,
+            Reason = reason,
+            PerformedBy = performedBy,
+            Timestamp = now
+        };
+
+        await _auditRepository.RecordStatusAuditAsync(audit, cancellationToken);
+
+        SimulatedNotificationDto? notif = null;
+        if (_notificationService != null)
+        {
+            notif = await _notificationService.SendRejectionNotificationAsync(tenant, reason, cancellationToken);
+        }
+
+        _logger.LogInformation("Company {TenantId} rejected by {Admin} at {Timestamp}. Reason: {Reason}",
+            tenantId, performedBy, now, reason ?? "N/A");
+
+        return new CompanyApprovalResponseDto
+        {
+            TenantId = tenantId,
+            CompanyName = tenant.CompanyName,
+            Status = rejectedStatus,
+            PreviousStatus = previousStatus,
+            Action = "Reject",
+            Reason = reason,
+            PerformedBy = performedBy,
+            Timestamp = now,
+            NotificationSent = true,
+            NotificationSummary = notif?.Content ?? $"Simulated rejection notification dispatched to {tenant.BusinessEmail}.",
+            Message = $"Company registration for '{tenant.CompanyName}' has been rejected."
+        };
+    }
+
+    public async Task<IReadOnlyList<Tenant>> GetPendingCompaniesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _tenantRepository.GetPendingTenantsAsync(cancellationToken);
     }
 }

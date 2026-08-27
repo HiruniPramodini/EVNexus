@@ -512,9 +512,12 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const activeLogoUrl = profileResult?.data?.logoUrl || authUser?.logoUrl;
   const activeCompanyName = profileResult?.data?.companyName || authUser?.companyName || 'Enterprise Company';
   const activeBusinessEmail = profileResult?.data?.businessEmail || authUser?.businessEmail;
+  const companyStatus = profileResult?.data?.status || authUser?.status || 'Pending';
+  const isPendingApproval = companyStatus?.toLowerCase() === 'pending';
 
   const getAddStationButtonText = () => {
     if (showAddStation) return 'Cancel';
+    if (isPendingApproval) return 'Locked (Pending Approval)';
     if (!isEmailVerified) return 'Locked (Verify Email)';
     return 'Add Station';
   };
@@ -607,6 +610,23 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                 >
                   {isEmailVerified ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
                   {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
+                </span>
+                <span
+                  style={{
+                    background: isPendingApproval ? 'rgba(59, 130, 246, 0.4)' : 'rgba(16, 185, 129, 0.3)',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '600',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    border: isPendingApproval ? '1px solid #93c5fd' : '1px solid #10b981'
+                  }}
+                >
+                  {isPendingApproval ? <Clock size={13} /> : <CheckCircle2 size={13} />}
+                  {isPendingApproval ? 'Status: Pending Approval' : 'Status: Approved'}
                 </span>
                 <span
                   style={{
@@ -737,6 +757,61 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
               </h4>
               <p style={{ margin: 0, fontSize: '0.85rem', color: '#b45309', marginTop: '0.25rem', lineHeight: 1.4 }}>
                 You are logged in with the <strong>Operator</strong> role scoped to Tenant <strong>{authUser?.tenantId}</strong>. You have permissions to monitor and manage charging stations and operations. Administrative actions (company deletion and billing management) are restricted to <strong>CompanyAdmin</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Acceptance Criteria 3: Pending Approval Banner */}
+      {isPendingApproval && (
+        <div
+          className="register-card animate-fade-in"
+          style={{
+            marginBottom: '1.5rem',
+            border: '2px solid #3b82f6',
+            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(37, 99, 235, 0.04) 100%)',
+            boxShadow: '0 8px 24px -4px rgba(59, 130, 246, 0.2)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+            <div
+              style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#2563eb',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}
+            >
+              <Clock size={26} />
+            </div>
+            <div style={{ flex: 1, minWidth: '280px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: '#1e40af' }}>
+                  Account Pending Approval
+                </h3>
+                <span
+                  style={{
+                    background: '#3b82f6',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '999px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  Pending Admin Review
+                </span>
+              </div>
+              <p style={{ margin: '0.4rem 0 0', color: '#1e3a8a', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                Your company registration is currently <strong>Pending Approval</strong> by a platform administrator. Charging station creation is restricted until your account has been reviewed and approved.
               </p>
             </div>
           </div>

@@ -80,7 +80,7 @@ public class CompanyRegistrationTests
         capturedTenant.PasswordHash.Should().Be(expectedHash);
         capturedTenant.PasswordHash.Should().NotBe(request.Password); // Never plain text
         capturedTenant.Role.Should().Be("CompanyAdmin");
-        capturedTenant.Status.Should().Be("Active");
+        capturedTenant.Status.Should().Be("Pending");
 
         _passwordHasherMock.Verify(h => h.HashPassword(request.Password), Times.Once);
         _tenantRepoMock.Verify(r => r.CreateTenantAsync(It.IsAny<Tenant>(), It.IsAny<CancellationToken>()), Times.Once);

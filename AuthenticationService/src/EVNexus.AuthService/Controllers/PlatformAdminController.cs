@@ -16,14 +16,17 @@ namespace EVNexus.AuthService.Controllers;
 public class PlatformAdminController : ControllerBase
 {
     private readonly IAccountManagementService _accountManagementService;
+    private readonly IStatusNotificationService? _notificationService;
     private readonly ILogger<PlatformAdminController> _logger;
 
     public PlatformAdminController(
         IAccountManagementService accountManagementService,
-        ILogger<PlatformAdminController> logger)
+        ILogger<PlatformAdminController> logger,
+        IStatusNotificationService? notificationService = null)
     {
         _accountManagementService = accountManagementService;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
     [HttpPost("company/{tenantId}/suspend")]
@@ -176,6 +179,105 @@ public class PlatformAdminController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError,
                 new ApiResponse<object> { Success = false, Message = "An unexpected error occurred while retrieving account audit history." });
         }
+    }
+
+    [HttpPost("company/{tenantId}/approve")]
+    [HttpPatch("company/{tenantId}/approve")]
+    public async Task<IActionResult> ApproveCompany(
+        [FromRoute] string tenantId,
+        [FromBody] ApproveCompanyRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var adminUser = GetCurrentAdminIdentifier();
+            var response = await _accountManagementService.ApproveCompanyAsync(
+                tenantId, request?.Notes, adminUser, cancellationToken);
+
+            return Ok(new ApiResponse<CompanyApprovalResponseDto>
+            {
+                Success = true,
+                Message = response.Message,
+                Data = response
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to approve company {TenantId}", tenantId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ApiResponse<object> { Success = false, Message = "An unexpected error occurred while approving the company account." });
+        }
+    }
+
+    [HttpPost("company/{tenantId}/reject")]
+    [HttpPatch("company/{tenantId}/reject")]
+    public async Task<IActionResult> RejectCompany(
+        [FromRoute] string tenantId,
+        [FromBody] RejectCompanyRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var adminUser = GetCurrentAdminIdentifier();
+            var response = await _accountManagementService.RejectCompanyAsync(
+                tenantId, request?.Reason, adminUser, cancellationToken);
+
+            return Ok(new ApiResponse<CompanyApprovalResponseDto>
+            {
+                Success = true,
+                Message = response.Message,
+                Data = response
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reject company {TenantId}", tenantId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ApiResponse<object> { Success = false, Message = "An unexpected error occurred while rejecting the company account." });
+        }
+    }
+
+    [HttpGet("companies/pending")]
+    public async Task<IActionResult> GetPendingCompanies(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var companies = await _accountManagementService.GetPendingCompaniesAsync(cancellationToken);
+            return Ok(new ApiResponse<IReadOnlyList<EVNexus.AuthService.Models.Tenant>>
+            {
+                Success = true,
+                Message = $"Found {companies.Count} pending company accounts.",
+                Data = companies
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve pending companies");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ApiResponse<object> { Success = false, Message = "An unexpected error occurred while retrieving pending companies." });
+        }
+    }
+
+    [HttpGet("companies/{tenantId}/notifications")]
+    public IActionResult GetCompanyNotifications([FromRoute] string tenantId)
+    {
+        var notifications = _notificationService?.GetSentNotifications(tenantId)
+            ?? Array.Empty<SimulatedNotificationDto>();
+
+        return Ok(new ApiResponse<IReadOnlyList<SimulatedNotificationDto>>
+        {
+            Success = true,
+            Message = $"Found {notifications.Count} notifications for company '{tenantId}'.",
+            Data = notifications
+        });
     }
 
     private string GetCurrentAdminIdentifier()
