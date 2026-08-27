@@ -10,6 +10,8 @@ public interface IDriverAuthService
     Task<DriverRegisterResponseDto> RegisterDriverAsync(DriverRegisterRequestDto request, CancellationToken cancellationToken = default);
     Task<DriverLoginResponseDto> LoginDriverAsync(DriverLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<DriverProfileResponseDto> GetDriverProfileAsync(string driverId, CancellationToken cancellationToken = default);
+    Task<DriverProfileResponseDto> UpdateDriverProfileAsync(string driverId, UpdateDriverProfileRequestDto request, CancellationToken cancellationToken = default);
+    Task ChangeDriverPasswordAsync(string driverId, ChangeDriverPasswordRequestDto request, CancellationToken cancellationToken = default);
 }
 
 public class DriverAuthService : IDriverAuthService
@@ -173,9 +175,86 @@ public class DriverAuthService : IDriverAuthService
             Role = driver.Role,
             Status = driver.Status,
             CreatedAt = driver.CreatedAt,
+            UpdatedAt = driver.UpdatedAt,
             WalletId = wallet?.WalletId ?? string.Empty,
             WalletBalance = wallet?.Balance ?? 0.00m,
             Currency = wallet?.Currency ?? "USD"
         };
+    }
+
+    public async Task<DriverProfileResponseDto> UpdateDriverProfileAsync(
+        string driverId,
+        UpdateDriverProfileRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating profile for Driver ID: {DriverId}", driverId);
+
+        var driver = await _driverRepository.GetDriverByIdAsync(driverId, cancellationToken);
+        if (driver == null)
+        {
+            _logger.LogWarning("Driver profile update failed: Driver ID {DriverId} not found.", driverId);
+            throw new DriverNotFoundException(driverId);
+        }
+
+        var trimmedName = request.Name.Trim();
+        var trimmedPhone = request.Phone.Trim();
+
+        await _driverRepository.UpdateDriverProfileAsync(driverId, trimmedName, trimmedPhone, cancellationToken);
+        _logger.LogInformation("Driver profile updated successfully for Driver ID: {DriverId}", driverId);
+
+        var updatedDriver = await _driverRepository.GetDriverByIdAsync(driverId, cancellationToken);
+        var wallet = await _driverRepository.GetWalletByDriverIdAsync(driverId, cancellationToken);
+
+        return new DriverProfileResponseDto
+        {
+            DriverId = updatedDriver?.DriverId ?? driverId,
+            Name = updatedDriver?.Name ?? trimmedName,
+            Email = updatedDriver?.Email ?? driver.Email,
+            Phone = updatedDriver?.Phone ?? trimmedPhone,
+            Role = updatedDriver?.Role ?? driver.Role,
+            Status = updatedDriver?.Status ?? driver.Status,
+            CreatedAt = updatedDriver?.CreatedAt ?? driver.CreatedAt,
+            UpdatedAt = updatedDriver?.UpdatedAt ?? DateTime.UtcNow,
+            WalletId = wallet?.WalletId ?? string.Empty,
+            WalletBalance = wallet?.Balance ?? 0.00m,
+            Currency = wallet?.Currency ?? "USD"
+        };
+    }
+
+    public async Task ChangeDriverPasswordAsync(
+        string driverId,
+        ChangeDriverPasswordRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Processing password change request for Driver ID: {DriverId}", driverId);
+
+        var driver = await _driverRepository.GetDriverByIdAsync(driverId, cancellationToken);
+        if (driver == null)
+        {
+            _logger.LogWarning("Password change failed: Driver ID {DriverId} not found.", driverId);
+            throw new DriverNotFoundException(driverId);
+        }
+
+        // 1. Verify current password
+        var isCurrentPasswordValid = _passwordHasher.VerifyPassword(request.CurrentPassword, driver.PasswordHash);
+        if (!isCurrentPasswordValid)
+        {
+            _logger.LogWarning("Password change failed: Incorrect current password provided for Driver ID: {DriverId}", driverId);
+            throw new InvalidCurrentPasswordException("Current password is incorrect.");
+        }
+
+        // 2. Prevent reusing the same password
+        if (string.Equals(request.CurrentPassword, request.NewPassword, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Password change failed: New password identical to current password for Driver ID: {DriverId}", driverId);
+            throw new InvalidOperationException("New password cannot be the same as your current password.");
+        }
+
+        // 3. Hash new password securely
+        var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+
+        // 4. Update password in database
+        await _driverRepository.UpdateDriverPasswordAsync(driverId, newPasswordHash, cancellationToken);
+        _logger.LogInformation("Password successfully changed for Driver ID: {DriverId}", driverId);
     }
 }
