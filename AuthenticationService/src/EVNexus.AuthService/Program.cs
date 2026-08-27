@@ -102,7 +102,7 @@ builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<ICompanyAuthService, CompanyAuthService>();
 builder.Services.AddScoped<IDriverAuthService, DriverAuthService>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-builder.Services.AddSingleton<ITokenBlacklistService, TokenBlacklistService>();
+builder.Services.AddScoped<ITokenBlacklistService, TokenBlacklistService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
 builder.Services.AddScoped<IAccountAuditRepository, AccountAuditRepository>();
 builder.Services.AddScoped<IAccountManagementService, AccountManagementService>();
