@@ -7,6 +7,13 @@
 *.user
 *.suo
 
+# Node / Frontend
+**/node_modules/
+**/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # Environment / secrets
 .env
 .env.*
