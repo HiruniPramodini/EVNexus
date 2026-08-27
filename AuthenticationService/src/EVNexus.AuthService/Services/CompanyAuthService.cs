@@ -73,7 +73,7 @@ public class CompanyAuthService : ICompanyAuthService
         // 4. Securely hash password (never plain text)
         var passwordHash = _passwordHasher.HashPassword(request.Password);
 
-        // 5. Create Tenant entity (unverified by default until email verified)
+        // 5. Create Tenant entity (unverified by default until email verified, pending approval by default)
         var now = DateTime.UtcNow;
         var tenant = new Tenant
         {
@@ -85,7 +85,7 @@ public class CompanyAuthService : ICompanyAuthService
             Address = request.Address.Trim(),
             PasswordHash = passwordHash,
             Role = "CompanyAdmin",
-            Status = "Active",
+            Status = "Pending",
             IsEmailVerified = false,
             CreatedAt = now,
             UpdatedAt = now
@@ -101,7 +101,7 @@ public class CompanyAuthService : ICompanyAuthService
         await _tenantRepository.SaveEmailVerificationCodeAsync(
             tenant.TenantId, tenant.BusinessEmail, verificationCode, expiresAt, cancellationToken);
 
-        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId}. Verification code generated with 24-hour expiry.", tenantId);
+        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId} in Pending status. Verification code generated with 24-hour expiry.", tenantId);
 
         return new CompanyRegisterResponseDto
         {
@@ -119,18 +119,14 @@ public class CompanyAuthService : ICompanyAuthService
         };
     }
 
-    public async Task<CompanyLoginResponseDto> LoginCompanyAsync(
-        CompanyLoginRequestDto request,
-        CancellationToken cancellationToken = default)
+    public async Task<CompanyLoginResponseDto> LoginCompanyAsync(CompanyLoginRequestDto request, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = request.BusinessEmail.Trim().ToLowerInvariant();
-        _logger.LogInformation("Processing login attempt for company email: {Email}", normalizedEmail);
 
-        // 1. Fetch tenant by business email
+        // 1. Check if the user is a primary Tenant (Company Admin)
         var tenant = await _tenantRepository.GetTenantByEmailAsync(normalizedEmail, cancellationToken);
         if (tenant != null)
         {
-            // 2. Verify password hash
             var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, tenant.PasswordHash);
             if (!isPasswordValid)
             {
@@ -138,14 +134,20 @@ public class CompanyAuthService : ICompanyAuthService
                 throw new InvalidCredentialsException();
             }
 
-            // 3. Verify tenant status (AC 2: Suspended accounts cannot log in and receive a clear message)
+            // 3. Verify tenant status
             if (string.Equals(tenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Login rejected: Tenant {TenantId} account is suspended.", tenant.TenantId);
                 throw new InvalidCredentialsException("Account is suspended. Please contact platform support.");
             }
 
-            if (!string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(tenant.Status, "Rejected", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login rejected: Tenant {TenantId} account was rejected.", tenant.TenantId);
+                throw new InvalidCredentialsException("Account registration was rejected. Please contact platform support.");
+            }
+
+            if (string.Equals(tenant.Status, "Inactive", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Login failed: Tenant {TenantId} is not in Active state (Current status: {Status}).", tenant.TenantId, tenant.Status);
                 throw new InvalidCredentialsException("Account is currently inactive or suspended.");
@@ -157,7 +159,8 @@ public class CompanyAuthService : ICompanyAuthService
                 ? await _sessionService.GenerateAndSaveRefreshTokenAsync(tenant.TenantId, "Tenant", tenant.Role, null, cancellationToken)
                 : string.Empty;
 
-            _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, IsEmailVerified: {Verified}", tenant.TenantId, tenant.Role, tenant.IsEmailVerified);
+            _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, Status: {Status}, IsEmailVerified: {Verified}",
+                tenant.TenantId, tenant.Role, tenant.Status, tenant.IsEmailVerified);
 
             return new CompanyLoginResponseDto
             {
@@ -168,6 +171,7 @@ public class CompanyAuthService : ICompanyAuthService
                 CompanyName = tenant.CompanyName,
                 BusinessEmail = tenant.BusinessEmail,
                 Role = tenant.Role,
+                Status = tenant.Status,
                 IsEmailVerified = tenant.IsEmailVerified,
                 RefreshToken = refreshToken
             };

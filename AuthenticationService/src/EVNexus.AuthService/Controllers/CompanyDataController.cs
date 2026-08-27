@@ -24,17 +24,20 @@ public class CompanyDataController : ControllerBase
     private readonly ITenantContext _tenantContext;
     private readonly ILogger<CompanyDataController> _logger;
     private readonly ICompanyAuthService? _companyAuthService;
+    private readonly ITenantRepository? _tenantRepository;
 
     public CompanyDataController(
         IStationRepository stationRepository,
         ITenantContext tenantContext,
         ILogger<CompanyDataController> logger,
-        ICompanyAuthService? companyAuthService = null)
+        ICompanyAuthService? companyAuthService = null,
+        ITenantRepository? tenantRepository = null)
     {
         _stationRepository = stationRepository;
         _tenantContext = tenantContext;
         _logger = logger;
         _companyAuthService = companyAuthService;
+        _tenantRepository = tenantRepository;
     }
 
     private string? GetCallerTenantId()
@@ -197,6 +200,35 @@ public class CompanyDataController : ControllerBase
         {
             return StatusCode(StatusCodes.Status403Forbidden,
                 ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        // AC 3: Pending companies cannot create charging stations until approved
+        if (_tenantRepository != null)
+        {
+            var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+            if (tenant != null && !string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Station creation rejected: Tenant {TenantId} has status {Status}", tenantId, tenant.Status);
+                return StatusCode(StatusCodes.Status403Forbidden,
+                    ApiResponse<object>.Fail("Company account is pending approval. You cannot create charging stations until your account has been approved by a platform admin."));
+            }
+        }
+        else if (_companyAuthService != null)
+        {
+            try
+            {
+                var profile = await _companyAuthService.GetCompanyProfileAsync(tenantId, cancellationToken);
+                if (profile != null && !string.Equals(profile.Status, "Active", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Station creation rejected: Tenant {TenantId} has status {Status}", tenantId, profile.Status);
+                    return StatusCode(StatusCodes.Status403Forbidden,
+                        ApiResponse<object>.Fail("Company account is pending approval. You cannot create charging stations until your account has been approved by a platform admin."));
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Could not fetch company profile to verify status prior to station creation.");
+            }
         }
 
         try

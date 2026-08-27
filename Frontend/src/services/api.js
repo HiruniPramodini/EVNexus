@@ -703,3 +703,61 @@ export async function getAccountAuditLogs(accountId, token = null) {
 
   return handleResponse(response, 'Failed to retrieve account audit history.');
 }
+
+export async function approveCompanyAccount(tenantId, notes = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/company/${encodeURIComponent(tenantId)}/approve`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ notes })
+  });
+
+  return handleResponse(response, 'Failed to approve company account.');
+}
+
+export async function rejectCompanyAccount(tenantId, reason = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/company/${encodeURIComponent(tenantId)}/reject`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ reason })
+  });
+
+  return handleResponse(response, 'Failed to reject company account.');
+}
+
+export async function getPendingCompanies(token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/companies/pending`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve pending companies.');
+}
+
+export async function getCompanyNotifications(tenantId, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/companies/${encodeURIComponent(tenantId)}/notifications`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve company notifications.');
+}

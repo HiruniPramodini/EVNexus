@@ -26,6 +26,7 @@ public interface ITenantRepository
     Task<bool> IsStaffEmailRegisteredAsync(string email, CancellationToken cancellationToken = default);
     Task<bool> DeleteTenantAsync(string tenantId, CancellationToken cancellationToken = default);
     Task<bool> UpdateTenantStatusAsync(string tenantId, string status, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Tenant>> GetPendingTenantsAsync(CancellationToken cancellationToken = default);
 }
 
 public class TenantRepository : ITenantRepository
@@ -596,6 +597,29 @@ public class TenantRepository : ITenantRepository
 
         var affected = await command.ExecuteNonQueryAsync(cancellationToken);
         return affected > 0;
+    }
+
+    public async Task<IReadOnlyList<Tenant>> GetPendingTenantsAsync(CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT tenant_id, company_name, registration_number, business_email, phone, address, logo_url,
+                   password_hash, role, status, is_email_verified, created_at, updated_at
+            FROM tenants
+            WHERE status = 'Pending'
+            ORDER BY created_at ASC;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+
+        var tenants = new List<Tenant>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tenants.Add(MapTenant(reader));
+        }
+
+        return tenants;
     }
 
     private static CompanyUser MapCompanyUser(MySqlDataReader reader)
