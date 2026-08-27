@@ -94,6 +94,20 @@ public class DatabaseInitializer : IDatabaseInitializer
                     CONSTRAINT fk_wallets_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+                CREATE TABLE IF NOT EXISTS driver_vehicles (
+                    vehicle_id VARCHAR(50) PRIMARY KEY,
+                    driver_id VARCHAR(50) NOT NULL,
+                    make VARCHAR(100) NOT NULL,
+                    model VARCHAR(100) NOT NULL,
+                    plate_number VARCHAR(50) NOT NULL,
+                    connector_type VARCHAR(50) NOT NULL,
+                    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_dv_driver_id (driver_id),
+                    CONSTRAINT fk_dv_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
                 CREATE TABLE IF NOT EXISTS charging_stations (
                     station_id VARCHAR(50) PRIMARY KEY,
                     tenant_id VARCHAR(50) NOT NULL,
@@ -213,6 +227,44 @@ public class DatabaseInitializer : IDatabaseInitializer
             catch (Exception migrationEx)
             {
                 _logger.LogDebug(migrationEx, "Column check or migration on 'drivers.is_email_verified' completed.");
+            }
+
+            // Migration: Ensure driver_vehicles table exists
+            try
+            {
+                const string checkVehiclesTableSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'driver_vehicles';
+                ";
+                await using var checkVehiclesCmd = new MySqlCommand(checkVehiclesTableSql, connection);
+                var tableExists = Convert.ToInt64(await checkVehiclesCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!tableExists)
+                {
+                    const string createVehiclesSql = @"
+                        CREATE TABLE IF NOT EXISTS driver_vehicles (
+                            vehicle_id VARCHAR(50) PRIMARY KEY,
+                            driver_id VARCHAR(50) NOT NULL,
+                            make VARCHAR(100) NOT NULL,
+                            model VARCHAR(100) NOT NULL,
+                            plate_number VARCHAR(50) NOT NULL,
+                            connector_type VARCHAR(50) NOT NULL,
+                            is_default BOOLEAN NOT NULL DEFAULT FALSE,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                            INDEX idx_dv_driver_id (driver_id),
+                            CONSTRAINT fk_dv_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ";
+                    await using var createVehiclesCmd = new MySqlCommand(createVehiclesSql, connection);
+                    await createVehiclesCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: created 'driver_vehicles' table.");
+                }
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogDebug(migrationEx, "Table check or migration on 'driver_vehicles' completed.");
             }
 
             _logger.LogInformation("Auth database schema initialized successfully.");

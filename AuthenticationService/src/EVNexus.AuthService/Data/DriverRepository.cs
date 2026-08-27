@@ -17,11 +17,18 @@ public interface IDriverRepository
     Task<(bool Success, string? Status)> ValidateAndConsumeDriverVerificationCodeAsync(string email, string code, CancellationToken cancellationToken = default);
     Task<bool> MarkDriverEmailAsVerifiedAsync(string driverIdOrEmail, CancellationToken cancellationToken = default);
     Task<bool> IsDriverEmailVerifiedAsync(string driverIdOrEmail, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DriverVehicle>> GetVehiclesByDriverIdAsync(string driverId, CancellationToken cancellationToken = default);
+    Task<DriverVehicle?> GetVehicleByIdAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default);
+    Task<DriverVehicle> CreateVehicleAsync(DriverVehicle vehicle, CancellationToken cancellationToken = default);
+    Task<DriverVehicle?> UpdateVehicleAsync(string vehicleId, string driverId, string make, string model, string plateNumber, string connectorType, bool? isDefault, CancellationToken cancellationToken = default);
+    Task<bool> DeleteVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default);
+    Task<bool> SetDefaultVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default);
 }
 
 public class DriverRepository : IDriverRepository
 {
     private const string DriverIdParameter = "@driver_id";
+    private const string VehicleIdParameter = "@vehicle_id";
 
     private readonly IDbConnectionFactory _connectionFactory;
 
@@ -393,5 +400,322 @@ public class DriverRepository : IDriverRepository
 
         var result = await command.ExecuteScalarAsync(cancellationToken);
         return result != null && Convert.ToBoolean(result);
+    }
+
+    public async Task<IReadOnlyList<DriverVehicle>> GetVehiclesByDriverIdAsync(string driverId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT vehicle_id, driver_id, make, model, plate_number, connector_type, is_default, created_at, updated_at
+            FROM driver_vehicles
+            WHERE driver_id = @driver_id
+            ORDER BY is_default DESC, created_at DESC;
+        ";
+
+        var vehicles = new List<DriverVehicle>();
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            vehicles.Add(MapVehicle(reader));
+        }
+
+        return vehicles;
+    }
+
+    public async Task<DriverVehicle?> GetVehicleByIdAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT vehicle_id, driver_id, make, model, plate_number, connector_type, is_default, created_at, updated_at
+            FROM driver_vehicles
+            WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapVehicle(reader);
+        }
+
+        return null;
+    }
+
+    public async Task<DriverVehicle> CreateVehicleAsync(DriverVehicle vehicle, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            // Check count of existing vehicles for this driver
+            const string countSql = "SELECT COUNT(1) FROM driver_vehicles WHERE driver_id = @driver_id;";
+            await using var countCmd = new MySqlCommand(countSql, connection, transaction);
+            countCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = vehicle.DriverId.Trim();
+            var existingCount = Convert.ToInt64(await countCmd.ExecuteScalarAsync(cancellationToken));
+
+            // If first vehicle, force it to be default
+            if (existingCount == 0)
+            {
+                vehicle.IsDefault = true;
+            }
+
+            // If marked default, unset default on other vehicles
+            if (vehicle.IsDefault && existingCount > 0)
+            {
+                const string unsetDefaultSql = @"
+                    UPDATE driver_vehicles 
+                    SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP 
+                    WHERE driver_id = @driver_id;
+                ";
+                await using var unsetCmd = new MySqlCommand(unsetDefaultSql, connection, transaction);
+                unsetCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = vehicle.DriverId.Trim();
+                await unsetCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            const string insertSql = @"
+                INSERT INTO driver_vehicles (
+                    vehicle_id, driver_id, make, model, plate_number, connector_type, is_default, created_at, updated_at
+                ) VALUES (
+                    @vehicle_id, @driver_id, @make, @model, @plate_number, @connector_type, @is_default, @created_at, @updated_at
+                );
+            ";
+
+            await using var insertCmd = new MySqlCommand(insertSql, connection, transaction);
+            insertCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicle.VehicleId;
+            insertCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = vehicle.DriverId.Trim();
+            insertCmd.Parameters.Add("@make", MySqlDbType.VarChar, 100).Value = vehicle.Make.Trim();
+            insertCmd.Parameters.Add("@model", MySqlDbType.VarChar, 100).Value = vehicle.Model.Trim();
+            insertCmd.Parameters.Add("@plate_number", MySqlDbType.VarChar, 50).Value = vehicle.PlateNumber.Trim();
+            insertCmd.Parameters.Add("@connector_type", MySqlDbType.VarChar, 50).Value = vehicle.ConnectorType.Trim();
+            insertCmd.Parameters.Add("@is_default", MySqlDbType.Bool).Value = vehicle.IsDefault;
+            insertCmd.Parameters.Add("@created_at", MySqlDbType.DateTime).Value = vehicle.CreatedAt;
+            insertCmd.Parameters.Add("@updated_at", MySqlDbType.DateTime).Value = vehicle.UpdatedAt;
+
+            await insertCmd.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return vehicle;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<DriverVehicle?> UpdateVehicleAsync(string vehicleId, string driverId, string make, string model, string plateNumber, string connectorType, bool? isDefault, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            // Verify existing vehicle ownership
+            const string selectSql = @"
+                SELECT vehicle_id, driver_id, make, model, plate_number, connector_type, is_default, created_at, updated_at
+                FROM driver_vehicles
+                WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id
+                LIMIT 1;
+            ";
+            await using var selectCmd = new MySqlCommand(selectSql, connection, transaction);
+            selectCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            selectCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+
+            DriverVehicle? existing = null;
+            await using (var reader = await selectCmd.ExecuteReaderAsync(cancellationToken))
+            {
+                if (await reader.ReadAsync(cancellationToken))
+                {
+                    existing = MapVehicle(reader);
+                }
+            }
+
+            if (existing == null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return null;
+            }
+
+            var newDefault = isDefault ?? existing.IsDefault;
+
+            if (newDefault && !existing.IsDefault)
+            {
+                const string unsetDefaultSql = @"
+                    UPDATE driver_vehicles 
+                    SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP 
+                    WHERE driver_id = @driver_id;
+                ";
+                await using var unsetCmd = new MySqlCommand(unsetDefaultSql, connection, transaction);
+                unsetCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+                await unsetCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            const string updateSql = @"
+                UPDATE driver_vehicles
+                SET make = @make,
+                    model = @model,
+                    plate_number = @plate_number,
+                    connector_type = @connector_type,
+                    is_default = @is_default,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id;
+            ";
+
+            await using var updateCmd = new MySqlCommand(updateSql, connection, transaction);
+            updateCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            updateCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+            updateCmd.Parameters.Add("@make", MySqlDbType.VarChar, 100).Value = make.Trim();
+            updateCmd.Parameters.Add("@model", MySqlDbType.VarChar, 100).Value = model.Trim();
+            updateCmd.Parameters.Add("@plate_number", MySqlDbType.VarChar, 50).Value = plateNumber.Trim();
+            updateCmd.Parameters.Add("@connector_type", MySqlDbType.VarChar, 50).Value = connectorType.Trim();
+            updateCmd.Parameters.Add("@is_default", MySqlDbType.Bool).Value = newDefault;
+
+            await updateCmd.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            existing.Make = make.Trim();
+            existing.Model = model.Trim();
+            existing.PlateNumber = plateNumber.Trim();
+            existing.ConnectorType = connectorType.Trim();
+            existing.IsDefault = newDefault;
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            return existing;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<bool> DeleteVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            const string checkSql = @"
+                SELECT is_default
+                FROM driver_vehicles
+                WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id
+                LIMIT 1;
+            ";
+
+            await using var checkCmd = new MySqlCommand(checkSql, connection, transaction);
+            checkCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            checkCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+
+            var defaultObj = await checkCmd.ExecuteScalarAsync(cancellationToken);
+            if (defaultObj == null)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+
+            var wasDefault = Convert.ToBoolean(defaultObj);
+
+            const string deleteSql = "DELETE FROM driver_vehicles WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id;";
+            await using var deleteCmd = new MySqlCommand(deleteSql, connection, transaction);
+            deleteCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            deleteCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            // If the deleted vehicle was default, promote one remaining vehicle if any exist
+            if (wasDefault)
+            {
+                const string promoteSql = @"
+                    UPDATE driver_vehicles
+                    SET is_default = TRUE, updated_at = CURRENT_TIMESTAMP
+                    WHERE driver_id = @driver_id
+                    ORDER BY created_at DESC
+                    LIMIT 1;
+                ";
+                await using var promoteCmd = new MySqlCommand(promoteSql, connection, transaction);
+                promoteCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+                await promoteCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    public async Task<bool> SetDefaultVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default)
+    {
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            const string checkSql = "SELECT COUNT(1) FROM driver_vehicles WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id;";
+            await using var checkCmd = new MySqlCommand(checkSql, connection, transaction);
+            checkCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            checkCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+
+            var exists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+            if (!exists)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return false;
+            }
+
+            const string unsetSql = @"
+                UPDATE driver_vehicles
+                SET is_default = FALSE, updated_at = CURRENT_TIMESTAMP
+                WHERE driver_id = @driver_id;
+            ";
+            await using var unsetCmd = new MySqlCommand(unsetSql, connection, transaction);
+            unsetCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+            await unsetCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            const string setSql = @"
+                UPDATE driver_vehicles
+                SET is_default = TRUE, updated_at = CURRENT_TIMESTAMP
+                WHERE vehicle_id = @vehicle_id AND driver_id = @driver_id;
+            ";
+            await using var setCmd = new MySqlCommand(setSql, connection, transaction);
+            setCmd.Parameters.Add(VehicleIdParameter, MySqlDbType.VarChar, 50).Value = vehicleId.Trim();
+            setCmd.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+            await setCmd.ExecuteNonQueryAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
+    private static DriverVehicle MapVehicle(IDataRecord record)
+    {
+        return new DriverVehicle
+        {
+            VehicleId = record.GetString(record.GetOrdinal("vehicle_id")),
+            DriverId = record.GetString(record.GetOrdinal("driver_id")),
+            Make = record.GetString(record.GetOrdinal("make")),
+            Model = record.GetString(record.GetOrdinal("model")),
+            PlateNumber = record.GetString(record.GetOrdinal("plate_number")),
+            ConnectorType = record.GetString(record.GetOrdinal("connector_type")),
+            IsDefault = record.GetBoolean(record.GetOrdinal("is_default")),
+            CreatedAt = record.GetDateTime(record.GetOrdinal("created_at")),
+            UpdatedAt = record.GetDateTime(record.GetOrdinal("updated_at"))
+        };
     }
 }
