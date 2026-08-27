@@ -14,8 +14,8 @@ namespace EVNexus.AuthService.Controllers;
 [ApiController]
 [Route("api/company")]
 [Produces("application/json")]
-[Authorize(Roles = "CompanyAdmin")]
-[RequireRole(AppRoles.CompanyAdmin)]
+[Authorize(Roles = $"{AppRoles.CompanyAdmin},{AppRoles.Operator}")]
+[RequireRole(AppRoles.CompanyAdmin, AppRoles.Operator)]
 public class CompanyDataController : ControllerBase
 {
     private const string ValidTenantClaimsRequiredMessage = "Cross-tenant access forbidden. Valid tenant claims are required.";
@@ -82,6 +82,8 @@ public class CompanyDataController : ControllerBase
     /// Updates the current company's profile details (name, phone, address, logo).
     /// </summary>
     [HttpPut("profile")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
     [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
@@ -398,5 +400,266 @@ public class CompanyDataController : ControllerBase
             CreatedAt = station.CreatedAt,
             UpdatedAt = station.UpdatedAt
         };
+    }
+
+    /// <summary>
+    /// Returns the list of staff members under the caller's tenant.
+    /// Restricted to CompanyAdmin role only.
+    /// </summary>
+    [HttpGet("staff")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<StaffResponseDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetStaffMembers(CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        var staff = await _companyAuthService.GetStaffMembersAsync(tenantId, cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<StaffResponseDto>>.Ok(staff, "Staff members retrieved successfully."));
+    }
+
+    /// <summary>
+    /// Creates a staff account strictly scoped to the authenticated admin's tenant.
+    /// Restricted to CompanyAdmin role only.
+    /// </summary>
+    [HttpPost("staff")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<StaffResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateStaffMember(
+        [FromBody] CreateStaffRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail("Validation failed.", errors));
+        }
+
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            var created = await _companyAuthService.CreateStaffMemberAsync(tenantId, request, cancellationToken);
+            return StatusCode(StatusCodes.Status201Created, ApiResponse<StaffResponseDto>.Ok(created, "Staff member created successfully."));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (DuplicateEmailException ex)
+        {
+            return Conflict(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+    }
+
+    /// <summary>
+    /// Deactivates a staff account scoped under the caller's tenant.
+    /// Restricted to CompanyAdmin role only.
+    /// </summary>
+    [HttpPatch("staff/{userId}/deactivate")]
+    [HttpPut("staff/{userId}/deactivate")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<StaffResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeactivateStaffMember(string userId, CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            var result = await _companyAuthService.DeactivateStaffMemberAsync(tenantId, userId, cancellationToken);
+            return Ok(ApiResponse<StaffResponseDto>.Ok(result, "Staff account deactivated successfully."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Reactivates a staff account scoped under the caller's tenant.
+    /// Restricted to CompanyAdmin role only.
+    /// </summary>
+    [HttpPatch("staff/{userId}/reactivate")]
+    [HttpPut("staff/{userId}/reactivate")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<StaffResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ReactivateStaffMember(string userId, CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            var result = await _companyAuthService.ReactivateStaffMemberAsync(tenantId, userId, cancellationToken);
+            return Ok(ApiResponse<StaffResponseDto>.Ok(result, "Staff account reactivated successfully."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Deletes the company account.
+    /// Restricted to CompanyAdmin role only. Operators cannot delete the company.
+    /// </summary>
+    [HttpDelete]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteCompany(CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            await _companyAuthService.DeleteCompanyAsync(tenantId, cancellationToken);
+            return Ok(ApiResponse<object>.Ok(new { tenantId }, "Company account deleted successfully."));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Retrieves company billing and subscription details.
+    /// Restricted to CompanyAdmin role only. Operators cannot manage billing.
+    /// </summary>
+    [HttpGet("billing")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<BillingInfoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetBillingInfo(CancellationToken cancellationToken)
+    {
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            var billing = await _companyAuthService.GetBillingInfoAsync(tenantId, cancellationToken);
+            return Ok(ApiResponse<BillingInfoDto>.Ok(billing, "Billing information retrieved successfully."));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Updates company billing and payment information.
+    /// Restricted to CompanyAdmin role only. Operators cannot manage billing.
+    /// </summary>
+    [HttpPut("billing")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<BillingInfoDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdateBillingInfo(
+        [FromBody] UpdateBillingRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ApiResponse<object>.Fail("Validation failed."));
+        }
+
+        var tenantId = GetCallerTenantId();
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<object>.Fail(ValidTenantClaimsRequiredMessage));
+        }
+
+        if (_companyAuthService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented, ApiResponse<object>.Fail("Auth service not configured."));
+        }
+
+        try
+        {
+            var billing = await _companyAuthService.UpdateBillingInfoAsync(tenantId, request, cancellationToken);
+            return Ok(ApiResponse<BillingInfoDto>.Ok(billing, "Billing information updated successfully."));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
     }
 }

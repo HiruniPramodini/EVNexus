@@ -141,12 +141,15 @@ public class DatabaseInitializer : IDatabaseInitializer
                     user_id VARCHAR(50) PRIMARY KEY,
                     tenant_id VARCHAR(50) NOT NULL,
                     name VARCHAR(255) NOT NULL,
-                    email VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL UNIQUE,
+                    phone VARCHAR(50) NULL,
+                    password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL DEFAULT 'Operator',
                     status VARCHAR(50) NOT NULL DEFAULT 'Active',
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_company_users_tenant (tenant_id),
+                    INDEX idx_company_users_email (email),
                     CONSTRAINT fk_company_users_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
@@ -265,6 +268,48 @@ public class DatabaseInitializer : IDatabaseInitializer
             catch (Exception migrationEx)
             {
                 _logger.LogDebug(migrationEx, "Table check or migration on 'driver_vehicles' completed.");
+            }
+
+            // Migration: Ensure password_hash and phone columns exist on company_users table
+            try
+            {
+                const string checkPasswordHashColSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'company_users' 
+                      AND COLUMN_NAME = 'password_hash';
+                ";
+                await using var checkPwCmd = new MySqlCommand(checkPasswordHashColSql, connection);
+                var pwColExists = Convert.ToInt64(await checkPwCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!pwColExists)
+                {
+                    const string addPwColSql = "ALTER TABLE company_users ADD COLUMN password_hash VARCHAR(255) NOT NULL DEFAULT '';";
+                    await using var addPwCmd = new MySqlCommand(addPwColSql, connection);
+                    await addPwCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: added 'password_hash' column to 'company_users'.");
+                }
+
+                const string checkPhoneColSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'company_users' 
+                      AND COLUMN_NAME = 'phone';
+                ";
+                await using var checkPhoneCmd = new MySqlCommand(checkPhoneColSql, connection);
+                var phoneColExists = Convert.ToInt64(await checkPhoneCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!phoneColExists)
+                {
+                    const string addPhoneColSql = "ALTER TABLE company_users ADD COLUMN phone VARCHAR(50) NULL;";
+                    await using var addPhoneCmd = new MySqlCommand(addPhoneColSql, connection);
+                    await addPhoneCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: added 'phone' column to 'company_users'.");
+                }
+            }
+            catch (Exception cuMigrationEx)
+            {
+                _logger.LogDebug(cuMigrationEx, "Column check or migration on 'company_users' completed.");
             }
 
             _logger.LogInformation("Auth database schema initialized successfully.");

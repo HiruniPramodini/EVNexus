@@ -12,6 +12,7 @@ public interface IJwtTokenService
 {
     (string Token, int ExpiresInSeconds) GenerateToken(Tenant tenant);
     (string Token, int ExpiresInSeconds) GenerateDriverToken(Driver driver);
+    (string Token, int ExpiresInSeconds) GenerateStaffToken(CompanyUser user, Tenant tenant);
 }
 
 public class JwtTokenService : IJwtTokenService
@@ -82,6 +83,46 @@ public class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Name, driver.Name),
             new(ClaimTypes.Role, driver.Role),
             new("role", driver.Role),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = expiresAt,
+            Issuer = _jwtSettings.Issuer,
+            Audience = _jwtSettings.Audience,
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var tokenString = tokenHandler.WriteToken(token);
+
+        return (tokenString, (int)expiryDuration.TotalSeconds);
+    }
+
+    public (string Token, int ExpiresInSeconds) GenerateStaffToken(CompanyUser user, Tenant tenant)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
+        var expiryDuration = TimeSpan.FromMinutes(_jwtSettings.ExpiryMinutes > 0 ? _jwtSettings.ExpiryMinutes : 60);
+        var expiresAt = DateTime.UtcNow.Add(expiryDuration);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, user.UserId),
+            new(ClaimTypes.NameIdentifier, user.UserId),
+            new("user_id", user.UserId),
+            new("staff_id", user.UserId),
+            new("tenant_id", user.TenantId),
+            new(JwtRegisteredClaimNames.Email, user.Email),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.Name),
+            new("name", user.Name),
+            new(ClaimTypes.Role, user.Role),
+            new("role", user.Role),
+            new("company_name", tenant.CompanyName),
+            new("registration_number", tenant.RegistrationNumber),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

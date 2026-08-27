@@ -31,51 +31,70 @@ public class RoleAuthorizationMiddleware
             return;
         }
 
-        var requiredRoles = GetRequiredRoles(endpoint);
-        if (requiredRoles.Count == 0)
+        var roleRequirements = GetRoleRequirements(endpoint);
+        if (roleRequirements.Count == 0)
         {
             await _next(context);
             return;
         }
 
+        var allRequiredRoles = roleRequirements.SelectMany(r => r).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
         if (context.User?.Identity?.IsAuthenticated != true)
         {
-            await HandleUnauthenticatedAsync(context, requiredRoles);
+            await HandleUnauthenticatedAsync(context, allRequiredRoles);
             return;
         }
 
         var callerRoles = ExtractCallerRoles(context.User);
-        var isAuthorized = callerRoles.Any(r => requiredRoles.Contains(r)) ||
-                           requiredRoles.Any(r => context.User.IsInRole(r));
 
-        if (!isAuthorized)
+        foreach (var req in roleRequirements)
         {
-            await HandleForbiddenAsync(context, callerRoles, requiredRoles);
-            return;
+            var isSatisfied = callerRoles.Any(r => req.Contains(r)) ||
+                              req.Any(r => context.User.IsInRole(r));
+            if (!isSatisfied)
+            {
+                await HandleForbiddenAsync(context, callerRoles, req);
+                return;
+            }
         }
 
         await _next(context);
     }
 
-    private static HashSet<string> GetRequiredRoles(Endpoint endpoint)
+    private static List<HashSet<string>> GetRoleRequirements(Endpoint endpoint)
     {
-        var requiredRoles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requirements = new List<HashSet<string>>();
 
         var requireRoleAttributes = endpoint.Metadata.GetOrderedMetadata<RequireRoleAttribute>();
-        foreach (var role in requireRoleAttributes.SelectMany(attr => attr.Roles ?? Array.Empty<string>()).Where(r => !string.IsNullOrWhiteSpace(r)))
+        foreach (var attr in requireRoleAttributes)
         {
-            requiredRoles.Add(role.Trim());
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var role in (attr.Roles ?? Array.Empty<string>()).Where(r => !string.IsNullOrWhiteSpace(r)))
+            {
+                set.Add(role.Trim());
+            }
+            if (set.Count > 0)
+            {
+                requirements.Add(set);
+            }
         }
 
         var authorizeAttributes = endpoint.Metadata.GetOrderedMetadata<AuthorizeAttribute>();
-        foreach (var role in authorizeAttributes
-                     .Where(a => !string.IsNullOrWhiteSpace(a.Roles))
-                     .SelectMany(a => a.Roles!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)))
+        foreach (var attr in authorizeAttributes.Where(a => !string.IsNullOrWhiteSpace(a.Roles)))
         {
-            requiredRoles.Add(role);
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var role in attr.Roles!.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                set.Add(role);
+            }
+            if (set.Count > 0)
+            {
+                requirements.Add(set);
+            }
         }
 
-        return requiredRoles;
+        return requirements;
     }
 
     private static IReadOnlyList<string> ExtractCallerRoles(ClaimsPrincipal user)
