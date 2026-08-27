@@ -320,3 +320,40 @@ export async function requestEmailChange(newBusinessEmail, token) {
   return handleResponse(response, 'Failed to request email verification code.');
 }
 
+export async function updateDriverProfile(profileData, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      name: profileData.name?.trim(),
+      phone: profileData.phone?.trim()
+    })
+  });
+
+  return handleResponse(response, 'Failed to update driver profile.');
+}
+
+export async function changeDriverPassword(passwordData, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/change-password`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({
+      currentPassword: passwordData.currentPassword,
+      newPassword: passwordData.newPassword,
+      confirmNewPassword: passwordData.confirmNewPassword
+    })
+  });
+
+  return handleResponse(response, 'Failed to change password.');
+}
+

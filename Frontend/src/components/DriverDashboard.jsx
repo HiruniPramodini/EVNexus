@@ -17,15 +17,54 @@ import {
   Clock,
   Key,
   ShieldAlert,
-  Lock
+  Lock,
+  Edit3,
+  X,
+  Eye,
+  EyeOff,
+  Sparkles
 } from 'lucide-react';
-import { getDriverProfile, clearAuthSession, testDriverAccessToCompanyEndpoint } from '../services/api';
+import {
+  getDriverProfile,
+  updateDriverProfile,
+  changeDriverPassword,
+  clearAuthSession,
+  testDriverAccessToCompanyEndpoint
+} from '../services/api';
 
-export default function DriverDashboard({ authUser, onLogout }) {
+export default function DriverDashboard({ authUser, onLogout, onUpdateProfile }) {
   const [copiedDriverId, setCopiedDriverId] = useState(false);
   const [copiedWalletId, setCopiedWalletId] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showFullToken, setShowFullToken] = useState(false);
+
+  // Profile Management State
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileFormData, setProfileFormData] = useState({
+    name: authUser?.name || '',
+    phone: authUser?.phone || ''
+  });
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [profileSuccessMsg, setProfileSuccessMsg] = useState(null);
+  const [profileErrorMsg, setProfileErrorMsg] = useState(null);
+  const [profileValidationErrors, setProfileValidationErrors] = useState([]);
+
+  // Change Password State
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [passwordFormData, setPasswordFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmNewPassword: ''
+  });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    next: false,
+    confirm: false
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordSuccessMsg, setPasswordSuccessMsg] = useState(null);
+  const [passwordErrorMsg, setPasswordErrorMsg] = useState(null);
+  const [passwordValidationErrors, setPasswordValidationErrors] = useState([]);
 
   // Protected API Test State
   const [isVerifying, setIsVerifying] = useState(false);
@@ -57,7 +96,6 @@ export default function DriverDashboard({ authUser, onLogout }) {
   const handleVerifyProtectedApi = async () => {
     setIsVerifying(true);
     setProfileError(null);
-    setProfileResult(null);
 
     try {
       const startTime = performance.now();
@@ -69,6 +107,12 @@ export default function DriverDashboard({ authUser, onLogout }) {
         status: 200,
         latencyMs: Math.round(endTime - startTime),
         timestamp: new Date().toLocaleTimeString()
+      });
+
+      // Synchronize form defaults
+      setProfileFormData({
+        name: response.data?.name || authUser?.name || '',
+        phone: response.data?.phone || authUser?.phone || ''
       });
     } catch (err) {
       setProfileError({
@@ -115,10 +159,168 @@ export default function DriverDashboard({ authUser, onLogout }) {
     }
   };
 
+  // Profile Modal Handlers
+  const handleOpenEditProfile = () => {
+    setProfileFormData({
+      name: profileResult?.data?.name || authUser?.name || '',
+      phone: profileResult?.data?.phone || authUser?.phone || ''
+    });
+    setProfileSuccessMsg(null);
+    setProfileErrorMsg(null);
+    setProfileValidationErrors([]);
+    setShowEditProfileModal(true);
+  };
+
+  const handleProfileFormChange = (e) => {
+    const { name, value } = e.target;
+    setProfileFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitProfile = async (e) => {
+    e.preventDefault();
+    setProfileSuccessMsg(null);
+    setProfileErrorMsg(null);
+    setProfileValidationErrors([]);
+
+    // Client validation
+    const clientErrors = [];
+    if (!profileFormData.name || profileFormData.name.trim().length < 2) {
+      clientErrors.push('Full name must be at least 2 characters.');
+    }
+    if (!profileFormData.phone || profileFormData.phone.trim().length < 5) {
+      clientErrors.push('Please enter a valid phone number.');
+    }
+
+    if (clientErrors.length > 0) {
+      setProfileValidationErrors(clientErrors);
+      return;
+    }
+
+    setIsUpdatingProfile(true);
+    try {
+      const res = await updateDriverProfile(profileFormData, authUser?.accessToken);
+      const updatedData = res.data;
+
+      setProfileSuccessMsg('Driver profile updated successfully!');
+      
+      // Update local profile result
+      if (profileResult?.data) {
+        setProfileResult((prev) => ({
+          ...prev,
+          data: {
+            ...prev.data,
+            name: updatedData.name,
+            phone: updatedData.phone,
+            updatedAt: updatedData.updatedAt
+          }
+        }));
+      }
+
+      // Propagate to parent state & localStorage
+      if (onUpdateProfile) {
+        onUpdateProfile({
+          name: updatedData.name,
+          phone: updatedData.phone
+        });
+      }
+
+      setTimeout(() => {
+        setShowEditProfileModal(false);
+        setProfileSuccessMsg(null);
+      }, 1200);
+    } catch (err) {
+      setProfileErrorMsg(err.message || 'Failed to update profile.');
+      if (err.errors && Array.isArray(err.errors)) {
+        setProfileValidationErrors(err.errors);
+      }
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
+  // Password Modal Handlers
+  const handleOpenChangePassword = () => {
+    setPasswordFormData({
+      currentPassword: '',
+      newPassword: '',
+      confirmNewPassword: ''
+    });
+    setShowPasswords({ current: false, next: false, confirm: false });
+    setPasswordSuccessMsg(null);
+    setPasswordErrorMsg(null);
+    setPasswordValidationErrors([]);
+    setShowChangePasswordModal(true);
+  };
+
+  const handlePasswordFormChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitPasswordChange = async (e) => {
+    e.preventDefault();
+    setPasswordSuccessMsg(null);
+    setPasswordErrorMsg(null);
+    setPasswordValidationErrors([]);
+
+    const clientErrors = [];
+    if (!passwordFormData.currentPassword) {
+      clientErrors.push('Current password is required.');
+    }
+    if (!passwordFormData.newPassword || passwordFormData.newPassword.length < 8) {
+      clientErrors.push('New password must be at least 8 characters long.');
+    } else if (!/(?=.*[0-9])/.test(passwordFormData.newPassword)) {
+      clientErrors.push('New password must contain at least one numeric digit.');
+    }
+    if (passwordFormData.newPassword !== passwordFormData.confirmNewPassword) {
+      clientErrors.push('New password and confirmation do not match.');
+    }
+    if (passwordFormData.currentPassword && passwordFormData.newPassword && passwordFormData.currentPassword === passwordFormData.newPassword) {
+      clientErrors.push('New password cannot be the same as your current password.');
+    }
+
+    if (clientErrors.length > 0) {
+      setPasswordValidationErrors(clientErrors);
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changeDriverPassword(passwordFormData, authUser?.accessToken);
+      setPasswordSuccessMsg('Your password has been changed successfully!');
+      setPasswordFormData({
+        currentPassword: '',
+        newPassword: '',
+        confirmNewPassword: ''
+      });
+
+      setTimeout(() => {
+        setShowChangePasswordModal(false);
+        setPasswordSuccessMsg(null);
+      }, 1500);
+    } catch (err) {
+      setPasswordErrorMsg(err.message || 'Failed to change password.');
+      if (err.errors && Array.isArray(err.errors)) {
+        setPasswordValidationErrors(err.errors);
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const effectiveDriverId = profileResult?.data?.driverId || authUser?.driverId || 'DRV-N/A';
+  const effectiveName = profileResult?.data?.name || authUser?.name || 'EV Driver';
+  const effectiveEmail = profileResult?.data?.email || authUser?.email || '';
+  const effectivePhone = profileResult?.data?.phone || authUser?.phone || '';
   const effectiveWalletId = profileResult?.data?.walletId || authUser?.walletId || 'WLT-N/A';
   const effectiveBalance = profileResult?.data?.walletBalance ?? authUser?.walletBalance ?? 0.0;
   const effectiveCurrency = profileResult?.data?.currency || authUser?.currency || 'USD';
+  const effectiveCreatedAt = profileResult?.data?.createdAt ? new Date(profileResult.data.createdAt).toLocaleDateString() : 'Active Driver';
+
+  // Live password validation checks
+  const isLengthValid = passwordFormData.newPassword.length >= 8;
+  const hasDigit = /(?=.*[0-9])/.test(passwordFormData.newPassword);
+  const passwordsMatch = Boolean(passwordFormData.newPassword && passwordFormData.newPassword === passwordFormData.confirmNewPassword);
 
   return (
     <div className="main-content" style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
@@ -168,24 +370,68 @@ export default function DriverDashboard({ authUser, onLogout }) {
             </div>
 
             <h1 style={{ fontSize: '1.85rem', fontWeight: '700', margin: '0.25rem 0', color: '#ffffff' }}>
-              {authUser?.name || 'EV Driver'}
+              {effectiveName}
             </h1>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem', opacity: 0.9, fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.5rem', opacity: 0.9, fontSize: '0.875rem', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <Mail size={14} />
-                {authUser?.email || profileResult?.data?.email}
+                {effectiveEmail}
               </span>
-              {profileResult?.data?.phone && (
+              {effectivePhone && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Phone size={14} />
-                  {profileResult.data.phone}
+                  {effectivePhone}
                 </span>
               )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleOpenEditProfile}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                color: '#ffffff',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Edit3 size={14} />
+              <span>Edit Profile</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenChangePassword}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                color: '#ffffff',
+                padding: '0.5rem 0.9rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Key size={14} />
+              <span>Change Password</span>
+            </button>
+
             <button
               type="button"
               onClick={handleLogoutClick}
@@ -261,6 +507,125 @@ export default function DriverDashboard({ authUser, onLogout }) {
             {copiedDriverId ? <Check size={14} /> : <Copy size={14} />}
             <span>{copiedDriverId ? 'Copied' : 'Copy Driver ID'}</span>
           </button>
+        </div>
+      </div>
+
+      {/* Driver Profile Showcase Card */}
+      <div
+        className="register-card"
+        style={{
+          marginBottom: '1.5rem',
+          background: '#ffffff',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          position: 'relative'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #e0f2fe, #bae6fd)',
+                color: '#0284c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <User size={22} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                Driver Profile & Account Information
+              </h2>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Personal contact details & authenticated driver credentials
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              type="button"
+              onClick={handleOpenEditProfile}
+              style={{
+                background: 'var(--primary-50)',
+                border: '1px solid var(--primary-200)',
+                color: 'var(--primary-700)',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Edit3 size={14} />
+              <span>Update Details</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenChangePassword}
+              style={{
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+                padding: '0.45rem 0.9rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Key size={14} />
+              <span>Password</span>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', fontSize: '0.875rem' }}>
+          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Full Name</div>
+            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+              {effectiveName}
+            </div>
+          </div>
+
+          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Phone Number</div>
+            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+              {effectivePhone || <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>Not provided</span>}
+            </div>
+          </div>
+
+          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Login Email</span>
+              <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <Lock size={10} /> Verified
+              </span>
+            </div>
+            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+              {effectiveEmail}
+            </div>
+          </div>
+
+          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Member Since</div>
+            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
+              {effectiveCreatedAt}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -414,7 +779,7 @@ export default function DriverDashboard({ authUser, onLogout }) {
           background: '#ffffff',
           border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
-          margin: 0
+          margin: '0 0 1.5rem 0'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
@@ -471,8 +836,8 @@ export default function DriverDashboard({ authUser, onLogout }) {
               <div><strong>Driver ID:</strong> {profileResult.data?.driverId}</div>
               <div><strong>Name:</strong> {profileResult.data?.name}</div>
               <div><strong>Email:</strong> {profileResult.data?.email}</div>
+              <div><strong>Phone:</strong> {profileResult.data?.phone || 'N/A'}</div>
               <div><strong>Role Claim:</strong> {profileResult.data?.role}</div>
-              <div><strong>Wallet ID:</strong> {profileResult.data?.walletId}</div>
               <div><strong>Wallet Balance:</strong> ${profileResult.data?.walletBalance} {profileResult.data?.currency}</div>
             </div>
           </div>
@@ -633,6 +998,578 @@ export default function DriverDashboard({ authUser, onLogout }) {
           )}
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* Edit Profile Modal */}
+      {/* ========================================================================= */}
+      {showEditProfileModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => setShowEditProfileModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '520px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              overflow: 'hidden',
+              animation: 'modalSlideIn 0.25s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: '#ffffff'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit3 size={18} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#ffffff' }}>
+                  Edit Driver Profile
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditProfileModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitProfile} style={{ padding: '1.5rem' }}>
+              {profileSuccessMsg && (
+                <div
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    color: '#15803d',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{profileSuccessMsg}</span>
+                </div>
+              )}
+
+              {profileErrorMsg && (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#b91c1c',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
+                    <AlertTriangle size={16} />
+                    <span>{profileErrorMsg}</span>
+                  </div>
+                  {profileValidationErrors.length > 0 && (
+                    <ul style={{ margin: '0.4rem 0 0 1.25rem', padding: 0 }}>
+                      {profileValidationErrors.map((err, idx) => (
+                        <li key={`prof-val-err-${idx}`}>{err}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Full Name */}
+                <div className="form-group">
+                  <label htmlFor="driver-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                    Driver Full Name <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    id="driver-name"
+                    type="text"
+                    name="name"
+                    value={profileFormData.name}
+                    onChange={handleProfileFormChange}
+                    placeholder="Enter your full name"
+                    className="form-input"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                    Between 2 and 100 characters.
+                  </span>
+                </div>
+
+                {/* Phone Number */}
+                <div className="form-group">
+                  <label htmlFor="driver-phone" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                    Contact Phone Number <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    id="driver-phone"
+                    type="tel"
+                    name="phone"
+                    value={profileFormData.phone}
+                    onChange={handleProfileFormChange}
+                    placeholder="+1-555-123-4567"
+                    className="form-input"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
+
+                {/* Email (Read-Only) */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <label htmlFor="driver-email" style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                      Account Login Email
+                    </label>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <Lock size={11} /> Primary Driver ID
+                    </span>
+                  </div>
+                  <input
+                    id="driver-email"
+                    type="email"
+                    value={effectiveEmail}
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid #e2e8f0',
+                      background: '#f8fafc',
+                      color: '#64748b',
+                      fontSize: '0.9rem',
+                      cursor: 'not-allowed'
+                    }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                    Driver email is your secure account identity and cannot be edited.
+                  </span>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfileModal(false)}
+                  style={{
+                    padding: '0.6rem 1.1rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: '#ffffff',
+                    color: 'var(--text-main)',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingProfile}
+                  className="submit-btn"
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.85rem',
+                    margin: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  {isUpdatingProfile ? <RefreshCw size={14} className="spinner-icon" /> : <Check size={14} />}
+                  <span>{isUpdatingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* Change Password Modal */}
+      {/* ========================================================================= */}
+      {showChangePasswordModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+          onClick={() => setShowChangePasswordModal(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '500px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              overflow: 'hidden',
+              animation: 'modalSlideIn 0.25s ease-out'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '1.25rem 1.5rem',
+                borderBottom: '1px solid var(--border-subtle)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+                color: '#ffffff'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Key size={18} />
+                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#ffffff' }}>
+                  Change Account Password
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowChangePasswordModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.15)',
+                  border: 'none',
+                  color: '#ffffff',
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitPasswordChange} style={{ padding: '1.5rem' }}>
+              {passwordSuccessMsg && (
+                <div
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    color: '#15803d',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    fontSize: '0.875rem'
+                  }}
+                >
+                  <CheckCircle2 size={16} />
+                  <span>{passwordSuccessMsg}</span>
+                </div>
+              )}
+
+              {passwordErrorMsg && (
+                <div
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.08)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#b91c1c',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    marginBottom: '1rem',
+                    fontSize: '0.85rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
+                    <AlertTriangle size={16} />
+                    <span>{passwordErrorMsg}</span>
+                  </div>
+                  {passwordValidationErrors.length > 0 && (
+                    <ul style={{ margin: '0.4rem 0 0 1.25rem', padding: 0 }}>
+                      {passwordValidationErrors.map((err, idx) => (
+                        <li key={`pwd-val-err-${idx}`}>{err}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+                {/* Current Password */}
+                <div className="form-group">
+                  <label htmlFor="current-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                    Current Password <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="current-password"
+                      type={showPasswords.current ? 'text' : 'password'}
+                      name="currentPassword"
+                      value={passwordFormData.currentPassword}
+                      onChange={handlePasswordFormChange}
+                      placeholder="Enter your current password"
+                      required
+                      className="form-input"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      {showPasswords.current ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div className="form-group">
+                  <label htmlFor="new-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                    New Password <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="new-password"
+                      type={showPasswords.next ? 'text' : 'password'}
+                      name="newPassword"
+                      value={passwordFormData.newPassword}
+                      onChange={handlePasswordFormChange}
+                      placeholder="Enter new password"
+                      required
+                      className="form-input"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords((prev) => ({ ...prev, next: !prev.next }))}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      {showPasswords.next ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Password Checklist Pills */}
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '0.725rem',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        background: isLengthValid ? '#dcfce7' : '#f1f5f9',
+                        color: isLengthValid ? '#15803d' : '#64748b',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                    >
+                      {isLengthValid ? <Check size={12} /> : '○'} Min 8 characters
+                    </span>
+
+                    <span
+                      style={{
+                        fontSize: '0.725rem',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '6px',
+                        fontWeight: '600',
+                        background: hasDigit ? '#dcfce7' : '#f1f5f9',
+                        color: hasDigit ? '#15803d' : '#64748b',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                    >
+                      {hasDigit ? <Check size={12} /> : '○'} At least 1 number
+                    </span>
+                  </div>
+                </div>
+
+                {/* Confirm New Password */}
+                <div className="form-group">
+                  <label htmlFor="confirm-new-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
+                    Confirm New Password <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      id="confirm-new-password"
+                      type={showPasswords.confirm ? 'text' : 'password'}
+                      name="confirmNewPassword"
+                      value={passwordFormData.confirmNewPassword}
+                      onChange={handlePasswordFormChange}
+                      placeholder="Re-type new password"
+                      required
+                      className="form-input"
+                      style={{
+                        width: '100%',
+                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
+                        borderRadius: '8px',
+                        border: '1px solid var(--border-subtle)',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center'
+                      }}
+                    >
+                      {showPasswords.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {passwordFormData.confirmNewPassword && (
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: '600', color: passwordsMatch ? '#16a34a' : '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {passwordsMatch ? <Check size={12} /> : <AlertTriangle size={12} />}
+                      <span>{passwordsMatch ? 'Passwords match' : 'Passwords do not match'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowChangePasswordModal(false)}
+                  style={{
+                    padding: '0.6rem 1.1rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: '#ffffff',
+                    color: 'var(--text-main)',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isChangingPassword}
+                  className="submit-btn"
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.85rem',
+                    margin: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  {isChangingPassword ? <RefreshCw size={14} className="spinner-icon" /> : <Key size={14} />}
+                  <span>{isChangingPassword ? 'Updating Password...' : 'Update Password'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
