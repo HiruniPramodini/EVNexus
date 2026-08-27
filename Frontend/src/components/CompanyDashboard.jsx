@@ -23,7 +23,13 @@ import {
   Image as ImageIcon,
   Sparkles,
   X,
-  ExternalLink
+  ExternalLink,
+  Users,
+  UserPlus,
+  UserCheck,
+  UserX,
+  CreditCard,
+  Trash2
 } from 'lucide-react';
 import {
   getCompanyProfile,
@@ -35,7 +41,13 @@ import {
   testCrossTenantAccess,
   testCompanyAccessToDriverEndpoint,
   verifyEmail,
-  resendVerificationCode
+  resendVerificationCode,
+  getCompanyStaff,
+  createCompanyStaff,
+  deactivateCompanyStaff,
+  reactivateCompanyStaff,
+  getCompanyBilling,
+  deleteCompanyAccount
 } from '../services/api';
 
 const PRESET_LOGOS = [
@@ -106,10 +118,124 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const [isTestingRbac, setIsTestingRbac] = useState(false);
   const [rbacResult, setRbacResult] = useState(null);
 
+  // Role Detection
+  const userRole = authUser?.role || 'CompanyAdmin';
+  const isOperator = userRole?.toLowerCase() === 'operator';
+  const isAdmin = !isOperator;
+
+  // Staff Management State
+  const [staffList, setStaffList] = useState([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffError, setStaffError] = useState(null);
+  const [staffSuccess, setStaffSuccess] = useState(null);
+  const [showInviteStaffModal, setShowInviteStaffModal] = useState(false);
+  const [isSubmittingStaff, setIsSubmittingStaff] = useState(false);
+  const [staffModalError, setStaffModalError] = useState(null);
+  const [staffFormData, setStaffFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    role: 'Operator'
+  });
+
+  // Billing State
+  const [billingInfo, setBillingInfo] = useState(null);
+  const [loadingBilling, setLoadingBilling] = useState(false);
+  const [billingMsg, setBillingMsg] = useState(null);
+
+  // Company Deletion State
+  const [isDeletingCompany, setIsDeletingCompany] = useState(false);
+  const [deleteCompanyMsg, setDeleteCompanyMsg] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   useEffect(() => {
     handleVerifyProtectedApi();
     loadStations();
+    if (isAdmin) {
+      loadStaff();
+      loadBilling();
+    }
   }, []);
+
+  const loadStaff = async () => {
+    setLoadingStaff(true);
+    setStaffError(null);
+    try {
+      const res = await getCompanyStaff(authUser?.accessToken);
+      if (res?.data) {
+        setStaffList(res.data);
+      }
+    } catch (err) {
+      setStaffError(err.message || 'Failed to load staff accounts.');
+    } finally {
+      setLoadingStaff(false);
+    }
+  };
+
+  const loadBilling = async () => {
+    setLoadingBilling(true);
+    try {
+      const res = await getCompanyBilling(authUser?.accessToken);
+      if (res?.data) {
+        setBillingInfo(res.data);
+      }
+    } catch (err) {
+      console.warn('Billing info not available:', err);
+    } finally {
+      setLoadingBilling(false);
+    }
+  };
+
+  const handleCreateStaff = async (e) => {
+    e.preventDefault();
+    setStaffModalError(null);
+    setIsSubmittingStaff(true);
+    try {
+      const res = await createCompanyStaff(staffFormData, authUser?.accessToken);
+      if (res?.data) {
+        setStaffList(prev => [res.data, ...prev]);
+        setShowInviteStaffModal(false);
+        setStaffSuccess(`Staff member '${res.data.name}' invited with role Operator under Tenant ${authUser?.tenantId}!`);
+        setStaffFormData({ name: '', email: '', password: '', phone: '', role: 'Operator' });
+      }
+    } catch (err) {
+      setStaffModalError(err.message || 'Failed to create staff member.');
+    } finally {
+      setIsSubmittingStaff(false);
+    }
+  };
+
+  const handleToggleStaffStatus = async (staffMember) => {
+    setStaffError(null);
+    setStaffSuccess(null);
+    try {
+      const isDeactivating = staffMember.status === 'Active';
+      const res = isDeactivating
+        ? await deactivateCompanyStaff(staffMember.userId, authUser?.accessToken)
+        : await reactivateCompanyStaff(staffMember.userId, authUser?.accessToken);
+
+      if (res?.data) {
+        setStaffList(prev => prev.map(s => s.userId === staffMember.userId ? res.data : s));
+        setStaffSuccess(`Staff member '${staffMember.name}' ${isDeactivating ? 'deactivated' : 'reactivated'} successfully.`);
+      }
+    } catch (err) {
+      setStaffError(err.message || `Failed to update status for ${staffMember.name}.`);
+    }
+  };
+
+  const handleDeleteCompany = async () => {
+    setIsDeletingCompany(true);
+    setDeleteCompanyMsg(null);
+    try {
+      await deleteCompanyAccount(authUser?.accessToken);
+      alert('Company account has been deleted successfully. You will now be signed out.');
+      onLogout?.();
+    } catch (err) {
+      setDeleteCompanyMsg(err.message || 'Failed to delete company account.');
+      setIsDeletingCompany(false);
+    }
+  };
 
   const loadStations = async () => {
     setLoadingStations(true);
@@ -498,6 +624,23 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                   <Layers size={13} />
                   Multi-Tenant Scoped
                 </span>
+                <span
+                  style={{
+                    background: isOperator ? 'rgba(245, 158, 11, 0.45)' : 'rgba(255, 255, 255, 0.25)',
+                    color: '#ffffff',
+                    padding: '0.2rem 0.65rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    border: isOperator ? '1px solid #fde68a' : '1px solid rgba(255, 255, 255, 0.35)'
+                  }}
+                >
+                  <ShieldCheck size={13} />
+                  {isOperator ? 'Role: Operator (Restricted)' : 'Role: Company Admin'}
+                </span>
               </div>
               <h1 style={{ color: '#ffffff', fontSize: '1.75rem', fontWeight: '700', marginBottom: '0.25rem' }}>
                 {activeCompanyName}
@@ -509,40 +652,42 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setProfileUpdateError(null);
-                setProfileUpdateSuccess(null);
-                setProfileUpdateValidationErrors([]);
-                setProfileFormData({
-                  companyName: profileResult?.data?.companyName || authUser?.companyName || '',
-                  phone: profileResult?.data?.phone || authUser?.phone || '',
-                  address: profileResult?.data?.address || authUser?.address || '',
-                  logoUrl: profileResult?.data?.logoUrl || authUser?.logoUrl || '',
-                  businessEmail: profileResult?.data?.businessEmail || authUser?.businessEmail || '',
-                  emailVerificationCode: ''
-                });
-                setShowEditProfileModal(true);
-              }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.22)',
-                border: '1px solid rgba(255, 255, 255, 0.4)',
-                color: '#ffffff',
-                padding: '0.55rem 1.1rem',
-                borderRadius: '8px',
-                fontWeight: '600',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.45rem',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <Edit3 size={15} />
-              <span>Edit Profile</span>
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileUpdateError(null);
+                  setProfileUpdateSuccess(null);
+                  setProfileUpdateValidationErrors([]);
+                  setProfileFormData({
+                    companyName: profileResult?.data?.companyName || authUser?.companyName || '',
+                    phone: profileResult?.data?.phone || authUser?.phone || '',
+                    address: profileResult?.data?.address || authUser?.address || '',
+                    logoUrl: profileResult?.data?.logoUrl || authUser?.logoUrl || '',
+                    businessEmail: profileResult?.data?.businessEmail || authUser?.businessEmail || '',
+                    emailVerificationCode: ''
+                  });
+                  setShowEditProfileModal(true);
+                }}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.22)',
+                  border: '1px solid rgba(255, 255, 255, 0.4)',
+                  color: '#ffffff',
+                  padding: '0.55rem 1.1rem',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <Edit3 size={15} />
+                <span>Edit Profile</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -569,6 +714,34 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
           </div>
         </div>
       </div>
+
+      {/* Restricted Permissions Banner for Operator Accounts */}
+      {isOperator && (
+        <div
+          className="register-card animate-fade-in"
+          style={{
+            marginBottom: '1.5rem',
+            border: '1px solid #fde68a',
+            background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.6) 0%, rgba(253, 230, 138, 0.25) 100%)',
+            padding: '1rem 1.25rem',
+            boxShadow: '0 4px 12px rgba(217, 119, 6, 0.08)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+            <div style={{ background: '#fef3c7', padding: '0.5rem', borderRadius: '10px', color: '#b45309' }}>
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.98rem', fontWeight: '700', color: '#92400e' }}>
+                Operator Account — Restricted Role
+              </h4>
+              <p style={{ margin: 0, fontSize: '0.85rem', color: '#b45309', marginTop: '0.25rem', lineHeight: 1.4 }}>
+                You are logged in with the <strong>Operator</strong> role scoped to Tenant <strong>{authUser?.tenantId}</strong>. You have permissions to monitor and manage charging stations and operations. Administrative actions (company deletion and billing management) are restricted to <strong>CompanyAdmin</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Acceptance Criteria 2: Unverified Account Prompt & Restriction Banner */}
       {!isEmailVerified && (
@@ -1351,6 +1524,576 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Company Staff & Operator Management Section */}
+      <div className="register-card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={18} color="var(--primary-600)" />
+              Company Staff & Operator Accounts
+              <span
+                style={{
+                  background: 'var(--primary-100)',
+                  color: 'var(--primary-800)',
+                  padding: '0.15rem 0.55rem',
+                  borderRadius: '999px',
+                  fontSize: '0.75rem',
+                  fontWeight: '700'
+                }}
+              >
+                {staffList.length} {staffList.length === 1 ? 'Account' : 'Accounts'}
+              </span>
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Invite and manage company staff members with the restricted <strong>Operator</strong> role scoped to Tenant <code style={{ color: 'var(--primary-700)' }}>{authUser?.tenantId}</code>.
+            </p>
+          </div>
+
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => {
+                setStaffModalError(null);
+                setStaffFormData({ name: '', email: '', password: '', phone: '', role: 'Operator' });
+                setShowInviteStaffModal(true);
+              }}
+              className="submit-btn"
+              style={{ width: 'auto', padding: '0.5rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <UserPlus size={15} />
+              <span>Invite Staff Member</span>
+            </button>
+          ) : (
+            <span
+              style={{
+                background: '#fef3c7',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Lock size={13} />
+              Staff management restricted to Admin
+            </span>
+          )}
+        </div>
+
+        {staffSuccess && (
+          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <CheckCircle2 size={16} />
+            <span>{staffSuccess}</span>
+          </div>
+        )}
+
+        {staffError && (
+          <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <AlertTriangle size={16} />
+            <span>{staffError}</span>
+          </div>
+        )}
+
+        {loadingStaff ? (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <RefreshCw size={20} className="spinner" style={{ margin: '0 auto' }} />
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>Loading staff accounts...</p>
+          </div>
+        ) : staffList.length > 0 ? (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--border-subtle)', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>STAFF MEMBER</th>
+                  <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>EMAIL</th>
+                  <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>ROLE CLAIM</th>
+                  <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>STATUS</th>
+                  <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600' }}>INVITED / CREATED</th>
+                  {isAdmin && <th style={{ padding: '0.75rem 0.5rem', fontWeight: '600', textAlign: 'right' }}>ACTIONS</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {staffList.map((member) => (
+                  <tr key={member.userId} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                    <td style={{ padding: '0.75rem 0.5rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--primary-100)', color: 'var(--primary-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.8rem' }}>
+                          {member.name ? member.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div>
+                          <div>{member.name}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>ID: {member.userId}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-main)' }}>
+                      {member.email}
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <span
+                        style={{
+                          background: '#fef3c7',
+                          color: '#b45309',
+                          border: '1px solid #fde68a',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '999px',
+                          fontSize: '0.75rem',
+                          fontWeight: '700'
+                        }}
+                      >
+                        {member.role || 'Operator'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem' }}>
+                      <span
+                        style={{
+                          background: member.status === 'Active' ? '#dcfce7' : '#fee2e2',
+                          color: member.status === 'Active' ? '#15803d' : '#b91c1c',
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '999px',
+                          fontSize: '0.75rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        ● {member.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: '0.75rem 0.5rem', color: 'var(--text-muted)' }}>
+                      {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}
+                    </td>
+                    {isAdmin && (
+                      <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStaffStatus(member)}
+                          style={{
+                            background: member.status === 'Active' ? '#fee2e2' : '#dcfce7',
+                            color: member.status === 'Active' ? '#b91c1c' : '#15803d',
+                            border: `1px solid ${member.status === 'Active' ? '#fca5a5' : '#86efac'}`,
+                            padding: '0.35rem 0.75rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            fontWeight: '600',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                        >
+                          {member.status === 'Active' ? (
+                            <>
+                              <UserX size={13} />
+                              Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck size={13} />
+                              Reactivate
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '2rem 1rem', background: 'var(--bg-page)', borderRadius: '8px', border: '1px dashed var(--border-subtle)' }}>
+            <Users size={28} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+            <p style={{ fontWeight: '600', color: 'var(--text-main)' }}>No staff accounts created yet for this tenant.</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              {isAdmin ? 'Invite team members to provide restricted operator access to platform management.' : 'Staff members will appear here once invited by the Company Admin.'}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Invite Staff Member Modal */}
+      {showInviteStaffModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div
+            className="register-card animate-fade-in"
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              margin: 0,
+              padding: '1.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <UserPlus size={20} color="var(--primary-600)" />
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700' }}>Invite Staff Member</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteStaffModal(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              Staff members are scoped strictly to Tenant <strong>{authUser?.tenantId}</strong> and are granted the restricted <strong>Operator</strong> role.
+            </p>
+
+            {staffModalError && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.85rem' }}>
+                {staffModalError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateStaff} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Alex Rivera"
+                  value={staffFormData.name}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, name: e.target.value })}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  Business Email *
+                </label>
+                <input
+                  type="email"
+                  required
+                  placeholder="alex.rivera@company.com"
+                  value={staffFormData.email}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, email: e.target.value })}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  Password * (Min 6 characters)
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="Set initial secure password"
+                  value={staffFormData.password}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, password: e.target.value })}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  Phone Number (Optional)
+                </label>
+                <input
+                  type="tel"
+                  placeholder="+1-555-0199"
+                  value={staffFormData.phone}
+                  onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', fontSize: '0.85rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                  Assigned Role (Restricted)
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value="Operator"
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border-subtle)', background: 'rgba(0,0,0,0.04)', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: '600' }}
+                />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+                  Operators have restricted platform permissions (cannot delete company or manage billing).
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem', borderTop: '1px solid var(--border-subtle)', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowInviteStaffModal(false)}
+                  style={{ padding: '0.55rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingStaff}
+                  className="submit-btn"
+                  style={{ width: 'auto', padding: '0.55rem 1.3rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  {isSubmittingStaff ? <RefreshCw size={15} className="spinner" /> : <UserPlus size={15} />}
+                  <span>{isSubmittingStaff ? 'Inviting...' : 'Invite Staff Account'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Company Billing & Subscription Card */}
+      <div className="register-card" style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <CreditCard size={18} color="var(--primary-600)" />
+              Company Billing & Subscription Tier
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Organization payment method, invoicing cycle, and enterprise billing plan.
+            </p>
+          </div>
+
+          {!isAdmin && (
+            <span
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fecaca',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Lock size={13} />
+              Billing restricted to Admin
+            </span>
+          )}
+        </div>
+
+        {isAdmin ? (
+          <div
+            style={{
+              background: 'var(--bg-page)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '10px',
+              padding: '1.25rem',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1.25rem'
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '0.2rem' }}>
+                CURRENT PLAN
+              </span>
+              <span style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                {billingInfo?.plan || 'Enterprise Scale'}
+              </span>
+              <span style={{ display: 'block', fontSize: '0.78rem', color: '#15803d', fontWeight: '600', marginTop: '0.2rem' }}>
+                ● Active Subscription
+              </span>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '0.2rem' }}>
+                BILLING EMAIL
+              </span>
+              <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                {billingInfo?.billingEmail || activeBusinessEmail}
+              </span>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '0.2rem' }}>
+                PAYMENT METHOD
+              </span>
+              <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                {billingInfo?.paymentMethod || 'Corporate Visa **** 4242'}
+              </span>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', display: 'block', marginBottom: '0.2rem' }}>
+                MONTHLY RATE
+              </span>
+              <span style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--primary-700)' }}>
+                $499.00 / month
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '1.75rem', background: '#fef2f2', border: '1px dashed #fca5a5', borderRadius: '8px' }}>
+            <Lock size={26} color="#dc2626" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+            <p style={{ fontWeight: '700', color: '#991b1b', margin: 0 }}>Restricted Permission</p>
+            <p style={{ fontSize: '0.85rem', color: '#b91c1c', marginTop: '0.25rem' }}>
+              Staff members with the <strong>Operator</strong> role are restricted from viewing or managing corporate billing and payment methods.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Danger Zone: Company Account Deletion */}
+      <div className="register-card" style={{ marginBottom: '1.5rem', borderLeft: '4px solid #ef4444' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626' }}>
+              <Trash2 size={18} color="#dc2626" />
+              Company Workspace Deletion
+            </h2>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+              Permanently terminate company account and cascade delete all isolated stations, staff records, and tokens.
+            </p>
+          </div>
+
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{
+                background: '#fee2e2',
+                color: '#dc2626',
+                border: '1px solid #fca5a5',
+                padding: '0.5rem 1rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem'
+              }}
+            >
+              <Trash2 size={15} />
+              <span>Delete Company</span>
+            </button>
+          ) : (
+            <span
+              style={{
+                background: '#fee2e2',
+                color: '#b91c1c',
+                border: '1px solid #fecaca',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '8px',
+                fontSize: '0.8rem',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem'
+              }}
+            >
+              <Lock size={13} />
+              Deletion restricted to Admin
+            </span>
+          )}
+        </div>
+
+        {deleteCompanyMsg && (
+          <div style={{ marginTop: '0.75rem', padding: '0.75rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '6px', fontSize: '0.85rem' }}>
+            {deleteCompanyMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
+          }}
+        >
+          <div
+            className="register-card"
+            style={{
+              width: '100%',
+              maxWidth: '460px',
+              margin: 0,
+              padding: '1.75rem',
+              border: '2px solid #ef4444',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div style={{ background: '#fee2e2', padding: '0.6rem', borderRadius: '10px', color: '#dc2626' }}>
+                <AlertTriangle size={24} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: '#dc2626' }}>
+                  Delete Company Account?
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  This action is permanent and cannot be undone.
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '1.25rem' }}>
+              Are you sure you want to delete company <strong>{activeCompanyName}</strong> (Tenant ID: <code>{authUser?.tenantId}</code>)? All charging stations, staff operator accounts, and configurations will be permanently purged.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                style={{ padding: '0.55rem 1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingCompany}
+                onClick={handleDeleteCompany}
+                style={{
+                  background: '#dc2626',
+                  color: '#ffffff',
+                  border: 'none',
+                  padding: '0.55rem 1.25rem',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                {isDeletingCompany ? <RefreshCw size={15} className="spinner" /> : <Trash2 size={15} />}
+                <span>{isDeletingCompany ? 'Deleting...' : 'Yes, Delete Account'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

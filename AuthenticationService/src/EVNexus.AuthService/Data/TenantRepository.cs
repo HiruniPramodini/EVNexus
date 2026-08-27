@@ -16,12 +16,22 @@ public interface ITenantRepository
     Task SaveEmailVerificationCodeAsync(string tenantId, string newEmail, string code, DateTime expiresAt, CancellationToken cancellationToken = default);
     Task<bool> ValidateAndConsumeVerificationCodeAsync(string tenantId, string newEmail, string code, CancellationToken cancellationToken = default);
     Task<bool> MarkEmailAsVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default);
-    Task<bool> IsEmailVerifiedAsync(string tenantIdOrEmail, CancellationToken cancellationToken = default);
     Task<(bool Success, string? Status)> ValidateAndConsumeTenantRegistrationCodeAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task<CompanyUser> CreateStaffUserAsync(CompanyUser user, CancellationToken cancellationToken = default);
+    Task<CompanyUser?> GetStaffUserByIdAsync(string userId, string tenantId, CancellationToken cancellationToken = default);
+    Task<CompanyUser?> GetStaffUserByEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CompanyUser>> GetStaffUsersByTenantIdAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<bool> UpdateStaffUserStatusAsync(string userId, string tenantId, string status, CancellationToken cancellationToken = default);
+    Task<bool> IsStaffEmailRegisteredAsync(string email, CancellationToken cancellationToken = default);
+    Task<bool> DeleteTenantAsync(string tenantId, CancellationToken cancellationToken = default);
 }
 
 public class TenantRepository : ITenantRepository
 {
+    private const string TenantIdParameter = "@tenant_id";
+    private const string UserIdParameter = "@user_id";
+    private const string EmailParameter = "@email";
+
     private readonly IDbConnectionFactory _connectionFactory;
 
     public TenantRepository(IDbConnectionFactory connectionFactory)
@@ -407,6 +417,161 @@ public class TenantRepository : ITenantRepository
             Role = reader.GetString("role"),
             Status = reader.GetString("status"),
             IsEmailVerified = isEmailVerified,
+            CreatedAt = reader.GetDateTime("created_at"),
+            UpdatedAt = reader.GetDateTime("updated_at")
+        };
+    }
+
+    public async Task<bool> IsStaffEmailRegisteredAsync(string email, CancellationToken cancellationToken = default)
+    {
+        const string sql = "SELECT COUNT(1) FROM company_users WHERE email = @email;";
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(EmailParameter, MySqlDbType.VarChar, 255).Value = email.Trim().ToLowerInvariant();
+
+        var count = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken));
+        return count > 0;
+    }
+
+    public async Task<CompanyUser> CreateStaffUserAsync(CompanyUser user, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            INSERT INTO company_users (
+                user_id, tenant_id, name, email, phone, password_hash, role, status, created_at, updated_at
+            ) VALUES (
+                @user_id, @tenant_id, @name, @email, @phone, @password_hash, @role, @status, @created_at, @updated_at
+            );
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(UserIdParameter, MySqlDbType.VarChar, 50).Value = user.UserId;
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = user.TenantId;
+        command.Parameters.Add("@name", MySqlDbType.VarChar, 255).Value = user.Name.Trim();
+        command.Parameters.Add(EmailParameter, MySqlDbType.VarChar, 255).Value = user.Email.Trim().ToLowerInvariant();
+        command.Parameters.Add("@phone", MySqlDbType.VarChar, 50).Value = (object?)user.Phone?.Trim() ?? DBNull.Value;
+        command.Parameters.Add("@password_hash", MySqlDbType.VarChar, 255).Value = user.PasswordHash;
+        command.Parameters.Add("@role", MySqlDbType.VarChar, 50).Value = user.Role;
+        command.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = user.Status;
+        command.Parameters.Add("@created_at", MySqlDbType.DateTime).Value = user.CreatedAt;
+        command.Parameters.Add("@updated_at", MySqlDbType.DateTime).Value = user.UpdatedAt;
+
+        await command.ExecuteNonQueryAsync(cancellationToken);
+        return user;
+    }
+
+    public async Task<CompanyUser?> GetStaffUserByIdAsync(string userId, string tenantId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT user_id, tenant_id, name, email, phone, password_hash, role, status, created_at, updated_at
+            FROM company_users
+            WHERE user_id = @user_id AND tenant_id = @tenant_id
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(UserIdParameter, MySqlDbType.VarChar, 50).Value = userId.Trim();
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapCompanyUser(reader);
+        }
+
+        return null;
+    }
+
+    public async Task<CompanyUser?> GetStaffUserByEmailAsync(string email, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT user_id, tenant_id, name, email, phone, password_hash, role, status, created_at, updated_at
+            FROM company_users
+            WHERE email = @email
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(EmailParameter, MySqlDbType.VarChar, 255).Value = email.Trim().ToLowerInvariant();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapCompanyUser(reader);
+        }
+
+        return null;
+    }
+
+    public async Task<IReadOnlyList<CompanyUser>> GetStaffUsersByTenantIdAsync(string tenantId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT user_id, tenant_id, name, email, phone, password_hash, role, status, created_at, updated_at
+            FROM company_users
+            WHERE tenant_id = @tenant_id
+            ORDER BY created_at DESC;
+        ";
+
+        var list = new List<CompanyUser>();
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            list.Add(MapCompanyUser(reader));
+        }
+
+        return list;
+    }
+
+    public async Task<bool> UpdateStaffUserStatusAsync(string userId, string tenantId, string status, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE company_users
+            SET status = @status, updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = @user_id AND tenant_id = @tenant_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(UserIdParameter, MySqlDbType.VarChar, 50).Value = userId.Trim();
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+        command.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = status.Trim();
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return affected > 0;
+    }
+
+    public async Task<bool> DeleteTenantAsync(string tenantId, CancellationToken cancellationToken = default)
+    {
+        const string sql = "DELETE FROM tenants WHERE tenant_id = @tenant_id;";
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return affected > 0;
+    }
+
+    private static CompanyUser MapCompanyUser(MySqlDataReader reader)
+    {
+        var phoneOrdinal = reader.GetOrdinal("phone");
+        string? phone = !reader.IsDBNull(phoneOrdinal) ? reader.GetString(phoneOrdinal) : null;
+
+        return new CompanyUser
+        {
+            UserId = reader.GetString("user_id"),
+            TenantId = reader.GetString("tenant_id"),
+            Name = reader.GetString("name"),
+            Email = reader.GetString("email"),
+            Phone = phone,
+            PasswordHash = reader.GetString("password_hash"),
+            Role = reader.GetString("role"),
+            Status = reader.GetString("status"),
             CreatedAt = reader.GetDateTime("created_at"),
             UpdatedAt = reader.GetDateTime("updated_at")
         };

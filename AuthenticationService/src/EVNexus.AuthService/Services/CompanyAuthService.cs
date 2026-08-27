@@ -14,6 +14,13 @@ public interface ICompanyAuthService
     Task<InitiateEmailChangeResponseDto> InitiateEmailChangeAsync(string tenantId, InitiateEmailChangeRequestDto request, CancellationToken cancellationToken = default);
     Task<VerifyEmailResponseDto> VerifyCompanyEmailAsync(string email, string code, CancellationToken cancellationToken = default);
     Task<InitiateEmailChangeResponseDto> ResendCompanyVerificationCodeAsync(string email, CancellationToken cancellationToken = default);
+    Task<StaffResponseDto> CreateStaffMemberAsync(string tenantId, CreateStaffRequestDto request, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<StaffResponseDto>> GetStaffMembersAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<StaffResponseDto> DeactivateStaffMemberAsync(string tenantId, string userId, CancellationToken cancellationToken = default);
+    Task<StaffResponseDto> ReactivateStaffMemberAsync(string tenantId, string userId, CancellationToken cancellationToken = default);
+    Task<bool> DeleteCompanyAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<BillingInfoDto> GetBillingInfoAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<BillingInfoDto> UpdateBillingInfoAsync(string tenantId, UpdateBillingRequestDto request, CancellationToken cancellationToken = default);
 }
 
 public class CompanyAuthService : ICompanyAuthService
@@ -118,42 +125,82 @@ public class CompanyAuthService : ICompanyAuthService
 
         // 1. Fetch tenant by business email
         var tenant = await _tenantRepository.GetTenantByEmailAsync(normalizedEmail, cancellationToken);
-        if (tenant == null)
+        if (tenant != null)
         {
-            _logger.LogWarning("Login failed: Business email {Email} not found.", normalizedEmail);
-            throw new InvalidCredentialsException();
+            // 2. Verify password hash
+            var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, tenant.PasswordHash);
+            if (!isPasswordValid)
+            {
+                _logger.LogWarning("Login failed: Invalid password supplied for company email {Email}.", normalizedEmail);
+                throw new InvalidCredentialsException();
+            }
+
+            // 3. Verify tenant status
+            if (!string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login failed: Tenant {TenantId} is not in Active state (Current status: {Status}).", tenant.TenantId, tenant.Status);
+                throw new InvalidCredentialsException("Account is currently inactive or suspended.");
+            }
+
+            // 4. Generate signed JWT token with Tenant ID and Role claims
+            var (token, expiresInSeconds) = _jwtTokenService.GenerateToken(tenant);
+            _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, IsEmailVerified: {Verified}", tenant.TenantId, tenant.Role, tenant.IsEmailVerified);
+
+            return new CompanyLoginResponseDto
+            {
+                AccessToken = token,
+                TokenType = "Bearer",
+                ExpiresIn = expiresInSeconds,
+                TenantId = tenant.TenantId,
+                CompanyName = tenant.CompanyName,
+                BusinessEmail = tenant.BusinessEmail,
+                Role = tenant.Role,
+                IsEmailVerified = tenant.IsEmailVerified
+            };
         }
 
-        // 2. Verify password hash
-        var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, tenant.PasswordHash);
-        if (!isPasswordValid)
+        // 2. If not found in tenants, check company_users (staff accounts)
+        var staffUser = await _tenantRepository.GetStaffUserByEmailAsync(normalizedEmail, cancellationToken);
+        if (staffUser != null)
         {
-            _logger.LogWarning("Login failed: Invalid password supplied for email {Email}.", normalizedEmail);
-            throw new InvalidCredentialsException();
+            var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, staffUser.PasswordHash);
+            if (!isPasswordValid)
+            {
+                _logger.LogWarning("Login failed: Invalid password supplied for staff email {Email}.", normalizedEmail);
+                throw new InvalidCredentialsException();
+            }
+
+            if (!string.Equals(staffUser.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login failed: Staff account {UserId} is deactivated (Status: {Status}).", staffUser.UserId, staffUser.Status);
+                throw new InvalidCredentialsException("Account is currently inactive or suspended.");
+            }
+
+            var associatedTenant = await _tenantRepository.GetTenantByIdAsync(staffUser.TenantId, cancellationToken);
+            if (associatedTenant == null || !string.Equals(associatedTenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login failed: Associated tenant {TenantId} for staff {UserId} is inactive or not found.", staffUser.TenantId, staffUser.UserId);
+                throw new InvalidCredentialsException("Company account is currently inactive or suspended.");
+            }
+
+            var (token, expiresInSeconds) = _jwtTokenService.GenerateStaffToken(staffUser, associatedTenant);
+            _logger.LogInformation("Login successful for Staff ID: {UserId}, Tenant ID: {TenantId}, Role: {Role}", staffUser.UserId, staffUser.TenantId, staffUser.Role);
+
+            return new CompanyLoginResponseDto
+            {
+                AccessToken = token,
+                TokenType = "Bearer",
+                ExpiresIn = expiresInSeconds,
+                TenantId = associatedTenant.TenantId,
+                CompanyName = associatedTenant.CompanyName,
+                BusinessEmail = staffUser.Email,
+                Role = staffUser.Role,
+                IsEmailVerified = associatedTenant.IsEmailVerified
+            };
         }
 
-        // 3. Verify tenant status
-        if (!string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
-        {
-            _logger.LogWarning("Login failed: Tenant {TenantId} is not in Active state (Current status: {Status}).", tenant.TenantId, tenant.Status);
-            throw new InvalidCredentialsException("Account is currently inactive or suspended.");
-        }
-
-        // 4. Generate signed JWT token with Tenant ID and Role claims
-        var (token, expiresInSeconds) = _jwtTokenService.GenerateToken(tenant);
-        _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, IsEmailVerified: {Verified}", tenant.TenantId, tenant.Role, tenant.IsEmailVerified);
-
-        return new CompanyLoginResponseDto
-        {
-            AccessToken = token,
-            TokenType = "Bearer",
-            ExpiresIn = expiresInSeconds,
-            TenantId = tenant.TenantId,
-            CompanyName = tenant.CompanyName,
-            BusinessEmail = tenant.BusinessEmail,
-            Role = tenant.Role,
-            IsEmailVerified = tenant.IsEmailVerified
-        };
+        _logger.LogWarning("Login failed: Business email {Email} not found in companies or staff.", normalizedEmail);
+        throw new InvalidCredentialsException();
     }
 
     public async Task<CompanyProfileResponseDto> GetCompanyProfileAsync(
@@ -390,6 +437,180 @@ public class CompanyAuthService : ICompanyAuthService
             NewBusinessEmail = normalizedEmail,
             VerificationCode = verificationCode,
             ExpiresAt = expiresAt
+        };
+    }
+
+    public async Task<StaffResponseDto> CreateStaffMemberAsync(
+        string tenantId,
+        CreateStaffRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        _logger.LogInformation("Creating staff account {Email} for Tenant ID: {TenantId}", normalizedEmail, tenantId);
+
+        if (string.Equals(request.Role, "CompanyAdmin", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("Staff accounts cannot be created with CompanyAdmin role.");
+        }
+
+        var isTenantEmailTaken = await _tenantRepository.IsEmailRegisteredAsync(normalizedEmail, cancellationToken);
+        var isStaffEmailTaken = await _tenantRepository.IsStaffEmailRegisteredAsync(normalizedEmail, cancellationToken);
+        if (isTenantEmailTaken || isStaffEmailTaken)
+        {
+            _logger.LogWarning("Staff creation failed: Email {Email} is already registered.", normalizedEmail);
+            throw new DuplicateEmailException(normalizedEmail);
+        }
+
+        var role = !string.IsNullOrWhiteSpace(request.Role) ? request.Role.Trim() : "Operator";
+
+        var user = new CompanyUser
+        {
+            UserId = $"STF-{Guid.NewGuid():N}".ToUpperInvariant(),
+            TenantId = tenantId.Trim(),
+            Name = request.Name.Trim(),
+            Email = normalizedEmail,
+            Phone = request.Phone?.Trim(),
+            PasswordHash = _passwordHasher.HashPassword(request.Password),
+            Role = role,
+            Status = "Active",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var created = await _tenantRepository.CreateStaffUserAsync(user, cancellationToken);
+        return MapToStaffDto(created);
+    }
+
+    public async Task<IReadOnlyList<StaffResponseDto>> GetStaffMembersAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Retrieving staff members for Tenant ID: {TenantId}", tenantId);
+        var list = await _tenantRepository.GetStaffUsersByTenantIdAsync(tenantId, cancellationToken);
+        return list.Select(MapToStaffDto).ToList();
+    }
+
+    public async Task<StaffResponseDto> DeactivateStaffMemberAsync(
+        string tenantId,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Deactivating staff member {UserId} for Tenant ID: {TenantId}", userId, tenantId);
+
+        var existing = await _tenantRepository.GetStaffUserByIdAsync(userId, tenantId, cancellationToken);
+        if (existing == null)
+        {
+            _logger.LogWarning("Staff deactivation failed: User {UserId} not found under Tenant {TenantId}", userId, tenantId);
+            throw new KeyNotFoundException($"Staff member '{userId}' was not found under your company tenant.");
+        }
+
+        await _tenantRepository.UpdateStaffUserStatusAsync(userId, tenantId, "Inactive", cancellationToken);
+        existing.Status = "Inactive";
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        return MapToStaffDto(existing);
+    }
+
+    public async Task<StaffResponseDto> ReactivateStaffMemberAsync(
+        string tenantId,
+        string userId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Reactivating staff member {UserId} for Tenant ID: {TenantId}", userId, tenantId);
+
+        var existing = await _tenantRepository.GetStaffUserByIdAsync(userId, tenantId, cancellationToken);
+        if (existing == null)
+        {
+            _logger.LogWarning("Staff reactivation failed: User {UserId} not found under Tenant {TenantId}", userId, tenantId);
+            throw new KeyNotFoundException($"Staff member '{userId}' was not found under your company tenant.");
+        }
+
+        await _tenantRepository.UpdateStaffUserStatusAsync(userId, tenantId, "Active", cancellationToken);
+        existing.Status = "Active";
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        return MapToStaffDto(existing);
+    }
+
+    public async Task<bool> DeleteCompanyAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Deleting company account for Tenant ID: {TenantId}", tenantId);
+
+        var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        return await _tenantRepository.DeleteTenantAsync(tenantId, cancellationToken);
+    }
+
+    public async Task<BillingInfoDto> GetBillingInfoAsync(
+        string tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Retrieving billing info for Tenant ID: {TenantId}", tenantId);
+
+        var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        return new BillingInfoDto
+        {
+            TenantId = tenant.TenantId,
+            Plan = "Enterprise Scale",
+            BillingEmail = tenant.BusinessEmail,
+            PaymentMethod = "Corporate Visa **** 4242",
+            MonthlyAmount = 499.00m,
+            Currency = "USD",
+            Status = "Active",
+            NextBillingDate = DateTime.UtcNow.AddDays(30)
+        };
+    }
+
+    public async Task<BillingInfoDto> UpdateBillingInfoAsync(
+        string tenantId,
+        UpdateBillingRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating billing info for Tenant ID: {TenantId}", tenantId);
+
+        var tenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (tenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        return new BillingInfoDto
+        {
+            TenantId = tenant.TenantId,
+            Plan = request.Plan.Trim(),
+            BillingEmail = request.BillingEmail.Trim().ToLowerInvariant(),
+            PaymentMethod = request.PaymentMethod.Trim(),
+            MonthlyAmount = 499.00m,
+            Currency = "USD",
+            Status = "Active",
+            NextBillingDate = DateTime.UtcNow.AddDays(30)
+        };
+    }
+
+    private static StaffResponseDto MapToStaffDto(CompanyUser user)
+    {
+        return new StaffResponseDto
+        {
+            UserId = user.UserId,
+            TenantId = user.TenantId,
+            Name = user.Name,
+            Email = user.Email,
+            Phone = user.Phone,
+            Role = user.Role,
+            Status = user.Status,
+            CreatedAt = user.CreatedAt,
+            UpdatedAt = user.UpdatedAt
         };
     }
 }

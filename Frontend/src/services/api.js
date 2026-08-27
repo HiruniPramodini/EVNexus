@@ -489,4 +489,90 @@ export async function setDefaultDriverVehicle(vehicleId, token) {
   return handleResponse(response, 'Failed to set default vehicle.');
 }
 
+export async function getCompanyStaff(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/staff`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve company staff members.');
+}
+
+export async function createCompanyStaff(staffData, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/staff`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(staffData)
+  });
+
+  return handleResponse(response, 'Failed to create staff member.');
+}
+
+export async function deactivateCompanyStaff(userId, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/staff/${encodeURIComponent(userId)}/deactivate`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to deactivate staff member.');
+}
+
+export async function reactivateCompanyStaff(userId, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/staff/${encodeURIComponent(userId)}/reactivate`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to reactivate staff member.');
+}
+
+export async function getCompanyBilling(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/billing`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve billing information.');
+}
+
+export async function deleteCompanyAccount(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/company`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to delete company account.');
+}
+
+
 
