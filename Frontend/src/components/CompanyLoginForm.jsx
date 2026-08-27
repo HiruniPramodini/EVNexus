@@ -61,7 +61,7 @@ export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister })
       }
     } catch (err) {
       if (err.status === 401) {
-        setServerError('Invalid email or password. Please verify your credentials and try again.');
+        setServerError(err.message || 'Invalid email or password. Please verify your credentials and try again.');
       } else {
         setServerError(err.message || 'An unexpected connection error occurred. Please try again later.');
       }

@@ -10,7 +10,7 @@ public class TokenBlacklistService : ITokenBlacklistService
 {
     private readonly IRefreshTokenRepository _repository;
     private readonly ILogger<TokenBlacklistService> _logger;
-    private readonly ConcurrentDictionary<string, DateTime> _revokedMemoryCache = new();
+    private static readonly ConcurrentDictionary<string, DateTime> _revokedMemoryCache = new();
 
     public TokenBlacklistService(
         IRefreshTokenRepository repository,
