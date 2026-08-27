@@ -6,6 +6,7 @@ using EVNexus.AuthService.Security;
 using EVNexus.AuthService.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
 
 namespace EVNexus.AuthService.Controllers;
 
@@ -17,16 +18,19 @@ public class AuthController : ControllerBase
     private const string ValidationFailedMessage = "Validation failed.";
     private readonly ICompanyAuthService _companyAuthService;
     private readonly IDriverAuthService _driverAuthService;
+    private readonly ISessionService? _sessionService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         ICompanyAuthService companyAuthService,
         IDriverAuthService driverAuthService,
-        ILogger<AuthController> logger)
+        ILogger<AuthController> logger,
+        ISessionService? sessionService = null)
     {
         _companyAuthService = companyAuthService;
         _driverAuthService = driverAuthService;
         _logger = logger;
+        _sessionService = sessionService;
     }
 
     /// <summary>
@@ -645,5 +649,78 @@ public class AuthController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<object>.Fail("An error occurred while processing password change."));
         }
+    }
+
+    /// <summary>
+    /// Refreshes an active session, issuing a new access token and rotated refresh token before expiry.
+    /// Expired refresh tokens are rejected with HTTP 401 Unauthorized.
+    /// </summary>
+    [HttpPost("refresh")]
+    [HttpPost("refresh-token")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<RefreshTokenResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> RefreshToken(
+        [FromBody] RefreshTokenRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        if (_sessionService == null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("Session service is not configured."));
+        }
+
+        try
+        {
+            var response = await _sessionService.RefreshSessionAsync(request.RefreshToken, cancellationToken);
+            return Ok(ApiResponse<RefreshTokenResponseDto>.Ok(response, "Token refreshed successfully."));
+        }
+        catch (SecurityTokenExpiredException ex)
+        {
+            _logger.LogWarning(ex, "Refresh token expired: {Message}", ex.Message);
+            return Unauthorized(ApiResponse<object>.Fail("Refresh token has expired. Please log in again.", new List<string> { ex.Message }));
+        }
+        catch (SecurityTokenException ex)
+        {
+            _logger.LogWarning(ex, "Invalid or revoked refresh token attempt: {Message}", ex.Message);
+            return Unauthorized(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while refreshing session token.");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while refreshing authentication token."));
+        }
+    }
+
+    /// <summary>
+    /// Logs out the user and invalidates the current session and token server-side.
+    /// </summary>
+    [HttpPost("logout")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Logout(
+        [FromBody] LogoutRequestDto? request,
+        CancellationToken cancellationToken)
+    {
+        var authHeader = Request.Headers.Authorization.ToString();
+        var rawToken = !string.IsNullOrWhiteSpace(authHeader) ? authHeader : null;
+
+        if (_sessionService != null)
+        {
+            await _sessionService.LogoutSessionAsync(rawToken, request?.RefreshToken, User, cancellationToken);
+        }
+
+        return Ok(ApiResponse<object>.Ok(new { }, "Logged out successfully. Session has been invalidated server-side."));
     }
 }

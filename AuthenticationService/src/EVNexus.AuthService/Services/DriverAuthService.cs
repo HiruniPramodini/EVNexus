@@ -27,17 +27,20 @@ public class DriverAuthService : IDriverAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ILogger<DriverAuthService> _logger;
+    private readonly ISessionService? _sessionService;
 
     public DriverAuthService(
         IDriverRepository driverRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
-        ILogger<DriverAuthService> logger)
+        ILogger<DriverAuthService> logger,
+        ISessionService? sessionService = null)
     {
         _driverRepository = driverRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _logger = logger;
+        _sessionService = sessionService;
     }
 
     public async Task<DriverRegisterResponseDto> RegisterDriverAsync(
@@ -151,6 +154,10 @@ public class DriverAuthService : IDriverAuthService
 
         // 4. Generate signed JWT token with Driver ID and Role claims
         var (token, expiresInSeconds) = _jwtTokenService.GenerateDriverToken(driver);
+        var refreshToken = _sessionService != null
+            ? await _sessionService.GenerateAndSaveRefreshTokenAsync(driver.DriverId, "Driver", driver.Role, null, cancellationToken)
+            : string.Empty;
+
         _logger.LogInformation("Driver login successful for Driver ID: {DriverId}, Role: {Role}, IsEmailVerified: {Verified}", driver.DriverId, driver.Role, driver.IsEmailVerified);
 
         // 5. Fetch associated wallet details if available
@@ -168,7 +175,8 @@ public class DriverAuthService : IDriverAuthService
             WalletId = wallet?.WalletId ?? string.Empty,
             WalletBalance = wallet?.Balance ?? 0.00m,
             Currency = wallet?.Currency ?? "USD",
-            IsEmailVerified = driver.IsEmailVerified
+            IsEmailVerified = driver.IsEmailVerified,
+            RefreshToken = refreshToken
         };
     }
 

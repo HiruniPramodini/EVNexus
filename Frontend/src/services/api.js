@@ -1,6 +1,7 @@
 const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
 
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
+const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';
 const USER_STORAGE_KEY = 'evnexus_auth_user';
 
 export function getAuthToken() {
@@ -8,6 +9,15 @@ export function getAuthToken() {
     return localStorage.getItem(TOKEN_STORAGE_KEY);
   } catch (e) {
     console.warn('Failed to retrieve auth token from localStorage', e);
+    return null;
+  }
+}
+
+export function getRefreshToken() {
+  try {
+    return localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+  } catch (e) {
+    console.warn('Failed to retrieve refresh token from localStorage', e);
     return null;
   }
 }
@@ -26,6 +36,9 @@ export function setAuthSession(authData) {
   try {
     if (authData?.accessToken) {
       localStorage.setItem(TOKEN_STORAGE_KEY, authData.accessToken);
+    }
+    if (authData?.refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, authData.refreshToken);
     }
     const userData = {
       tenantId: authData?.tenantId,
@@ -65,10 +78,53 @@ export function updateStoredEmailVerified(isVerified = true) {
 export function clearAuthSession() {
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
   } catch (e) {
     console.error('Failed to clear auth session', e);
   }
+}
+
+export async function logoutSession(token) {
+  const bearerToken = token || getAuthToken();
+  const refreshToken = getRefreshToken();
+  try {
+    await fetch(`${API_GATEWAY_URL}/api/auth/logout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bearerToken ? { 'Authorization': `Bearer ${bearerToken}` } : {})
+      },
+      body: JSON.stringify({ refreshToken })
+    });
+  } catch (e) {
+    console.warn('Server-side logout invalidation failed', e);
+  } finally {
+    clearAuthSession();
+  }
+}
+
+export async function refreshTokenSession(explicitRefreshToken) {
+  const token = explicitRefreshToken || getRefreshToken();
+  if (!token) {
+    throw new Error('No refresh token available.');
+  }
+
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refreshToken: token })
+  });
+
+  const data = await handleResponse(response, 'Failed to refresh authentication session.');
+  if (data?.data) {
+    const existingUser = getStoredUser() || {};
+    setAuthSession({
+      ...existingUser,
+      ...data.data
+    });
+  }
+  return data;
 }
 
 async function handleResponse(response, defaultErrorMsg) {
