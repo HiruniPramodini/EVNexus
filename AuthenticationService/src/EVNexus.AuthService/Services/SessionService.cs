@@ -98,6 +98,11 @@ public class SessionService : ISessionService
         if (string.Equals(existingToken.UserType, "Tenant", StringComparison.OrdinalIgnoreCase))
         {
             var tenant = await _tenantRepository.GetTenantByIdAsync(existingToken.UserId, cancellationToken);
+            if (tenant != null && string.Equals(tenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SecurityTokenException("Account is suspended. Please contact platform support.");
+            }
+
             if (tenant == null || !string.Equals(tenant.Status, ActiveStatus, StringComparison.OrdinalIgnoreCase))
             {
                 throw new SecurityTokenException("Tenant account is inactive or not found.");
@@ -117,6 +122,11 @@ public class SessionService : ISessionService
             }
 
             var tenant = await _tenantRepository.GetTenantByIdAsync(staff.TenantId, cancellationToken);
+            if (tenant != null && string.Equals(tenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SecurityTokenException("Account is suspended. Please contact platform support.");
+            }
+
             if (tenant == null || !string.Equals(tenant.Status, ActiveStatus, StringComparison.OrdinalIgnoreCase))
             {
                 throw new SecurityTokenException("Company tenant account is inactive.");
@@ -130,6 +140,11 @@ public class SessionService : ISessionService
         else if (string.Equals(existingToken.UserType, "Driver", StringComparison.OrdinalIgnoreCase))
         {
             var driver = await _driverRepository.GetDriverByIdAsync(existingToken.UserId, cancellationToken);
+            if (driver != null && string.Equals(driver.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new SecurityTokenException("Account is suspended. Please contact platform support.");
+            }
+
             if (driver == null || !string.Equals(driver.Status, ActiveStatus, StringComparison.OrdinalIgnoreCase))
             {
                 throw new SecurityTokenException("Driver account is inactive or not found.");

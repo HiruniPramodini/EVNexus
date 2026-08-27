@@ -23,6 +23,7 @@ public interface IDriverRepository
     Task<DriverVehicle?> UpdateVehicleAsync(string vehicleId, string driverId, string make, string model, string plateNumber, string connectorType, bool? isDefault, CancellationToken cancellationToken = default);
     Task<bool> DeleteVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default);
     Task<bool> SetDefaultVehicleAsync(string vehicleId, string driverId, CancellationToken cancellationToken = default);
+    Task<bool> UpdateDriverStatusAsync(string driverId, string status, CancellationToken cancellationToken = default);
 }
 
 public class DriverRepository : IDriverRepository
@@ -701,6 +702,23 @@ public class DriverRepository : IDriverRepository
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
+    }
+
+    public async Task<bool> UpdateDriverStatusAsync(string driverId, string status, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE drivers
+            SET status = @status, updated_at = CURRENT_TIMESTAMP
+            WHERE driver_id = @driver_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(DriverIdParameter, MySqlDbType.VarChar, 50).Value = driverId.Trim();
+        command.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = status.Trim();
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return affected > 0;
     }
 
     private static DriverVehicle MapVehicle(IDataRecord record)

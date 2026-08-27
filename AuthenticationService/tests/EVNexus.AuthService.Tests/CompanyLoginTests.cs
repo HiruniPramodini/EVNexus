@@ -156,7 +156,7 @@ public class CompanyLoginTests
             CompanyName = "GreenPulse Energy Ltd",
             BusinessEmail = "admin@greenpulse.com",
             PasswordHash = "$2a$12$correctHash",
-            Status = "Suspended",
+            Status = "Inactive",
             Role = "CompanyAdmin"
         };
 

@@ -138,7 +138,13 @@ public class CompanyAuthService : ICompanyAuthService
                 throw new InvalidCredentialsException();
             }
 
-            // 3. Verify tenant status
+            // 3. Verify tenant status (AC 2: Suspended accounts cannot log in and receive a clear message)
+            if (string.Equals(tenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login rejected: Tenant {TenantId} account is suspended.", tenant.TenantId);
+                throw new InvalidCredentialsException("Account is suspended. Please contact platform support.");
+            }
+
             if (!string.Equals(tenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Login failed: Tenant {TenantId} is not in Active state (Current status: {Status}).", tenant.TenantId, tenant.Status);
@@ -185,6 +191,12 @@ public class CompanyAuthService : ICompanyAuthService
             }
 
             var associatedTenant = await _tenantRepository.GetTenantByIdAsync(staffUser.TenantId, cancellationToken);
+            if (associatedTenant != null && string.Equals(associatedTenant.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Login rejected: Company tenant {TenantId} for staff {UserId} is suspended.", staffUser.TenantId, staffUser.UserId);
+                throw new InvalidCredentialsException("Account is suspended. Please contact platform support.");
+            }
+
             if (associatedTenant == null || !string.Equals(associatedTenant.Status, "Active", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Login failed: Associated tenant {TenantId} for staff {UserId} is inactive or not found.", staffUser.TenantId, staffUser.UserId);

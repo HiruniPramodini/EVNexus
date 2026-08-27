@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using EVNexus.AuthService.Configuration;
 using EVNexus.AuthService.Models;
+using EVNexus.AuthService.Security;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -13,6 +14,7 @@ public interface IJwtTokenService
     (string Token, int ExpiresInSeconds) GenerateToken(Tenant tenant);
     (string Token, int ExpiresInSeconds) GenerateDriverToken(Driver driver);
     (string Token, int ExpiresInSeconds) GenerateStaffToken(CompanyUser user, Tenant tenant);
+    (string Token, int ExpiresInSeconds) GeneratePlatformAdminToken(string adminId, string email, string name);
 }
 
 public class JwtTokenService : IJwtTokenService
@@ -123,6 +125,42 @@ public class JwtTokenService : IJwtTokenService
             new("role", user.Role),
             new("company_name", tenant.CompanyName),
             new("registration_number", tenant.RegistrationNumber),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        var tokenDescriptor = new SecurityTokenDescriptor
+        {
+            Subject = new ClaimsIdentity(claims),
+            Expires = expiresAt,
+            Issuer = _jwtSettings.Issuer,
+            Audience = _jwtSettings.Audience,
+            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+        };
+
+        var token = tokenHandler.CreateToken(tokenDescriptor);
+        var tokenString = tokenHandler.WriteToken(token);
+
+        return (tokenString, (int)expiryDuration.TotalSeconds);
+    }
+
+    public (string Token, int ExpiresInSeconds) GeneratePlatformAdminToken(string adminId, string email, string name)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtSettings.Key);
+        var expiryDuration = TimeSpan.FromMinutes(_jwtSettings.ExpiryMinutes > 0 ? _jwtSettings.ExpiryMinutes : 60);
+        var expiresAt = DateTime.UtcNow.Add(expiryDuration);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, adminId),
+            new(ClaimTypes.NameIdentifier, adminId),
+            new("admin_id", adminId),
+            new(JwtRegisteredClaimNames.Email, email),
+            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Name, name),
+            new("name", name),
+            new(ClaimTypes.Role, AppRoles.PlatformAdmin),
+            new("role", AppRoles.PlatformAdmin),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

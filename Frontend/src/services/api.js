@@ -630,5 +630,76 @@ export async function deleteCompanyAccount(token) {
   return handleResponse(response, 'Failed to delete company account.');
 }
 
+export async function suspendCompanyAccount(tenantId, reason = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/company/${encodeURIComponent(tenantId)}/suspend`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ reason })
+  });
 
+  return handleResponse(response, 'Failed to suspend company account.');
+}
 
+export async function reactivateCompanyAccount(tenantId, reason = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/company/${encodeURIComponent(tenantId)}/reactivate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ reason })
+  });
+
+  return handleResponse(response, 'Failed to reactivate company account.');
+}
+
+export async function suspendDriverAccount(driverId, reason = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/driver/${encodeURIComponent(driverId)}/suspend`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ reason })
+  });
+
+  return handleResponse(response, 'Failed to suspend driver account.');
+}
+
+export async function reactivateDriverAccount(driverId, reason = null, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/driver/${encodeURIComponent(driverId)}/reactivate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ reason })
+  });
+
+  return handleResponse(response, 'Failed to reactivate driver account.');
+}
+
+export async function getAccountAuditLogs(accountId, token = null) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/admin/accounts/${encodeURIComponent(accountId)}/audit-history`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve account audit history.');
+}

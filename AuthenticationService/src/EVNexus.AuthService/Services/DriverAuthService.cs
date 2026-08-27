@@ -145,7 +145,13 @@ public class DriverAuthService : IDriverAuthService
             throw new InvalidCredentialsException("Invalid email or password.");
         }
 
-        // 3. Verify driver status
+        // 3. Verify driver status (AC 2: Suspended accounts cannot log in and receive a clear message)
+        if (string.Equals(driver.Status, "Suspended", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Driver login rejected: Driver ID {DriverId} is suspended.", driver.DriverId);
+            throw new InvalidCredentialsException("Account is suspended. Please contact platform support.");
+        }
+
         if (!string.Equals(driver.Status, "Active", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Driver login failed: Account for Driver ID {DriverId} is not active (Status: {Status})", driver.DriverId, driver.Status);
