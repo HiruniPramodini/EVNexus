@@ -12,6 +12,8 @@ public interface IDriverAuthService
     Task<DriverProfileResponseDto> GetDriverProfileAsync(string driverId, CancellationToken cancellationToken = default);
     Task<DriverProfileResponseDto> UpdateDriverProfileAsync(string driverId, UpdateDriverProfileRequestDto request, CancellationToken cancellationToken = default);
     Task ChangeDriverPasswordAsync(string driverId, ChangeDriverPasswordRequestDto request, CancellationToken cancellationToken = default);
+    Task<VerifyEmailResponseDto> VerifyDriverEmailAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task<InitiateEmailChangeResponseDto> ResendDriverVerificationCodeAsync(string email, CancellationToken cancellationToken = default);
 }
 
 public class DriverAuthService : IDriverAuthService
@@ -55,7 +57,7 @@ public class DriverAuthService : IDriverAuthService
         // 3. Hash password securely (never plain text)
         var passwordHash = _passwordHasher.HashPassword(request.Password);
 
-        // 4. Construct Driver and Wallet domain entities
+        // 4. Construct Driver and Wallet domain entities (unverified by default)
         var now = DateTime.UtcNow;
         var driver = new Driver
         {
@@ -66,6 +68,7 @@ public class DriverAuthService : IDriverAuthService
             PasswordHash = passwordHash,
             Role = "Driver",
             Status = "Active",
+            IsEmailVerified = false,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -83,7 +86,15 @@ public class DriverAuthService : IDriverAuthService
 
         // 5. Persist atomically using parameterized ADO.NET
         await _driverRepository.CreateDriverWithWalletAsync(driver, wallet, cancellationToken);
-        _logger.LogInformation("Driver registered successfully with ID: {DriverId}, Wallet ID: {WalletId}", driverId, walletId);
+
+        // 6. Generate 24-hour verification code and link
+        var verificationCode = Random.Shared.Next(100000, 1000000).ToString();
+        var expiresAt = DateTime.UtcNow.AddHours(24);
+
+        await _driverRepository.SaveDriverVerificationCodeAsync(
+            driver.DriverId, driver.Email, verificationCode, expiresAt, cancellationToken);
+
+        _logger.LogInformation("Driver registered successfully with ID: {DriverId}, Wallet ID: {WalletId}. Verification code generated with 24-hour expiry.", driverId, walletId);
 
         return new DriverRegisterResponseDto
         {
@@ -95,7 +106,11 @@ public class DriverAuthService : IDriverAuthService
             WalletBalance = wallet.Balance,
             Currency = wallet.Currency,
             CreatedAt = driver.CreatedAt,
-            Message = "Driver account and zero-balance wallet created successfully."
+            Message = "Driver account and zero-balance wallet created successfully. A verification code has been dispatched. Please verify your email to unlock full platform access.",
+            VerificationCode = verificationCode,
+            VerificationLink = $"/verify-email?email={Uri.EscapeDataString(driver.Email)}&code={verificationCode}",
+            ExpiresAt = expiresAt,
+            IsEmailVerified = false
         };
     }
 
@@ -131,7 +146,7 @@ public class DriverAuthService : IDriverAuthService
 
         // 4. Generate signed JWT token with Driver ID and Role claims
         var (token, expiresInSeconds) = _jwtTokenService.GenerateDriverToken(driver);
-        _logger.LogInformation("Driver login successful for Driver ID: {DriverId}, Role: {Role}", driver.DriverId, driver.Role);
+        _logger.LogInformation("Driver login successful for Driver ID: {DriverId}, Role: {Role}, IsEmailVerified: {Verified}", driver.DriverId, driver.Role, driver.IsEmailVerified);
 
         // 5. Fetch associated wallet details if available
         var wallet = await _driverRepository.GetWalletByDriverIdAsync(driver.DriverId, cancellationToken);
@@ -147,7 +162,8 @@ public class DriverAuthService : IDriverAuthService
             Role = driver.Role,
             WalletId = wallet?.WalletId ?? string.Empty,
             WalletBalance = wallet?.Balance ?? 0.00m,
-            Currency = wallet?.Currency ?? "USD"
+            Currency = wallet?.Currency ?? "USD",
+            IsEmailVerified = driver.IsEmailVerified
         };
     }
 
@@ -174,6 +190,7 @@ public class DriverAuthService : IDriverAuthService
             Phone = driver.Phone,
             Role = driver.Role,
             Status = driver.Status,
+            IsEmailVerified = driver.IsEmailVerified,
             CreatedAt = driver.CreatedAt,
             UpdatedAt = driver.UpdatedAt,
             WalletId = wallet?.WalletId ?? string.Empty,
@@ -256,5 +273,91 @@ public class DriverAuthService : IDriverAuthService
         // 4. Update password in database
         await _driverRepository.UpdateDriverPasswordAsync(driverId, newPasswordHash, cancellationToken);
         _logger.LogInformation("Password successfully changed for Driver ID: {DriverId}", driverId);
+    }
+
+    public async Task<VerifyEmailResponseDto> VerifyDriverEmailAsync(
+        string email,
+        string code,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        _logger.LogInformation("Attempting to verify driver email for {Email}", normalizedEmail);
+
+        var driver = await _driverRepository.GetDriverByEmailAsync(normalizedEmail, cancellationToken);
+        if (driver == null)
+        {
+            throw new DriverNotFoundException($"Driver with email '{normalizedEmail}' was not found.");
+        }
+
+        if (driver.IsEmailVerified)
+        {
+            return new VerifyEmailResponseDto
+            {
+                IsVerified = true,
+                Email = normalizedEmail,
+                AccountType = "Driver",
+                Message = "Account email is already verified. Full platform access is unlocked."
+            };
+        }
+
+        var (success, status) = await _driverRepository.ValidateAndConsumeDriverVerificationCodeAsync(normalizedEmail, code, cancellationToken);
+        if (!success)
+        {
+            if (status == "Expired")
+            {
+                throw new VerificationCodeExpiredException("Verification code has expired. Verification links and codes expire after 24 hours. Please request a new code.");
+            }
+            if (status == "AlreadyUsed")
+            {
+                throw new VerificationCodeAlreadyUsedException("Verification code has already been used.");
+            }
+            throw new EmailVerificationException("Invalid verification code or email.");
+        }
+
+        await _driverRepository.MarkDriverEmailAsVerifiedAsync(driver.DriverId, cancellationToken);
+        _logger.LogInformation("Driver email verified successfully for Driver ID: {DriverId}", driver.DriverId);
+
+        return new VerifyEmailResponseDto
+        {
+            IsVerified = true,
+            Email = normalizedEmail,
+            AccountType = "Driver",
+            Message = "Email verified successfully! Full platform access is now granted."
+        };
+    }
+
+    public async Task<InitiateEmailChangeResponseDto> ResendDriverVerificationCodeAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        _logger.LogInformation("Resending verification code for driver email: {Email}", normalizedEmail);
+
+        var driver = await _driverRepository.GetDriverByEmailAsync(normalizedEmail, cancellationToken);
+        if (driver == null)
+        {
+            throw new DriverNotFoundException($"Driver with email '{normalizedEmail}' was not found.");
+        }
+
+        if (driver.IsEmailVerified)
+        {
+            throw new AccountAlreadyVerifiedException("Account email is already verified.");
+        }
+
+        var verificationCode = Random.Shared.Next(100000, 1000000).ToString();
+        var expiresAt = DateTime.UtcNow.AddHours(24);
+
+        await _driverRepository.SaveDriverVerificationCodeAsync(
+            driver.DriverId, normalizedEmail, verificationCode, expiresAt, cancellationToken);
+
+        _logger.LogInformation("Resent 24-hour verification code for Driver {DriverId}.", driver.DriverId);
+
+        return new InitiateEmailChangeResponseDto
+        {
+            Message = "New verification code generated successfully. It will expire in 24 hours.",
+            NewBusinessEmail = normalizedEmail,
+            VerificationCode = verificationCode,
+            ExpiresAt = expiresAt
+        };
     }
 }

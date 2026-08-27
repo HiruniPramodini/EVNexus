@@ -39,6 +39,7 @@ export function setAuthSession(authData) {
       walletBalance: authData?.walletBalance,
       currency: authData?.currency || 'USD',
       role: authData?.role || 'Driver',
+      isEmailVerified: Boolean(authData?.isEmailVerified),
       expiresIn: authData?.expiresIn,
       tokenType: authData?.tokenType || 'Bearer',
       issuedAt: new Date().toISOString()
@@ -46,6 +47,18 @@ export function setAuthSession(authData) {
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
   } catch (e) {
     console.error('Failed to persist auth session to localStorage', e);
+  }
+}
+
+export function updateStoredEmailVerified(isVerified = true) {
+  try {
+    const user = getStoredUser();
+    if (user) {
+      user.isEmailVerified = isVerified;
+      localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    }
+  } catch (e) {
+    console.error('Failed to update email verification status in localStorage', e);
   }
 }
 
@@ -356,4 +369,52 @@ export async function changeDriverPassword(passwordData, token) {
 
   return handleResponse(response, 'Failed to change password.');
 }
+
+export async function verifyEmail(email, verificationCode) {
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      email: email?.trim(),
+      verificationCode: verificationCode?.trim()
+    })
+  });
+
+  const data = await handleResponse(response, 'Verification failed. Please check your code.');
+  updateStoredEmailVerified(true);
+  return data;
+}
+
+export async function verifyEmailFromLink(email, code) {
+  const params = new URLSearchParams({ email: email?.trim(), code: code?.trim() });
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email?${params.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json'
+    }
+  });
+
+  const data = await handleResponse(response, 'Verification failed from link.');
+  updateStoredEmailVerified(true);
+  return data;
+}
+
+export async function resendVerificationCode(email) {
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/resend-verification`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      email: email?.trim()
+    })
+  });
+
+  return handleResponse(response, 'Failed to resend verification code.');
+}
+
 

@@ -12,6 +12,7 @@ public class Tenant
     public string PasswordHash { get; set; } = string.Empty;
     public string Role { get; set; } = "CompanyAdmin";
     public string Status { get; set; } = "Active";
+    public bool IsEmailVerified { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

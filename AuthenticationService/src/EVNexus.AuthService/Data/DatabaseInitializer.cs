@@ -37,6 +37,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL DEFAULT 'CompanyAdmin',
                     status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_business_email (business_email),
@@ -63,9 +64,22 @@ public class DatabaseInitializer : IDatabaseInitializer
                     password_hash VARCHAR(255) NOT NULL,
                     role VARCHAR(50) NOT NULL DEFAULT 'Driver',
                     status VARCHAR(50) NOT NULL DEFAULT 'Active',
+                    is_email_verified BOOLEAN NOT NULL DEFAULT FALSE,
                     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     INDEX idx_driver_email (email)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS driver_email_verification_tokens (
+                    token_id VARCHAR(50) PRIMARY KEY,
+                    driver_id VARCHAR(50) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    verification_code VARCHAR(50) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    is_used BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_devt_driver (driver_id),
+                    CONSTRAINT fk_devt_driver FOREIGN KEY (driver_id) REFERENCES drivers(driver_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
                 CREATE TABLE IF NOT EXISTS wallets (
@@ -149,6 +163,56 @@ public class DatabaseInitializer : IDatabaseInitializer
             catch (Exception migrationEx)
             {
                 _logger.LogDebug(migrationEx, "Column check or migration on 'tenants.logo_url' completed.");
+            }
+
+            // Migration: Ensure is_email_verified exists on existing tenants table
+            try
+            {
+                const string checkColSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'tenants' 
+                      AND COLUMN_NAME = 'is_email_verified';
+                ";
+                await using var checkCmd = new MySqlCommand(checkColSql, connection);
+                var colExists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!colExists)
+                {
+                    const string alterSql = "ALTER TABLE tenants ADD COLUMN is_email_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER status;";
+                    await using var alterCmd = new MySqlCommand(alterSql, connection);
+                    await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated 'tenants' table: added 'is_email_verified' column.");
+                }
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogDebug(migrationEx, "Column check or migration on 'tenants.is_email_verified' completed.");
+            }
+
+            // Migration: Ensure is_email_verified exists on existing drivers table
+            try
+            {
+                const string checkColSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.COLUMNS 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'drivers' 
+                      AND COLUMN_NAME = 'is_email_verified';
+                ";
+                await using var checkCmd = new MySqlCommand(checkColSql, connection);
+                var colExists = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!colExists)
+                {
+                    const string alterSql = "ALTER TABLE drivers ADD COLUMN is_email_verified BOOLEAN NOT NULL DEFAULT FALSE AFTER status;";
+                    await using var alterCmd = new MySqlCommand(alterSql, connection);
+                    await alterCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated 'drivers' table: added 'is_email_verified' column.");
+                }
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogDebug(migrationEx, "Column check or migration on 'drivers.is_email_verified' completed.");
             }
 
             _logger.LogInformation("Auth database schema initialized successfully.");

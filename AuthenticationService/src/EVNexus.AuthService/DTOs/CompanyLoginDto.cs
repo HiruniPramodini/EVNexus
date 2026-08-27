@@ -21,6 +21,7 @@ public class CompanyLoginResponseDto
     public string CompanyName { get; set; } = string.Empty;
     public string BusinessEmail { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public bool IsEmailVerified { get; set; } = false;
 }
 
 public class CompanyProfileResponseDto
@@ -34,6 +35,7 @@ public class CompanyProfileResponseDto
     public string? LogoUrl { get; set; }
     public string Role { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public bool IsEmailVerified { get; set; } = false;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

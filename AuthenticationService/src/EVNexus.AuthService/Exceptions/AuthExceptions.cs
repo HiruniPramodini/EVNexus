@@ -98,6 +98,30 @@ public class EmailVerificationException : Exception
     }
 }
 
+public class VerificationCodeExpiredException : EmailVerificationException
+{
+    public VerificationCodeExpiredException(string message = "Verification code has expired. Verification links and codes expire after 24 hours. Please request a new code.")
+        : base(message)
+    {
+    }
+}
+
+public class VerificationCodeAlreadyUsedException : EmailVerificationException
+{
+    public VerificationCodeAlreadyUsedException(string message = "Verification code has already been used.")
+        : base(message)
+    {
+    }
+}
+
+public class AccountAlreadyVerifiedException : Exception
+{
+    public AccountAlreadyVerifiedException(string message = "Account email is already verified.")
+        : base(message)
+    {
+    }
+}
+
 public class InvalidCurrentPasswordException : Exception
 {
     public InvalidCurrentPasswordException(string message = "Current password is incorrect.")

@@ -13,9 +13,11 @@ import {
   ArrowRight,
   Loader2,
   Wallet,
-  Sparkles
+  Sparkles,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
-import { registerDriver } from '../services/api';
+import { registerDriver, verifyEmail } from '../services/api';
 
 export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany }) {
   const [formData, setFormData] = useState({
@@ -32,8 +34,15 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
   const [serverError, setServerError] = useState(null);
   const [successData, setSuccessData] = useState(null);
 
+  // Verification state in registration success screen
+  const [inlineVerifyCode, setInlineVerifyCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
+  const [verificationError, setVerificationError] = useState(null);
+
   const [copiedDriverId, setCopiedDriverId] = useState(false);
   const [copiedWalletId, setCopiedWalletId] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -150,6 +159,9 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
       const response = await registerDriver(formData);
       if (response && response.success && response.data) {
         setSuccessData(response.data);
+        if (response.data.verificationCode) {
+          setInlineVerifyCode(response.data.verificationCode);
+        }
       } else {
         setServerError(response?.message || 'Driver registration failed. Please try again.');
       }
@@ -166,14 +178,36 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
     }
   };
 
+  const handleInlineVerify = async () => {
+    if (!inlineVerifyCode.trim()) return;
+    setIsVerifying(true);
+    setVerificationError(null);
+
+    try {
+      const res = await verifyEmail(successData.email, inlineVerifyCode.trim());
+      if (res && res.success) {
+        setVerificationSuccess(true);
+      } else {
+        setVerificationError(res?.message || 'Verification failed.');
+      }
+    } catch (err) {
+      setVerificationError(err.message || 'Invalid or expired verification code.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
     if (type === 'driver') {
       setCopiedDriverId(true);
       setTimeout(() => setCopiedDriverId(false), 2500);
-    } else {
+    } else if (type === 'wallet') {
       setCopiedWalletId(true);
       setTimeout(() => setCopiedWalletId(false), 2500);
+    } else {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2500);
     }
   };
 
@@ -189,6 +223,9 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
     setTouched({});
     setSuccessData(null);
     setServerError(null);
+    setInlineVerifyCode('');
+    setVerificationSuccess(false);
+    setVerificationError(null);
   };
 
   if (successData) {
@@ -202,7 +239,7 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
 
           <h2 className="success-title">Driver Account Registered!</h2>
           <p className="success-subtitle">
-            Your EV driver account and associated charging wallet have been created with initial balance $0.00.
+            Your EV driver account and charging wallet have been created. Please verify your email to unlock charging privileges.
           </p>
 
           <div className="tenant-id-box" style={{ borderColor: 'rgba(14, 165, 233, 0.4)' }}>
@@ -250,6 +287,114 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
             </div>
           </div>
 
+          {/* Email Verification Box with 24-Hour Expiration */}
+          <div
+            className="tenant-id-box"
+            style={{
+              marginTop: '1rem',
+              borderColor: verificationSuccess ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)',
+              background: verificationSuccess ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
+            }}
+          >
+            <div className="tenant-id-label" style={{ color: verificationSuccess ? '#059669' : '#d97706', display: 'flex', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Clock size={14} />
+                <span>Verification Code (Valid for 24 Hours)</span>
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(245, 158, 11, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+                Expires in 24h
+              </span>
+            </div>
+
+            <div className="tenant-id-value-row" style={{ marginTop: '0.5rem' }}>
+              <div>
+                <span
+                  className="tenant-id-text"
+                  style={{
+                    fontSize: '1.4rem',
+                    letterSpacing: '3px',
+                    fontWeight: 700,
+                    color: verificationSuccess ? '#047857' : '#b45309'
+                  }}
+                >
+                  {successData.verificationCode}
+                </span>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                  Sent to: <strong>{successData.email}</strong>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="copy-btn"
+                onClick={() => copyToClipboard(successData.verificationCode, 'code')}
+                title="Copy Verification Code"
+              >
+                {copiedCode ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
+              </button>
+            </div>
+
+            {/* Instant Verification Form */}
+            {!verificationSuccess ? (
+              <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <p style={{ fontSize: '0.85rem', color: '#92400e', marginBottom: '0.6rem' }}>
+                  Verify now to immediately unlock all charging platform access:
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Enter 6-digit code"
+                    maxLength={6}
+                    value={inlineVerifyCode}
+                    onChange={(e) => setInlineVerifyCode(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-subtle)',
+                      background: 'var(--bg-input, #fff)',
+                      fontFamily: 'monospace',
+                      fontSize: '1rem',
+                      letterSpacing: '2px',
+                      textAlign: 'center'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleInlineVerify}
+                    disabled={isVerifying || !inlineVerifyCode.trim()}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      background: 'var(--primary-600, #2563eb)',
+                      color: '#fff',
+                      border: 'none',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem'
+                    }}
+                  >
+                    {isVerifying ? <Loader2 size={16} className="spinner" /> : <ShieldCheck size={16} />}
+                    <span>Verify</span>
+                  </button>
+                </div>
+                {verificationError && (
+                  <p style={{ color: '#dc2626', fontSize: '0.82rem', marginTop: '0.4rem' }}>
+                    {verificationError}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.9rem', fontWeight: 600 }}>
+                <CheckCircle2 size={18} />
+                <span>Email verified successfully! Full access is unlocked.</span>
+              </div>
+            )}
+          </div>
+
           <div className="registration-details-card" style={{ marginTop: '1.25rem' }}>
             <div className="detail-row">
               <span className="detail-label">Driver Name:</span>
@@ -262,6 +407,12 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
             <div className="detail-row">
               <span className="detail-label">Phone:</span>
               <span className="detail-value">{successData.phone}</span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-label">Status:</span>
+              <span className="detail-value" style={{ color: verificationSuccess ? '#059669' : '#d97706', fontWeight: 600 }}>
+                {verificationSuccess ? 'Verified (Full Access)' : 'Pending Email Verification'}
+              </span>
             </div>
             <div className="detail-row">
               <span className="detail-label">Created At:</span>

@@ -278,6 +278,144 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Verifies a newly registered account's email address using a 24-hour verification code.
+    /// Marks the account as verified in the database upon successful verification.
+    /// </summary>
+    /// <param name="request">Email and verification code</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>Verification result confirming full platform access</returns>
+    [HttpPost("verify-email")]
+    [ProducesResponseType(typeof(ApiResponse<VerifyEmailResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> VerifyEmail(
+        [FromBody] VerifyEmailRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        return await ProcessEmailVerificationAsync(request.Email, request.VerificationCode, cancellationToken);
+    }
+
+    /// <summary>
+    /// Verifies a newly registered account's email address via link query parameters (?email=...&code=...).
+    /// </summary>
+    [HttpGet("verify-email")]
+    [ProducesResponseType(typeof(ApiResponse<VerifyEmailResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> VerifyEmailFromLink(
+        [FromQuery] string? email,
+        [FromQuery] string? code,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+        {
+            return BadRequest(ApiResponse<object>.Fail("Email address and verification code query parameters are required."));
+        }
+
+        return await ProcessEmailVerificationAsync(email, code, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resends a fresh 24-hour verification code to an unverified account's registered email address.
+    /// </summary>
+    [HttpPost("resend-verification")]
+    [ProducesResponseType(typeof(ApiResponse<InitiateEmailChangeResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> ResendVerification(
+        [FromBody] ResendVerificationRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .ToList();
+            return BadRequest(ApiResponse<object>.Fail(ValidationFailedMessage, errors));
+        }
+
+        try
+        {
+            try
+            {
+                var companyResult = await _companyAuthService.ResendCompanyVerificationCodeAsync(request.Email, cancellationToken);
+                return Ok(ApiResponse<InitiateEmailChangeResponseDto>.Ok(companyResult, "Verification code resent successfully."));
+            }
+            catch (TenantNotFoundException)
+            {
+                var driverResult = await _driverAuthService.ResendDriverVerificationCodeAsync(request.Email, cancellationToken);
+                return Ok(ApiResponse<InitiateEmailChangeResponseDto>.Ok(driverResult, "Verification code resent successfully."));
+            }
+        }
+        catch (AccountAlreadyVerifiedException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (DriverNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.Fail($"No account was found with the email '{request.Email}'."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error resending verification code to {Email}", request.Email);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An unexpected error occurred while resending the verification code."));
+        }
+    }
+
+    private async Task<IActionResult> ProcessEmailVerificationAsync(string email, string code, CancellationToken cancellationToken)
+    {
+        try
+        {
+            try
+            {
+                var result = await _companyAuthService.VerifyCompanyEmailAsync(email, code, cancellationToken);
+                return Ok(ApiResponse<VerifyEmailResponseDto>.Ok(result, result.Message));
+            }
+            catch (TenantNotFoundException)
+            {
+                var driverResult = await _driverAuthService.VerifyDriverEmailAsync(email, code, cancellationToken);
+                return Ok(ApiResponse<VerifyEmailResponseDto>.Ok(driverResult, driverResult.Message));
+            }
+        }
+        catch (VerificationCodeExpiredException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (VerificationCodeAlreadyUsedException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message, new List<string> { ex.Message }));
+        }
+        catch (DriverNotFoundException)
+        {
+            return NotFound(ApiResponse<object>.Fail($"No account was found with the email '{email}'."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error verifying email for {Email}", email);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An unexpected error occurred while verifying your email. Please try again."));
+        }
+    }
+
+    /// <summary>
     /// Registers a new EV driver with personal details and automatically creates an associated zero-balance wallet record.
     /// </summary>
     /// <param name="request">Driver registration details</param>
