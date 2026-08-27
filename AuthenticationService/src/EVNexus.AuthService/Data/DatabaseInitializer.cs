@@ -177,6 +177,20 @@ public class DatabaseInitializer : IDatabaseInitializer
                     revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_revoked_jwt_id (jwt_id)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS account_status_audits (
+                    audit_id VARCHAR(50) PRIMARY KEY,
+                    account_id VARCHAR(50) NOT NULL,
+                    account_type VARCHAR(50) NOT NULL,
+                    action VARCHAR(50) NOT NULL,
+                    previous_status VARCHAR(50) NOT NULL,
+                    new_status VARCHAR(50) NOT NULL,
+                    reason VARCHAR(500) NULL,
+                    performed_by VARCHAR(100) NOT NULL,
+                    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_audit_account (account_id),
+                    INDEX idx_audit_timestamp (timestamp)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
             await using var command = new MySqlCommand(createTablesSql, connection);
@@ -400,6 +414,44 @@ public class DatabaseInitializer : IDatabaseInitializer
             catch (Exception rtMigrationEx)
             {
                 _logger.LogDebug(rtMigrationEx, "Table check or migration on 'refresh_tokens' completed.");
+            }
+
+            // Migration: Ensure account_status_audits table exists
+            try
+            {
+                const string checkAuditTableSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'account_status_audits';
+                ";
+                await using var checkAuditCmd = new MySqlCommand(checkAuditTableSql, connection);
+                var auditExists = Convert.ToInt64(await checkAuditCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!auditExists)
+                {
+                    const string createAuditSql = @"
+                        CREATE TABLE IF NOT EXISTS account_status_audits (
+                            audit_id VARCHAR(50) PRIMARY KEY,
+                            account_id VARCHAR(50) NOT NULL,
+                            account_type VARCHAR(50) NOT NULL,
+                            action VARCHAR(50) NOT NULL,
+                            previous_status VARCHAR(50) NOT NULL,
+                            new_status VARCHAR(50) NOT NULL,
+                            reason VARCHAR(500) NULL,
+                            performed_by VARCHAR(100) NOT NULL,
+                            timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            INDEX idx_audit_account (account_id),
+                            INDEX idx_audit_timestamp (timestamp)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ";
+                    await using var createAuditCmd = new MySqlCommand(createAuditSql, connection);
+                    await createAuditCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: created 'account_status_audits' table.");
+                }
+            }
+            catch (Exception auditMigrationEx)
+            {
+                _logger.LogDebug(auditMigrationEx, "Table check or migration on 'account_status_audits' completed.");
             }
 
             _logger.LogInformation("Auth database schema initialized successfully.");

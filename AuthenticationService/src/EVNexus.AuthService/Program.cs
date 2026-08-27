@@ -104,6 +104,8 @@ builder.Services.AddScoped<IDriverAuthService, DriverAuthService>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddSingleton<ITokenBlacklistService, TokenBlacklistService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
+builder.Services.AddScoped<IAccountAuditRepository, AccountAuditRepository>();
+builder.Services.AddScoped<IAccountManagementService, AccountManagementService>();
 
 var app = builder.Build();
 

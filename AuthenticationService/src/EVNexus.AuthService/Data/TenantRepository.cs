@@ -25,6 +25,7 @@ public interface ITenantRepository
     Task<bool> UpdateStaffUserStatusAsync(string userId, string tenantId, string status, CancellationToken cancellationToken = default);
     Task<bool> IsStaffEmailRegisteredAsync(string email, CancellationToken cancellationToken = default);
     Task<bool> DeleteTenantAsync(string tenantId, CancellationToken cancellationToken = default);
+    Task<bool> UpdateTenantStatusAsync(string tenantId, string status, CancellationToken cancellationToken = default);
 }
 
 public class TenantRepository : ITenantRepository
@@ -575,6 +576,23 @@ public class TenantRepository : ITenantRepository
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
         await using var command = new MySqlCommand(sql, connection);
         command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+
+        var affected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return affected > 0;
+    }
+
+    public async Task<bool> UpdateTenantStatusAsync(string tenantId, string status, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE tenants
+            SET status = @status, updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = @tenant_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+        command.Parameters.Add("@status", MySqlDbType.VarChar, 50).Value = status.Trim();
 
         var affected = await command.ExecuteNonQueryAsync(cancellationToken);
         return affected > 0;

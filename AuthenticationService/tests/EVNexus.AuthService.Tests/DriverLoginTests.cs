@@ -173,7 +173,7 @@ public class DriverLoginTests
             Email = "driver.suspended@example.com",
             PasswordHash = "$2a$12$someValidHash",
             Role = "Driver",
-            Status = "Suspended"
+            Status = "Inactive"
         };
 
         _mockDriverRepo.Setup(r => r.GetDriverByEmailAsync("driver.suspended@example.com", It.IsAny<CancellationToken>()))
