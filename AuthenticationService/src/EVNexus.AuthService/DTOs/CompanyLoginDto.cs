@@ -22,6 +22,7 @@ public class CompanyLoginResponseDto
     public string BusinessEmail { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool IsEmailVerified { get; set; } = false;
+    public string RefreshToken { get; set; } = string.Empty;
 }
 
 public class CompanyProfileResponseDto

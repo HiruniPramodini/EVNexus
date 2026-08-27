@@ -25,6 +25,7 @@ public class DriverLoginResponseDto
     public decimal WalletBalance { get; set; }
     public string Currency { get; set; } = "USD";
     public bool IsEmailVerified { get; set; } = false;
+    public string RefreshToken { get; set; } = string.Empty;
 }
 
 public class DriverProfileResponseDto

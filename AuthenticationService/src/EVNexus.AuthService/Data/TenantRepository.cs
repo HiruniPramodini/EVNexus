@@ -19,6 +19,7 @@ public interface ITenantRepository
     Task<(bool Success, string? Status)> ValidateAndConsumeTenantRegistrationCodeAsync(string email, string code, CancellationToken cancellationToken = default);
     Task<CompanyUser> CreateStaffUserAsync(CompanyUser user, CancellationToken cancellationToken = default);
     Task<CompanyUser?> GetStaffUserByIdAsync(string userId, string tenantId, CancellationToken cancellationToken = default);
+    Task<CompanyUser?> GetStaffUserByIdAsync(string userId, CancellationToken cancellationToken = default);
     Task<CompanyUser?> GetStaffUserByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<CompanyUser>> GetStaffUsersByTenantIdAsync(string tenantId, CancellationToken cancellationToken = default);
     Task<bool> UpdateStaffUserStatusAsync(string userId, string tenantId, string status, CancellationToken cancellationToken = default);
@@ -473,6 +474,28 @@ public class TenantRepository : ITenantRepository
         await using var command = new MySqlCommand(sql, connection);
         command.Parameters.Add(UserIdParameter, MySqlDbType.VarChar, 50).Value = userId.Trim();
         command.Parameters.Add(TenantIdParameter, MySqlDbType.VarChar, 50).Value = tenantId.Trim();
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
+        {
+            return MapCompanyUser(reader);
+        }
+
+        return null;
+    }
+
+    public async Task<CompanyUser?> GetStaffUserByIdAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            SELECT user_id, tenant_id, name, email, phone, password_hash, role, status, created_at, updated_at
+            FROM company_users
+            WHERE user_id = @user_id
+            LIMIT 1;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+        command.Parameters.Add(UserIdParameter, MySqlDbType.VarChar, 50).Value = userId.Trim();
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (await reader.ReadAsync(cancellationToken))

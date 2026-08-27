@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using EVNexus.AuthService.Attributes;
 using EVNexus.AuthService.DTOs;
+using EVNexus.AuthService.Services;
 using Microsoft.AspNetCore.Authorization;
 
 namespace EVNexus.AuthService.Middleware;
@@ -22,13 +23,33 @@ public class RoleAuthorizationMiddleware
         _logger = logger;
     }
 
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, ITokenBlacklistService? tokenBlacklistService = null)
     {
         var endpoint = context.GetEndpoint();
         if (endpoint == null || endpoint.Metadata.GetMetadata<IAllowAnonymous>() != null)
         {
             await _next(context);
             return;
+        }
+
+        // AC 2: Invalidate current token/session server-side upon logout
+        if (tokenBlacklistService != null && context.User?.Identity?.IsAuthenticated == true)
+        {
+            var authHeader = context.Request.Headers.Authorization.ToString();
+            var rawToken = authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? authHeader["Bearer ".Length..].Trim()
+                : null;
+
+            var jti = context.User.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)
+                   ?? context.User.FindFirstValue("jti");
+
+            var isRevoked = await tokenBlacklistService.IsTokenRevokedAsync(rawToken, jti, context.RequestAborted);
+            if (isRevoked)
+            {
+                _logger.LogWarning("Blocked request with revoked/logged-out token for user {User}", context.User.Identity?.Name ?? "Unknown");
+                await HandleRevokedTokenAsync(context);
+                return;
+            }
         }
 
         var roleRequirements = GetRoleRequirements(endpoint);
@@ -157,5 +178,19 @@ public class RoleAuthorizationMiddleware
             new List<string> { $"Caller role '{callerRoleStr}' is forbidden from accessing '{context.Request.Path}'." });
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(forbiddenResponse), context.RequestAborted);
+    }
+
+    private static async Task HandleRevokedTokenAsync(HttpContext context)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        context.Response.ContentType = "application/json";
+
+        var payload = ApiResponse<object>.Fail("Session has been logged out or token has been revoked. Please log in again.");
+        var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        });
+
+        await context.Response.WriteAsync(json, context.RequestAborted);
     }
 }

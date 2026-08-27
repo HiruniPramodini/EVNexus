@@ -29,17 +29,20 @@ public class CompanyAuthService : ICompanyAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ILogger<CompanyAuthService> _logger;
+    private readonly ISessionService? _sessionService;
 
     public CompanyAuthService(
         ITenantRepository tenantRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
-        ILogger<CompanyAuthService> logger)
+        ILogger<CompanyAuthService> logger,
+        ISessionService? sessionService = null)
     {
         _tenantRepository = tenantRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _logger = logger;
+        _sessionService = sessionService;
     }
 
     public async Task<CompanyRegisterResponseDto> RegisterCompanyAsync(
@@ -144,6 +147,10 @@ public class CompanyAuthService : ICompanyAuthService
 
             // 4. Generate signed JWT token with Tenant ID and Role claims
             var (token, expiresInSeconds) = _jwtTokenService.GenerateToken(tenant);
+            var refreshToken = _sessionService != null
+                ? await _sessionService.GenerateAndSaveRefreshTokenAsync(tenant.TenantId, "Tenant", tenant.Role, null, cancellationToken)
+                : string.Empty;
+
             _logger.LogInformation("Login successful for Tenant ID: {TenantId}, Role: {Role}, IsEmailVerified: {Verified}", tenant.TenantId, tenant.Role, tenant.IsEmailVerified);
 
             return new CompanyLoginResponseDto
@@ -155,7 +162,8 @@ public class CompanyAuthService : ICompanyAuthService
                 CompanyName = tenant.CompanyName,
                 BusinessEmail = tenant.BusinessEmail,
                 Role = tenant.Role,
-                IsEmailVerified = tenant.IsEmailVerified
+                IsEmailVerified = tenant.IsEmailVerified,
+                RefreshToken = refreshToken
             };
         }
 
@@ -184,6 +192,10 @@ public class CompanyAuthService : ICompanyAuthService
             }
 
             var (token, expiresInSeconds) = _jwtTokenService.GenerateStaffToken(staffUser, associatedTenant);
+            var refreshToken = _sessionService != null
+                ? await _sessionService.GenerateAndSaveRefreshTokenAsync(staffUser.UserId, "Staff", staffUser.Role, null, cancellationToken)
+                : string.Empty;
+
             _logger.LogInformation("Login successful for Staff ID: {UserId}, Tenant ID: {TenantId}, Role: {Role}", staffUser.UserId, staffUser.TenantId, staffUser.Role);
 
             return new CompanyLoginResponseDto
@@ -195,7 +207,8 @@ public class CompanyAuthService : ICompanyAuthService
                 CompanyName = associatedTenant.CompanyName,
                 BusinessEmail = staffUser.Email,
                 Role = staffUser.Role,
-                IsEmailVerified = associatedTenant.IsEmailVerified
+                IsEmailVerified = associatedTenant.IsEmailVerified,
+                RefreshToken = refreshToken
             };
         }
 

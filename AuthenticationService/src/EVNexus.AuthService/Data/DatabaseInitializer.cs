@@ -152,6 +152,31 @@ public class DatabaseInitializer : IDatabaseInitializer
                     INDEX idx_company_users_email (email),
                     CONSTRAINT fk_company_users_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS refresh_tokens (
+                    token_id VARCHAR(50) PRIMARY KEY,
+                    token VARCHAR(255) NOT NULL UNIQUE,
+                    jwt_id VARCHAR(100) NULL,
+                    user_id VARCHAR(50) NOT NULL,
+                    user_type VARCHAR(50) NOT NULL,
+                    role VARCHAR(50) NOT NULL,
+                    expires_at DATETIME NOT NULL,
+                    is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    revoked_at DATETIME NULL,
+                    replaced_by_token VARCHAR(255) NULL,
+                    INDEX idx_rt_token (token),
+                    INDEX idx_rt_user (user_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+                CREATE TABLE IF NOT EXISTS revoked_tokens (
+                    token_hash VARCHAR(64) PRIMARY KEY,
+                    jwt_id VARCHAR(100) NULL,
+                    user_id VARCHAR(50) NULL,
+                    expires_at DATETIME NOT NULL,
+                    revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_revoked_jwt_id (jwt_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
             ";
 
             await using var command = new MySqlCommand(createTablesSql, connection);
@@ -310,6 +335,71 @@ public class DatabaseInitializer : IDatabaseInitializer
             catch (Exception cuMigrationEx)
             {
                 _logger.LogDebug(cuMigrationEx, "Column check or migration on 'company_users' completed.");
+            }
+
+            // Migration: Ensure refresh_tokens and revoked_tokens tables exist
+            try
+            {
+                const string checkRtTableSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'refresh_tokens';
+                ";
+                await using var checkRtCmd = new MySqlCommand(checkRtTableSql, connection);
+                var rtExists = Convert.ToInt64(await checkRtCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!rtExists)
+                {
+                    const string createRtSql = @"
+                        CREATE TABLE IF NOT EXISTS refresh_tokens (
+                            token_id VARCHAR(50) PRIMARY KEY,
+                            token VARCHAR(255) NOT NULL UNIQUE,
+                            jwt_id VARCHAR(100) NULL,
+                            user_id VARCHAR(50) NOT NULL,
+                            user_type VARCHAR(50) NOT NULL,
+                            role VARCHAR(50) NOT NULL,
+                            expires_at DATETIME NOT NULL,
+                            is_revoked BOOLEAN NOT NULL DEFAULT FALSE,
+                            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            revoked_at DATETIME NULL,
+                            replaced_by_token VARCHAR(255) NULL,
+                            INDEX idx_rt_token (token),
+                            INDEX idx_rt_user (user_id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ";
+                    await using var createRtCmd = new MySqlCommand(createRtSql, connection);
+                    await createRtCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: created 'refresh_tokens' table.");
+                }
+
+                const string checkRevokedTableSql = @"
+                    SELECT COUNT(1) 
+                    FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = DATABASE() 
+                      AND TABLE_NAME = 'revoked_tokens';
+                ";
+                await using var checkRevCmd = new MySqlCommand(checkRevokedTableSql, connection);
+                var revExists = Convert.ToInt64(await checkRevCmd.ExecuteScalarAsync(cancellationToken)) > 0;
+                if (!revExists)
+                {
+                    const string createRevSql = @"
+                        CREATE TABLE IF NOT EXISTS revoked_tokens (
+                            token_hash VARCHAR(64) PRIMARY KEY,
+                            jwt_id VARCHAR(100) NULL,
+                            user_id VARCHAR(50) NULL,
+                            expires_at DATETIME NOT NULL,
+                            revoked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            INDEX idx_revoked_jwt_id (jwt_id)
+                        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+                    ";
+                    await using var createRevCmd = new MySqlCommand(createRevSql, connection);
+                    await createRevCmd.ExecuteNonQueryAsync(cancellationToken);
+                    _logger.LogInformation("Migrated database: created 'revoked_tokens' table.");
+                }
+            }
+            catch (Exception rtMigrationEx)
+            {
+                _logger.LogDebug(rtMigrationEx, "Table check or migration on 'refresh_tokens' completed.");
             }
 
             _logger.LogInformation("Auth database schema initialized successfully.");
