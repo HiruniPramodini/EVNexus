@@ -14,6 +14,11 @@ public interface IDriverAuthService
     Task ChangeDriverPasswordAsync(string driverId, ChangeDriverPasswordRequestDto request, CancellationToken cancellationToken = default);
     Task<VerifyEmailResponseDto> VerifyDriverEmailAsync(string email, string code, CancellationToken cancellationToken = default);
     Task<InitiateEmailChangeResponseDto> ResendDriverVerificationCodeAsync(string email, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<DriverVehicleDto>> GetDriverVehiclesAsync(string driverId, CancellationToken cancellationToken = default);
+    Task<DriverVehicleDto> AddDriverVehicleAsync(string driverId, CreateDriverVehicleRequestDto request, CancellationToken cancellationToken = default);
+    Task<DriverVehicleDto> UpdateDriverVehicleAsync(string driverId, string vehicleId, UpdateDriverVehicleRequestDto request, CancellationToken cancellationToken = default);
+    Task<bool> DeleteDriverVehicleAsync(string driverId, string vehicleId, CancellationToken cancellationToken = default);
+    Task<DriverVehicleDto> SetDefaultDriverVehicleAsync(string driverId, string vehicleId, CancellationToken cancellationToken = default);
 }
 
 public class DriverAuthService : IDriverAuthService
@@ -181,6 +186,7 @@ public class DriverAuthService : IDriverAuthService
         }
 
         var wallet = await _driverRepository.GetWalletByDriverIdAsync(driverId, cancellationToken);
+        var vehicles = (await _driverRepository.GetVehiclesByDriverIdAsync(driverId, cancellationToken)) ?? Array.Empty<DriverVehicle>();
 
         return new DriverProfileResponseDto
         {
@@ -195,7 +201,8 @@ public class DriverAuthService : IDriverAuthService
             UpdatedAt = driver.UpdatedAt,
             WalletId = wallet?.WalletId ?? string.Empty,
             WalletBalance = wallet?.Balance ?? 0.00m,
-            Currency = wallet?.Currency ?? "USD"
+            Currency = wallet?.Currency ?? "USD",
+            Vehicles = vehicles.Select(MapToVehicleDto).ToList()
         };
     }
 
@@ -358,6 +365,118 @@ public class DriverAuthService : IDriverAuthService
             NewBusinessEmail = normalizedEmail,
             VerificationCode = verificationCode,
             ExpiresAt = expiresAt
+        };
+    }
+
+    public async Task<IReadOnlyList<DriverVehicleDto>> GetDriverVehiclesAsync(
+        string driverId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Retrieving vehicles for Driver ID: {DriverId}", driverId);
+        var vehicles = (await _driverRepository.GetVehiclesByDriverIdAsync(driverId, cancellationToken)) ?? Array.Empty<DriverVehicle>();
+        return vehicles.Select(MapToVehicleDto).ToList();
+    }
+
+    public async Task<DriverVehicleDto> AddDriverVehicleAsync(
+        string driverId,
+        CreateDriverVehicleRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Adding vehicle {Make} {Model} for Driver ID: {DriverId}", request.Make, request.Model, driverId);
+
+        var vehicleId = $"VEH-{Guid.NewGuid():N}".ToUpperInvariant();
+        var vehicle = new DriverVehicle
+        {
+            VehicleId = vehicleId,
+            DriverId = driverId.Trim(),
+            Make = request.Make.Trim(),
+            Model = request.Model.Trim(),
+            PlateNumber = request.PlateNumber.Trim().ToUpperInvariant(),
+            ConnectorType = request.ConnectorType.Trim(),
+            IsDefault = request.IsDefault,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        var created = await _driverRepository.CreateVehicleAsync(vehicle, cancellationToken);
+        return MapToVehicleDto(created);
+    }
+
+    public async Task<DriverVehicleDto> UpdateDriverVehicleAsync(
+        string driverId,
+        string vehicleId,
+        UpdateDriverVehicleRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating vehicle {VehicleId} for Driver ID: {DriverId}", vehicleId, driverId);
+
+        var updated = await _driverRepository.UpdateVehicleAsync(
+            vehicleId,
+            driverId,
+            request.Make.Trim(),
+            request.Model.Trim(),
+            request.PlateNumber.Trim().ToUpperInvariant(),
+            request.ConnectorType.Trim(),
+            request.IsDefault,
+            cancellationToken);
+
+        if (updated == null)
+        {
+            _logger.LogWarning("Vehicle {VehicleId} not found or does not belong to Driver {DriverId}", vehicleId, driverId);
+            throw new KeyNotFoundException($"Vehicle '{vehicleId}' was not found for the authenticated driver.");
+        }
+
+        return MapToVehicleDto(updated);
+    }
+
+    public async Task<bool> DeleteDriverVehicleAsync(
+        string driverId,
+        string vehicleId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Deleting vehicle {VehicleId} for Driver ID: {DriverId}", vehicleId, driverId);
+
+        var success = await _driverRepository.DeleteVehicleAsync(vehicleId, driverId, cancellationToken);
+        if (!success)
+        {
+            _logger.LogWarning("Delete failed: Vehicle {VehicleId} not found or does not belong to Driver {DriverId}", vehicleId, driverId);
+            throw new KeyNotFoundException($"Vehicle '{vehicleId}' was not found for the authenticated driver.");
+        }
+
+        return true;
+    }
+
+    public async Task<DriverVehicleDto> SetDefaultDriverVehicleAsync(
+        string driverId,
+        string vehicleId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Setting vehicle {VehicleId} as default for Driver ID: {DriverId}", vehicleId, driverId);
+
+        var success = await _driverRepository.SetDefaultVehicleAsync(vehicleId, driverId, cancellationToken);
+        if (!success)
+        {
+            _logger.LogWarning("Set default failed: Vehicle {VehicleId} not found or does not belong to Driver {DriverId}", vehicleId, driverId);
+            throw new KeyNotFoundException($"Vehicle '{vehicleId}' was not found for the authenticated driver.");
+        }
+
+        var vehicle = await _driverRepository.GetVehicleByIdAsync(vehicleId, driverId, cancellationToken);
+        return MapToVehicleDto(vehicle!);
+    }
+
+    private static DriverVehicleDto MapToVehicleDto(DriverVehicle vehicle)
+    {
+        return new DriverVehicleDto
+        {
+            VehicleId = vehicle.VehicleId,
+            DriverId = vehicle.DriverId,
+            Make = vehicle.Make,
+            Model = vehicle.Model,
+            PlateNumber = vehicle.PlateNumber,
+            ConnectorType = vehicle.ConnectorType,
+            IsDefault = vehicle.IsDefault,
+            CreatedAt = vehicle.CreatedAt,
+            UpdatedAt = vehicle.UpdatedAt
         };
     }
 }

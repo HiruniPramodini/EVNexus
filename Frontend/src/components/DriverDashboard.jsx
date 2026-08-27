@@ -22,7 +22,11 @@ import {
   X,
   Eye,
   EyeOff,
-  Sparkles
+  Sparkles,
+  Car,
+  Plus,
+  Trash2,
+  Star
 } from 'lucide-react';
 import {
   getDriverProfile,
@@ -31,7 +35,12 @@ import {
   clearAuthSession,
   testDriverAccessToCompanyEndpoint,
   verifyEmail,
-  resendVerificationCode
+  resendVerificationCode,
+  getDriverVehicles,
+  addDriverVehicle,
+  updateDriverVehicle,
+  deleteDriverVehicle,
+  setDefaultDriverVehicle
 } from '../services/api';
 
 export default function DriverDashboard({ authUser, onLogout, onUpdateProfile }) {
@@ -86,9 +95,121 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   const [isTestingRbac, setIsTestingRbac] = useState(false);
   const [rbacResult, setRbacResult] = useState(null);
 
+  // Vehicle Sub-Resource State
+  const [vehicles, setVehicles] = useState([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(false);
+  const [vehicleError, setVehicleError] = useState(null);
+  const [vehicleSuccess, setVehicleSuccess] = useState(null);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [editingVehicleId, setEditingVehicleId] = useState(null);
+  const [vehicleFormData, setVehicleFormData] = useState({
+    make: '',
+    model: '',
+    plateNumber: '',
+    connectorType: 'CCS2',
+    isDefault: false
+  });
+  const [isSubmittingVehicle, setIsSubmittingVehicle] = useState(false);
+  const [deletingVehicleId, setDeletingVehicleId] = useState(null);
+
   useEffect(() => {
     handleVerifyProtectedApi();
+    loadVehicles();
   }, []);
+
+  const loadVehicles = async () => {
+    setLoadingVehicles(true);
+    setVehicleError(null);
+    try {
+      const res = await getDriverVehicles(authUser?.accessToken);
+      if (res?.data) {
+        setVehicles(res.data);
+      }
+    } catch (err) {
+      setVehicleError(err.message || 'Failed to load vehicles.');
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const handleOpenAddVehicle = () => {
+    setEditingVehicleId(null);
+    setVehicleFormData({
+      make: '',
+      model: '',
+      plateNumber: '',
+      connectorType: 'CCS2',
+      isDefault: vehicles.length === 0
+    });
+    setVehicleError(null);
+    setVehicleSuccess(null);
+    setShowVehicleModal(true);
+  };
+
+  const handleOpenEditVehicle = (v) => {
+    setEditingVehicleId(v.vehicleId);
+    setVehicleFormData({
+      make: v.make,
+      model: v.model,
+      plateNumber: v.plateNumber,
+      connectorType: v.connectorType,
+      isDefault: v.isDefault
+    });
+    setVehicleError(null);
+    setVehicleSuccess(null);
+    setShowVehicleModal(true);
+  };
+
+  const handleSaveVehicle = async (e) => {
+    e.preventDefault();
+    setIsSubmittingVehicle(true);
+    setVehicleError(null);
+    setVehicleSuccess(null);
+
+    try {
+      if (editingVehicleId) {
+        await updateDriverVehicle(editingVehicleId, vehicleFormData, authUser?.accessToken);
+        setVehicleSuccess('Vehicle updated successfully!');
+      } else {
+        await addDriverVehicle(vehicleFormData, authUser?.accessToken);
+        setVehicleSuccess('Vehicle registered successfully!');
+      }
+      setShowVehicleModal(false);
+      await loadVehicles();
+    } catch (err) {
+      setVehicleError(err.message || 'Failed to save vehicle.');
+    } finally {
+      setIsSubmittingVehicle(false);
+    }
+  };
+
+  const handleDeleteVehicle = async (vehicleId) => {
+    if (!window.confirm('Are you sure you want to remove this vehicle from your profile?')) {
+      return;
+    }
+    setDeletingVehicleId(vehicleId);
+    setVehicleError(null);
+    try {
+      await deleteDriverVehicle(vehicleId, authUser?.accessToken);
+      setVehicleSuccess('Vehicle removed successfully.');
+      await loadVehicles();
+    } catch (err) {
+      setVehicleError(err.message || 'Failed to delete vehicle.');
+    } finally {
+      setDeletingVehicleId(null);
+    }
+  };
+
+  const handleSetDefaultVehicle = async (vehicleId) => {
+    setVehicleError(null);
+    try {
+      await setDefaultDriverVehicle(vehicleId, authUser?.accessToken);
+      setVehicleSuccess('Default vehicle updated.');
+      await loadVehicles();
+    } catch (err) {
+      setVehicleError(err.message || 'Failed to update default vehicle.');
+    }
+  };
 
   const copyToClipboard = (text, type) => {
     navigator.clipboard.writeText(text);
@@ -119,6 +240,10 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         latencyMs: Math.round(endTime - startTime),
         timestamp: new Date().toLocaleTimeString()
       });
+
+      if (Array.isArray(response.data?.vehicles)) {
+        setVehicles(response.data.vehicles);
+      }
 
       // Synchronize form defaults
       setProfileFormData({
@@ -982,6 +1107,341 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         </div>
       </div>
 
+      {/* My Registered Electric Vehicles Section */}
+      <div
+        className="register-card"
+        style={{
+          background: '#ffffff',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '16px',
+          margin: '0 0 1.5rem 0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-50)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Car size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>
+                Registered Electric Vehicles
+              </h3>
+              <span style={{
+                background: 'var(--bg-subtle, #f1f5f9)',
+                color: 'var(--text-muted, #64748b)',
+                fontSize: '0.75rem',
+                fontWeight: '700',
+                padding: '0.2rem 0.6rem',
+                borderRadius: '12px',
+                border: '1px solid var(--border-subtle)'
+              }}>
+                {vehicles.length} {vehicles.length === 1 ? 'Vehicle' : 'Vehicles'}
+              </span>
+            </div>
+            <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Manage your EV fleet, select your default vehicle, and match chargers with compatible connector types.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenAddVehicle}
+            id="btn-add-vehicle"
+            style={{
+              background: 'var(--primary-600, #2563eb)',
+              color: '#ffffff',
+              border: 'none',
+              padding: '0.55rem 1.1rem',
+              borderRadius: '8px',
+              fontSize: '0.85rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.45rem',
+              boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
+            }}
+          >
+            <Plus size={16} />
+            <span>Add Vehicle</span>
+          </button>
+        </div>
+
+        {/* Feedback messages */}
+        {vehicleSuccess && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            marginBottom: '1rem',
+            borderRadius: '8px',
+            background: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            color: '#065f46',
+            fontSize: '0.85rem'
+          }}>
+            <CheckCircle2 size={16} />
+            <span>{vehicleSuccess}</span>
+          </div>
+        )}
+
+        {vehicleError && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem 1rem',
+            marginBottom: '1rem',
+            borderRadius: '8px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            color: '#991b1b',
+            fontSize: '0.85rem'
+          }}>
+            <AlertTriangle size={16} />
+            <span>{vehicleError}</span>
+          </div>
+        )}
+
+        {/* Vehicles Grid / Empty State */}
+        {loadingVehicles ? (
+          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+            <RefreshCw size={24} className="spinner-icon" style={{ margin: '0 auto 0.75rem auto', display: 'block', color: 'var(--primary-600)' }} />
+            <p style={{ margin: 0, fontSize: '0.9rem' }}>Loading your registered vehicles...</p>
+          </div>
+        ) : vehicles.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '3rem 1.5rem',
+            borderRadius: '12px',
+            background: 'var(--bg-subtle, #f8fafc)',
+            border: '1px dashed var(--border-subtle)'
+          }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#e0e7ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
+              <Car size={28} />
+            </div>
+            <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)' }}>
+              No vehicles registered yet
+            </h4>
+            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
+              Register your electric car make, model, license plate, and connector type to enable seamless station compatibility and charging sessions.
+            </p>
+            <button
+              type="button"
+              onClick={handleOpenAddVehicle}
+              style={{
+                background: 'var(--primary-600, #2563eb)',
+                color: '#ffffff',
+                border: 'none',
+                padding: '0.55rem 1.2rem',
+                borderRadius: '8px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem'
+              }}
+            >
+              <Plus size={16} />
+              <span>Add Your First Vehicle</span>
+            </button>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: '1rem'
+          }}>
+            {vehicles.map((v) => (
+              <div
+                key={v.vehicleId}
+                id={`vehicle-card-${v.vehicleId}`}
+                style={{
+                  border: v.isDefault ? '2px solid #3b82f6' : '1px solid var(--border-subtle)',
+                  borderRadius: '12px',
+                  padding: '1.1rem',
+                  background: v.isDefault ? '#f8faff' : '#ffffff',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '0.9rem',
+                  transition: 'box-shadow 0.2s, border-color 0.2s',
+                  position: 'relative'
+                }}
+              >
+                {/* Header */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        background: v.isDefault ? '#dbeafe' : '#f1f5f9',
+                        color: v.isDefault ? '#1d4ed8' : '#475569',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Car size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>
+                          {v.make} {v.model}
+                        </div>
+                      </div>
+                    </div>
+
+                    {v.isDefault && (
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        border: '1px solid #fde68a',
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '12px',
+                        fontSize: '0.72rem',
+                        fontWeight: '700'
+                      }}>
+                        <Star size={11} fill="#f59e0b" color="#f59e0b" />
+                        DEFAULT
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Attributes */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>License Plate:</span>
+                      <span style={{
+                        fontFamily: 'monospace',
+                        fontWeight: '700',
+                        background: 'var(--bg-subtle, #f1f5f9)',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-main)'
+                      }}>
+                        {v.plateNumber}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Connector:</span>
+                      <span style={{
+                        fontWeight: '600',
+                        color: 'var(--primary-700, #1d4ed8)',
+                        background: 'var(--primary-50, #eff6ff)',
+                        padding: '0.15rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid var(--primary-200, #bfdbfe)'
+                      }}>
+                        {v.connectorType}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions Footer */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  borderTop: '1px solid var(--border-subtle)',
+                  paddingTop: '0.75rem',
+                  marginTop: '0.25rem',
+                  gap: '0.4rem'
+                }}>
+                  {!v.isDefault ? (
+                    <button
+                      type="button"
+                      onClick={() => handleSetDefaultVehicle(v.vehicleId)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#64748b',
+                        fontSize: '0.78rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        padding: '0.25rem 0.4rem',
+                        borderRadius: '6px'
+                      }}
+                      title="Set as default vehicle"
+                    >
+                      <Star size={13} />
+                      <span>Set Default</span>
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Check size={12} /> Primary Vehicle
+                    </span>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditVehicle(v)}
+                      style={{
+                        background: 'var(--bg-subtle, #f1f5f9)',
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-main)',
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Edit vehicle details"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteVehicle(v.vehicleId)}
+                      disabled={deletingVehicleId === v.vehicleId}
+                      style={{
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        color: '#dc2626',
+                        padding: '0.3rem 0.6rem',
+                        borderRadius: '6px',
+                        fontSize: '0.75rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }}
+                      title="Delete vehicle"
+                    >
+                      {deletingVehicleId === v.vehicleId ? (
+                        <RefreshCw size={13} className="spinner-icon" />
+                      ) : (
+                        <Trash2 size={13} />
+                      )}
+                      <span>Delete</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Protected JWT Verification Live Test Panel */}
       <div
         className="register-card"
@@ -1774,6 +2234,228 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
                 >
                   {isChangingPassword ? <RefreshCw size={14} className="spinner-icon" /> : <Key size={14} />}
                   <span>{isChangingPassword ? 'Updating Password...' : 'Update Password'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Vehicle Add / Edit Modal */}
+      {showVehicleModal && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '1rem'
+          }}
+        >
+          <div
+            className="modal-dialog"
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              width: '100%',
+              maxWidth: '480px',
+              padding: '1.75rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+              position: 'relative'
+            }}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => setShowVehicleModal(false)}
+              style={{
+                position: 'absolute',
+                top: '1.25rem',
+                right: '1.25rem',
+                background: 'none',
+                border: 'none',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '0.25rem'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
+                background: 'var(--primary-50)',
+                color: 'var(--primary-600)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Car size={20} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                  {editingVehicleId ? 'Edit Vehicle' : 'Add New Vehicle'}
+                </h3>
+                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {editingVehicleId ? 'Update your vehicle information' : 'Register an electric vehicle to your driver profile'}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveVehicle}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Make */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Vehicle Make <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Tesla, Hyundai, Nissan, BMW"
+                    value={vehicleFormData.make}
+                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, make: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Model */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Vehicle Model <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Model 3, Ioniq 5, Leaf, i4"
+                    value={vehicleFormData.model}
+                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, model: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Plate Number */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    License Plate Number <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. CA-8XYZ12"
+                    value={vehicleFormData.plateNumber}
+                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, plateNumber: e.target.value.toUpperCase() })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem',
+                      fontFamily: 'monospace',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                {/* Connector Type */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
+                    Connector Type <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <select
+                    value={vehicleFormData.connectorType}
+                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, connectorType: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-subtle)',
+                      fontSize: '0.9rem',
+                      background: '#ffffff',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    <option value="CCS2">CCS2 (Combined Charging System 2)</option>
+                    <option value="CCS1">CCS1 (Combined Charging System 1)</option>
+                    <option value="Type 2">Type 2 (Mennekes - AC)</option>
+                    <option value="Type 1">Type 1 (J1772 - AC)</option>
+                    <option value="CHAdeMO">CHAdeMO (DC Fast)</option>
+                    <option value="Tesla NACS">Tesla (NACS)</option>
+                  </select>
+                </div>
+
+                {/* Default Vehicle Checkbox */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <input
+                    type="checkbox"
+                    id="isDefaultVehicle"
+                    checked={vehicleFormData.isDefault}
+                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, isDefault: e.target.checked })}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="isDefaultVehicle" style={{ fontSize: '0.85rem', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '500' }}>
+                    Set as default vehicle for charging sessions
+                  </label>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleModal(false)}
+                  style={{
+                    padding: '0.6rem 1.1rem',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border-subtle)',
+                    background: '#ffffff',
+                    color: 'var(--text-main)',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmittingVehicle}
+                  className="submit-btn"
+                  style={{
+                    padding: '0.6rem 1.25rem',
+                    fontSize: '0.85rem',
+                    margin: 0,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem'
+                  }}
+                >
+                  {isSubmittingVehicle ? <RefreshCw size={14} className="spinner-icon" /> : <Check size={14} />}
+                  <span>{isSubmittingVehicle ? 'Saving...' : editingVehicleId ? 'Update Vehicle' : 'Register Vehicle'}</span>
                 </button>
               </div>
             </form>

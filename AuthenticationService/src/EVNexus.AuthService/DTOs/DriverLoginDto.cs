@@ -41,6 +41,7 @@ public class DriverProfileResponseDto
     public string WalletId { get; set; } = string.Empty;
     public decimal WalletBalance { get; set; }
     public string Currency { get; set; } = "USD";
+    public List<DriverVehicleDto> Vehicles { get; set; } = new();
 }
 
 public class UpdateDriverProfileRequestDto
