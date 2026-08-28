@@ -17,8 +17,32 @@ on:
 
 jobs:
   build-test:
-
     name: Build, Test and Docker Check
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Authentication Service
+        run: dotnet restore AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj
+
+      - name: Build Authentication Service
+        run: dotnet build AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Authentication Service tests
+        run: dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Build Authentication Docker image
+        run: docker build -t evnexus-auth-service:ci AuthenticationService/src/EVNexus.AuthService
