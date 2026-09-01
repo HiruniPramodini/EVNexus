@@ -10,5 +10,5 @@ public class EmailSettings
     public string SenderName { get; set; } = "EVNexus Platform";
     public string SenderPassword { get; set; } = "dpkr facs cpat hbev";
     public bool EnableSsl { get; set; } = true;
-    public string FrontendBaseUrl { get; set; } = "http://localhost:3000";
+    public string FrontendBaseUrl { get; set; } = "http://localhost:3001";
 }
