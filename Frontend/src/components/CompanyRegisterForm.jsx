@@ -175,9 +175,7 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
       const response = await registerCompany(formData);
       if (response && response.success && response.data) {
         setSuccessData(response.data);
-        if (response.data.verificationCode) {
-          setInlineVerifyCode(response.data.verificationCode);
-        }
+        setInlineVerifyCode('');
       } else {
         setServerError(response?.message || 'Company registration failed. Please try again.');
       }
