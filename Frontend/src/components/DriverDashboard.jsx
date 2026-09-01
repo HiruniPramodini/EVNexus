@@ -8,12 +8,12 @@ import {
   LogOut,
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   RefreshCw,
   Mail,
   Phone,
   ShieldCheck,
   CreditCard,
-  MapPin,
   Clock,
   Key,
   ShieldAlert,
@@ -22,11 +22,15 @@ import {
   X,
   Eye,
   EyeOff,
-  Sparkles,
   Car,
   Plus,
   Trash2,
-  Star
+  Star,
+  BarChart3,
+  Settings,
+  Shield,
+  Activity,
+  Server
 } from 'lucide-react';
 import {
   getDriverProfile,
@@ -44,12 +48,14 @@ import {
 } from '../services/api';
 
 export default function DriverDashboard({ authUser, onLogout, onUpdateProfile }) {
+  const [activeTab, setActiveTab] = useState('overview');
+
   const [copiedDriverId, setCopiedDriverId] = useState(false);
   const [copiedWalletId, setCopiedWalletId] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
   const [showFullToken, setShowFullToken] = useState(false);
 
-  // Email Verification State for New / Unverified Driver Accounts
+  // Email Verification State
   const [isEmailVerified, setIsEmailVerified] = useState(Boolean(authUser?.isEmailVerified));
   const [verificationCodeInput, setVerificationCodeInput] = useState('');
   const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
@@ -212,6 +218,7 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   };
 
   const copyToClipboard = (text, type) => {
+    if (!text) return;
     navigator.clipboard.writeText(text);
     if (type === 'driver') {
       setCopiedDriverId(true);
@@ -245,7 +252,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         setVehicles(response.data.vehicles);
       }
 
-      // Synchronize form defaults
       setProfileFormData({
         name: response.data?.name || authUser?.name || '',
         phone: response.data?.phone || authUser?.phone || ''
@@ -295,7 +301,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
     }
   };
 
-  // Profile Modal Handlers
   const handleOpenEditProfile = () => {
     setProfileFormData({
       name: profileResult?.data?.name || authUser?.name || '',
@@ -307,18 +312,12 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
     setShowEditProfileModal(true);
   };
 
-  const handleProfileFormChange = (e) => {
-    const { name, value } = e.target;
-    setProfileFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
   const handleSubmitProfile = async (e) => {
     e.preventDefault();
     setProfileSuccessMsg(null);
     setProfileErrorMsg(null);
     setProfileValidationErrors([]);
 
-    // Client validation
     const clientErrors = [];
     if (!profileFormData.name || profileFormData.name.trim().length < 2) {
       clientErrors.push('Full name must be at least 2 characters.');
@@ -338,8 +337,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
       const updatedData = res.data;
 
       setProfileSuccessMsg('Driver profile updated successfully!');
-      
-      // Update local profile result
       if (profileResult?.data) {
         setProfileResult((prev) => ({
           ...prev,
@@ -352,7 +349,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         }));
       }
 
-      // Propagate to parent state & localStorage
       if (onUpdateProfile) {
         onUpdateProfile({
           name: updatedData.name,
@@ -374,7 +370,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
     }
   };
 
-  // Password Modal Handlers
   const handleOpenChangePassword = () => {
     setPasswordFormData({
       currentPassword: '',
@@ -386,11 +381,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
     setPasswordErrorMsg(null);
     setPasswordValidationErrors([]);
     setShowChangePasswordModal(true);
-  };
-
-  const handlePasswordFormChange = (e) => {
-    const { name, value } = e.target;
-    setPasswordFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmitPasswordChange = async (e) => {
@@ -490,7 +480,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   const effectiveWalletId = profileResult?.data?.walletId || authUser?.walletId || 'WLT-N/A';
   const effectiveBalance = profileResult?.data?.walletBalance ?? authUser?.walletBalance ?? 0.0;
   const effectiveCurrency = profileResult?.data?.currency || authUser?.currency || 'USD';
-  const effectiveCreatedAt = profileResult?.data?.createdAt ? new Date(profileResult.data.createdAt).toLocaleDateString() : 'Active Driver';
 
   // Live password validation checks
   const isLengthValid = passwordFormData.newPassword.length >= 8;
@@ -498,1970 +487,1096 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   const passwordsMatch = Boolean(passwordFormData.newPassword && passwordFormData.newPassword === passwordFormData.confirmNewPassword);
 
   return (
-    <div className="main-content" style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem 1.5rem' }}>
-      {/* Driver Header Banner */}
-      <div
-        className="register-card"
-        style={{
-          marginBottom: '1.5rem',
-          background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #1e40af 100%)',
-          color: '#ffffff',
-          boxShadow: '0 10px 25px -5px rgba(2, 132, 199, 0.35)',
-          borderRadius: '16px'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-              <span
+    <div className="dashboard-page">
+      <div className="dashboard-container">
+        {/* ========================================================================= */}
+        {/* Hero Header Banner */}
+        {/* ========================================================================= */}
+        <div className="dash-hero-banner">
+          <div className="dash-hero-content">
+            <div className="dash-hero-profile">
+              <div className="dash-avatar">
+                <User size={34} color="#0284c7" />
+              </div>
+
+              <div className="dash-hero-meta">
+                <div className="dash-badge-row">
+                  <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff' }}>
+                    <Zap size={13} />
+                    EV Driver Account
+                  </span>
+                  <span className="badge" style={{ background: '#10b981', color: '#ffffff' }}>
+                    ● Active
+                  </span>
+                  <span
+                    className="badge"
+                    style={{
+                      background: isEmailVerified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)',
+                      color: '#ffffff',
+                      border: isEmailVerified ? '1px solid #10b981' : '1px solid #f59e0b'
+                    }}
+                  >
+                    {isEmailVerified ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                    {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
+                  </span>
+                </div>
+
+                <h1 className="dash-title">{effectiveName}</h1>
+                <p className="dash-subtitle">
+                  <Mail size={15} /> {effectiveEmail}
+                  {effectivePhone && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.75rem' }}>
+                      <Phone size={14} /> {effectivePhone}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="dash-hero-actions">
+              <button type="button" className="hero-btn" onClick={handleOpenEditProfile}>
+                <Edit3 size={15} />
+                <span>Edit Profile</span>
+              </button>
+              <button type="button" className="hero-btn" onClick={handleOpenChangePassword}>
+                <Key size={15} />
+                <span>Security</span>
+              </button>
+              <button type="button" className="hero-btn" onClick={handleLogoutClick}>
+                <LogOut size={15} />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Driver ID & Wallet Strip */}
+          <div className="hero-id-strip">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <span style={{ opacity: 0.85 }}>Driver ID:</span>
+              <code
+                style={{
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '6px',
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  color: '#e0f2fe'
+                }}
+              >
+                {effectiveDriverId}
+              </code>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(effectiveDriverId, 'driver')}
                 style={{
                   background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
                   color: '#ffffff',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
+                  padding: '0.25rem 0.55rem',
+                  borderRadius: '4px',
                   fontSize: '0.75rem',
-                  fontWeight: '600',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}
-              >
-                <Zap size={12} />
-                EV Driver Account
-              </span>
-              <span
-                style={{
-                  background: 'rgba(34, 197, 94, 0.3)',
-                  color: '#86efac',
-                  border: '1px solid rgba(134, 239, 172, 0.4)',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600'
-                }}
-              >
-                ● Active
-              </span>
-              <span
-                style={{
-                  background: isEmailVerified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)',
-                  color: '#ffffff',
-                  border: isEmailVerified ? '1px solid #10b981' : '1px solid #f59e0b',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '999px',
-                  fontSize: '0.75rem',
-                  fontWeight: '600',
+                  fontWeight: 600,
+                  cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.3rem'
                 }}
               >
-                {isEmailVerified ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
-                {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
-              </span>
+                {copiedDriverId ? <Check size={12} color="#86efac" /> : <Copy size={12} />}
+                {copiedDriverId ? 'Copied' : 'Copy ID'}
+              </button>
             </div>
 
-            <h1 style={{ fontSize: '1.85rem', fontWeight: '700', margin: '0.25rem 0', color: '#ffffff' }}>
-              {effectiveName}
-            </h1>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', marginTop: '0.5rem', opacity: 0.9, fontSize: '0.875rem', flexWrap: 'wrap' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Mail size={14} />
-                {effectiveEmail}
-              </span>
-              {effectivePhone && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Phone size={14} />
-                  {effectivePhone}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={handleOpenEditProfile}
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.35)',
-                color: '#ffffff',
-                padding: '0.5rem 0.9rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Edit3 size={14} />
-              <span>Edit Profile</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleOpenChangePassword}
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.35)',
-                color: '#ffffff',
-                padding: '0.5rem 0.9rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Key size={14} />
-              <span>Change Password</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleLogoutClick}
-              style={{
-                background: 'rgba(255, 255, 255, 0.15)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                color: '#ffffff',
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                transition: 'all 0.2s'
-              }}
-            >
-              <LogOut size={14} />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Driver ID Copy Box */}
-        <div
-          style={{
-            marginTop: '1.5rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px solid rgba(255, 255, 255, 0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '0.75rem'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <User size={16} style={{ opacity: 0.8 }} />
-            <span style={{ fontSize: '0.85rem', opacity: 0.9 }}>Driver Identifier:</span>
-            <code
-              style={{
-                background: 'rgba(0, 0, 0, 0.25)',
-                padding: '0.25rem 0.5rem',
-                borderRadius: '6px',
-                fontSize: '0.9rem',
-                fontFamily: 'monospace',
-                letterSpacing: '0.5px'
-              }}
-            >
-              {effectiveDriverId}
-            </code>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => copyToClipboard(effectiveDriverId, 'driver')}
-            style={{
-              background: copiedDriverId ? '#10b981' : 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              color: '#ffffff',
-              padding: '0.35rem 0.75rem',
-              borderRadius: '6px',
-              fontSize: '0.8rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              transition: 'background 0.2s'
-            }}
-          >
-            {copiedDriverId ? <Check size={14} /> : <Copy size={14} />}
-            <span>{copiedDriverId ? 'Copied' : 'Copy Driver ID'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Acceptance Criteria 2: Unverified Account Prompt & Restriction Banner */}
-      {!isEmailVerified && (
-        <div
-          className="register-card animate-fade-in"
-          style={{
-            marginBottom: '1.5rem',
-            border: '2px solid #f59e0b',
-            background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(217, 119, 6, 0.04) 100%)',
-            boxShadow: '0 8px 24px -4px rgba(245, 158, 11, 0.2)',
-            borderRadius: '16px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                background: 'rgba(245, 158, 11, 0.15)',
-                color: '#d97706',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}
-            >
-              <AlertTriangle size={28} />
-            </div>
-
-            <div style={{ flex: 1, minWidth: '280px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#b45309', margin: 0 }}>
-                  Please verify your email
-                </h3>
-                <span
-                  style={{
-                    background: '#fef3c7',
-                    color: '#b45309',
-                    border: '1px solid #fde68a',
-                    padding: '0.15rem 0.55rem',
-                    borderRadius: '999px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600'
-                  }}
-                >
-                  Charging Platform Access Restricted
-                </span>
-              </div>
-
-              <p style={{ fontSize: '0.9rem', color: 'var(--text-muted, #4b5563)', marginBottom: '1rem', lineHeight: 1.5 }}>
-                You are logged in, but charging sessions, wallet top-ups, and plug reservations remain restricted until <strong>{effectiveEmail}</strong> is verified. Verification links and codes expire after 24 hours.
-              </p>
-
-              {verifyEmailSuccess && (
-                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#dcfce7', color: '#15803d', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                  <CheckCircle2 size={16} />
-                  <span>{verifyEmailSuccess}</span>
-                </div>
-              )}
-
-              {verifyEmailError && (
-                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <AlertCircle size={16} />
-                  <span>{verifyEmailError}</span>
-                </div>
-              )}
-
-              {resendStatusMsg && (
-                <div style={{ marginBottom: '0.85rem', padding: '0.65rem 0.9rem', background: '#e0f2fe', color: '#0369a1', borderRadius: '8px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
-                  <Clock size={16} />
-                  <span>{resendStatusMsg}</span>
-                </div>
-              )}
-
-              {/* Inline Verification Input & Actions */}
-              <form onSubmit={handleVerifyEmail} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <input
-                  type="text"
-                  placeholder="Enter 6-digit code"
-                  maxLength={6}
-                  value={verificationCodeInput}
-                  onChange={(e) => setVerificationCodeInput(e.target.value)}
-                  style={{
-                    padding: '0.55rem 0.85rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle, #d1d5db)',
-                    fontFamily: 'monospace',
-                    fontSize: '1.05rem',
-                    letterSpacing: '2px',
-                    width: '180px',
-                    textAlign: 'center',
-                    background: 'var(--bg-input, #ffffff)'
-                  }}
-                />
-
-                <button
-                  type="submit"
-                  disabled={isVerifyingEmail || !verificationCodeInput.trim()}
-                  style={{
-                    padding: '0.55rem 1.1rem',
-                    background: '#d97706',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '8px',
-                    fontWeight: '600',
-                    fontSize: '0.875rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  {isVerifyingEmail ? <RefreshCw size={15} className="spinner" /> : <ShieldCheck size={15} />}
-                  <span>Verify Email</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleResendCode}
-                  disabled={isResendingVerification}
-                  style={{
-                    padding: '0.55rem 1rem',
-                    background: 'transparent',
-                    color: '#b45309',
-                    border: '1px solid rgba(217, 119, 6, 0.4)',
-                    borderRadius: '8px',
-                    fontWeight: '600',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  {isResendingVerification ? <RefreshCw size={14} className="spinner" /> : <Clock size={14} />}
-                  <span>Resend Code (Valid 24h)</span>
-                </button>
-              </form>
+            <div style={{ opacity: 0.9, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <WalletIcon size={14} />
+              <span>Wallet: {effectiveCurrency} ${Number(effectiveBalance).toFixed(2)}</span>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Driver Profile Showcase Card */}
-      <div
-        className="register-card"
-        style={{
-          marginBottom: '1.5rem',
-          background: '#ffffff',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '16px',
-          padding: '1.5rem',
-          position: 'relative'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div
-              style={{
-                width: '42px',
-                height: '42px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #e0f2fe, #bae6fd)',
-                color: '#0284c7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <User size={22} />
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                Driver Profile & Account Information
-              </h2>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                Personal contact details & authenticated driver credentials
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button
-              type="button"
-              onClick={handleOpenEditProfile}
-              style={{
-                background: 'var(--primary-50)',
-                border: '1px solid var(--primary-200)',
-                color: 'var(--primary-700)',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <Edit3 size={14} />
-              <span>Update Details</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleOpenChangePassword}
-              style={{
-                background: '#f1f5f9',
-                border: '1px solid #cbd5e1',
-                color: '#334155',
-                padding: '0.45rem 0.9rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem'
-              }}
-            >
-              <Key size={14} />
-              <span>Password</span>
-            </button>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', fontSize: '0.875rem' }}>
-          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Full Name</div>
-            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
-              {effectiveName}
-            </div>
-          </div>
-
-          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Phone Number</div>
-            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
-              {effectivePhone || <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>Not provided</span>}
-            </div>
-          </div>
-
-          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Login Email</span>
-              <span style={{ fontSize: '0.7rem', color: '#16a34a', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                <Lock size={10} /> Verified
-              </span>
-            </div>
-            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
-              {effectiveEmail}
-            </div>
-          </div>
-
-          <div style={{ padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '10px', border: '1px solid #f1f5f9' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Member Since</div>
-            <div style={{ fontWeight: '700', color: 'var(--text-main)', marginTop: '0.25rem', fontSize: '0.95rem' }}>
-              {effectiveCreatedAt}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid: Charging Wallet & Quick Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        {/* Charging Wallet Card */}
-        <div
-          className="register-card"
-          style={{
-            margin: 0,
-            background: '#ffffff',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px',
-            position: 'relative',
-            overflow: 'hidden'
-          }}
-        >
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #0ea5e9, #0284c7)' }}></div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--primary-50)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <WalletIcon size={20} />
-              </div>
+        {/* ========================================================================= */}
+        {/* Email Verification Alert Banner */}
+        {/* ========================================================================= */}
+        {!isEmailVerified && (
+          <div className="alert alert-warning animate-fade-in" style={{ margin: 0, display: 'block' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <AlertTriangle size={22} style={{ flexShrink: 0, marginTop: '2px' }} />
               <div>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)' }}>Digital Charging Wallet</h3>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Auto-deducted per kWh session</span>
-              </div>
-            </div>
-            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#16a34a', background: '#dcfce7', padding: '0.2rem 0.5rem', borderRadius: '999px' }}>
-              Ready
-            </span>
-          </div>
-
-          <div style={{ padding: '1.25rem', background: 'var(--bg-subtle, #f8fafc)', borderRadius: '12px', marginBottom: '1rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>Available Balance</span>
-            <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--primary-700)', marginTop: '0.25rem' }}>
-              ${Number(effectiveBalance).toFixed(2)}{' '}
-              <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-muted)' }}>{effectiveCurrency}</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Wallet ID:</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <code style={{ fontSize: '0.8rem', color: 'var(--text-main)', background: 'var(--primary-50)', padding: '0.15rem 0.4rem', borderRadius: '4px' }}>
-                {effectiveWalletId}
-              </code>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(effectiveWalletId, 'wallet')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary-600)', padding: '2px' }}
-                title="Copy Wallet ID"
-              >
-                {copiedWalletId ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
-              </button>
-            </div>
-          </div>
-
-          <div style={{ marginTop: '1.25rem', display: 'flex', gap: '0.5rem' }}>
-            <button
-              type="button"
-              className="submit-btn"
-              style={{ flex: 1, padding: '0.55rem', fontSize: '0.85rem', margin: 0 }}
-              onClick={() => alert('Wallet top-up gateway will be connected in the Payment Service story.')}
-            >
-              <CreditCard size={14} />
-              <span>Top Up Wallet</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Quick Driver Features */}
-        <div
-          className="register-card"
-          style={{
-            margin: 0,
-            background: '#ffffff',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '16px'
-          }}
-        >
-          <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)' }}>Quick Actions</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1rem',
-                background: 'var(--bg-subtle, #f8fafc)',
-                borderRadius: '10px',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#e0f2fe', color: '#0284c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <MapPin size={16} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>Find Nearby Stations</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Map Service with live availability</div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1rem',
-                background: 'var(--bg-subtle, #f8fafc)',
-                borderRadius: '10px',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ede9fe', color: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Key size={16} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>Link RFID Card</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tap-to-charge station authentication</div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-                padding: '0.75rem 1rem',
-                background: 'var(--bg-subtle, #f8fafc)',
-                borderRadius: '10px',
-                border: '1px solid var(--border-subtle)'
-              }}
-            >
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Clock size={16} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>Charging History</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Past session logs & receipts</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* My Registered Electric Vehicles Section */}
-      <div
-        className="register-card"
-        style={{
-          background: '#ffffff',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '16px',
-          margin: '0 0 1.5rem 0',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'var(--primary-50)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Car size={18} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                Registered Electric Vehicles
-              </h3>
-              <span style={{
-                background: 'var(--bg-subtle, #f1f5f9)',
-                color: 'var(--text-muted, #64748b)',
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.6rem',
-                borderRadius: '12px',
-                border: '1px solid var(--border-subtle)'
-              }}>
-                {vehicles.length} {vehicles.length === 1 ? 'Vehicle' : 'Vehicles'}
-              </span>
-            </div>
-            <p style={{ margin: '0.35rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Manage your EV fleet, select your default vehicle, and match chargers with compatible connector types.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenAddVehicle}
-            id="btn-add-vehicle"
-            style={{
-              background: 'var(--primary-600, #2563eb)',
-              color: '#ffffff',
-              border: 'none',
-              padding: '0.55rem 1.1rem',
-              borderRadius: '8px',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.45rem',
-              boxShadow: '0 2px 4px rgba(37,99,235,0.2)'
-            }}
-          >
-            <Plus size={16} />
-            <span>Add Vehicle</span>
-          </button>
-        </div>
-
-        {/* Feedback messages */}
-        {vehicleSuccess && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.75rem 1rem',
-            marginBottom: '1rem',
-            borderRadius: '8px',
-            background: '#ecfdf5',
-            border: '1px solid #a7f3d0',
-            color: '#065f46',
-            fontSize: '0.85rem'
-          }}>
-            <CheckCircle2 size={16} />
-            <span>{vehicleSuccess}</span>
-          </div>
-        )}
-
-        {vehicleError && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.75rem 1rem',
-            marginBottom: '1rem',
-            borderRadius: '8px',
-            background: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#991b1b',
-            fontSize: '0.85rem'
-          }}>
-            <AlertTriangle size={16} />
-            <span>{vehicleError}</span>
-          </div>
-        )}
-
-        {/* Vehicles Grid / Empty State */}
-        {loadingVehicles ? (
-          <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-            <RefreshCw size={24} className="spinner-icon" style={{ margin: '0 auto 0.75rem auto', display: 'block', color: 'var(--primary-600)' }} />
-            <p style={{ margin: 0, fontSize: '0.9rem' }}>Loading your registered vehicles...</p>
-          </div>
-        ) : vehicles.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '3rem 1.5rem',
-            borderRadius: '12px',
-            background: 'var(--bg-subtle, #f8fafc)',
-            border: '1px dashed var(--border-subtle)'
-          }}>
-            <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#e0e7ff', color: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem auto' }}>
-              <Car size={28} />
-            </div>
-            <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600', color: 'var(--text-main)' }}>
-              No vehicles registered yet
-            </h4>
-            <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '420px', marginLeft: 'auto', marginRight: 'auto' }}>
-              Register your electric car make, model, license plate, and connector type to enable seamless station compatibility and charging sessions.
-            </p>
-            <button
-              type="button"
-              onClick={handleOpenAddVehicle}
-              style={{
-                background: 'var(--primary-600, #2563eb)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.55rem 1.2rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.45rem'
-              }}
-            >
-              <Plus size={16} />
-              <span>Add Your First Vehicle</span>
-            </button>
-          </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '1rem'
-          }}>
-            {vehicles.map((v) => (
-              <div
-                key={v.vehicleId}
-                id={`vehicle-card-${v.vehicleId}`}
-                style={{
-                  border: v.isDefault ? '2px solid #3b82f6' : '1px solid var(--border-subtle)',
-                  borderRadius: '12px',
-                  padding: '1.1rem',
-                  background: v.isDefault ? '#f8faff' : '#ffffff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '0.9rem',
-                  transition: 'box-shadow 0.2s, border-color 0.2s',
-                  position: 'relative'
-                }}
-              >
-                {/* Header */}
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '8px',
-                        background: v.isDefault ? '#dbeafe' : '#f1f5f9',
-                        color: v.isDefault ? '#1d4ed8' : '#475569',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        <Car size={18} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main)' }}>
-                          {v.make} {v.model}
-                        </div>
-                      </div>
-                    </div>
-
-                    {v.isDefault && (
-                      <span style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        background: '#fef3c7',
-                        color: '#92400e',
-                        border: '1px solid #fde68a',
-                        padding: '0.2rem 0.55rem',
-                        borderRadius: '12px',
-                        fontSize: '0.72rem',
-                        fontWeight: '700'
-                      }}>
-                        <Star size={11} fill="#f59e0b" color="#f59e0b" />
-                        DEFAULT
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Attributes */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>License Plate:</span>
-                      <span style={{
-                        fontFamily: 'monospace',
-                        fontWeight: '700',
-                        background: 'var(--bg-subtle, #f1f5f9)',
-                        padding: '0.15rem 0.5rem',
-                        borderRadius: '4px',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-main)'
-                      }}>
-                        {v.plateNumber}
-                      </span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Connector:</span>
-                      <span style={{
-                        fontWeight: '600',
-                        color: 'var(--primary-700, #1d4ed8)',
-                        background: 'var(--primary-50, #eff6ff)',
-                        padding: '0.15rem 0.5rem',
-                        borderRadius: '4px',
-                        border: '1px solid var(--primary-200, #bfdbfe)'
-                      }}>
-                        {v.connectorType}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions Footer */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderTop: '1px solid var(--border-subtle)',
-                  paddingTop: '0.75rem',
-                  marginTop: '0.25rem',
-                  gap: '0.4rem'
-                }}>
-                  {!v.isDefault ? (
-                    <button
-                      type="button"
-                      onClick={() => handleSetDefaultVehicle(v.vehicleId)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: '#64748b',
-                        fontSize: '0.78rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem',
-                        padding: '0.25rem 0.4rem',
-                        borderRadius: '6px'
-                      }}
-                      title="Set as default vehicle"
-                    >
-                      <Star size={13} />
-                      <span>Set Default</span>
-                    </button>
-                  ) : (
-                    <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Check size={12} /> Primary Vehicle
-                    </span>
-                  )}
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <button
-                      type="button"
-                      onClick={() => handleOpenEditVehicle(v)}
-                      style={{
-                        background: 'var(--bg-subtle, #f1f5f9)',
-                        border: '1px solid var(--border-subtle)',
-                        color: 'var(--text-main)',
-                        padding: '0.3rem 0.6rem',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                      title="Edit vehicle details"
-                    >
-                      <Edit3 size={13} />
-                      <span>Edit</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteVehicle(v.vehicleId)}
-                      disabled={deletingVehicleId === v.vehicleId}
-                      style={{
-                        background: '#fef2f2',
-                        border: '1px solid #fecaca',
-                        color: '#dc2626',
-                        padding: '0.3rem 0.6rem',
-                        borderRadius: '6px',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                      title="Delete vehicle"
-                    >
-                      {deletingVehicleId === v.vehicleId ? (
-                        <RefreshCw size={13} className="spinner-icon" />
-                      ) : (
-                        <Trash2 size={13} />
-                      )}
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Protected JWT Verification Live Test Panel */}
-      <div
-        className="register-card"
-        style={{
-          background: '#ffffff',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '16px',
-          margin: '0 0 1.5rem 0'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ShieldCheck size={18} color="var(--primary-600)" />
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                Protected Driver Endpoint Test
-              </h3>
-            </div>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Validates <code>GET /api/auth/driver/profile</code> requiring signed Bearer JWT token with Driver role claim.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleVerifyProtectedApi}
-            disabled={isVerifying}
-            style={{
-              background: 'var(--primary-50)',
-              border: '1px solid var(--primary-200)',
-              color: 'var(--primary-700)',
-              padding: '0.45rem 0.9rem',
-              borderRadius: '8px',
-              fontSize: '0.85rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem'
-            }}
-          >
-            <RefreshCw size={14} className={isVerifying ? 'spinner-icon' : ''} />
-            <span>{isVerifying ? 'Verifying...' : 'Re-test Endpoint'}</span>
-          </button>
-        </div>
-
-        {profileResult && (
-          <div
-            style={{
-              background: 'rgba(34, 197, 94, 0.08)',
-              border: '1px solid rgba(34, 197, 94, 0.3)',
-              borderRadius: '10px',
-              padding: '1rem',
-              marginBottom: '1rem'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#15803d', fontWeight: '600', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-              <CheckCircle2 size={18} />
-              <span>JWT Authentication & Authorization Verified (HTTP {profileResult.status} OK - {profileResult.latencyMs}ms)</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', fontSize: '0.85rem' }}>
-              <div><strong>Driver ID:</strong> {profileResult.data?.driverId}</div>
-              <div><strong>Name:</strong> {profileResult.data?.name}</div>
-              <div><strong>Email:</strong> {profileResult.data?.email}</div>
-              <div><strong>Phone:</strong> {profileResult.data?.phone || 'N/A'}</div>
-              <div><strong>Role Claim:</strong> {profileResult.data?.role}</div>
-              <div><strong>Wallet Balance:</strong> ${profileResult.data?.walletBalance} {profileResult.data?.currency}</div>
-            </div>
-          </div>
-        )}
-
-        {profileError && (
-          <div
-            style={{
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '10px',
-              padding: '1rem',
-              marginBottom: '1rem',
-              color: '#b91c1c'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600', fontSize: '0.9rem' }}>
-              <AlertTriangle size={18} />
-              <span>Protected Endpoint Error ({profileError.status})</span>
-            </div>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>{profileError.message}</p>
-          </div>
-        )}
-
-        {/* JWT Token View */}
-        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-muted)' }}>Active Driver JWT Access Token</span>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                type="button"
-                onClick={() => setShowFullToken(!showFullToken)}
-                style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer' }}
-              >
-                {showFullToken ? 'Collapse' : 'Expand Token'}
-              </button>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(authUser?.accessToken, 'token')}
-                style={{ background: 'none', border: 'none', color: 'var(--primary-600)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}
-              >
-                {copiedToken ? <Check size={12} color="#16a34a" /> : <Copy size={12} />}
-                <span>{copiedToken ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
-          </div>
-          <pre
-            style={{
-              background: 'var(--bg-subtle, #f8fafc)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '8px',
-              padding: '0.6rem 0.8rem',
-              fontSize: '0.75rem',
-              fontFamily: 'monospace',
-              color: 'var(--text-main)',
-              overflowX: 'auto',
-              whiteSpace: showFullToken ? 'pre-wrap' : 'nowrap',
-              wordBreak: showFullToken ? 'break-all' : 'normal',
-              margin: 0
-            }}
-          >
-            {authUser?.accessToken || 'No token found in current session'}
-          </pre>
-        </div>
-
-        {/* RBAC Security Access Simulator Card */}
-        <div
-          style={{
-            marginTop: '1.5rem',
-            padding: '1.25rem',
-            background: 'var(--bg-subtle, #f8fafc)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px'
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Lock size={18} color="#dc2626" />
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                RBAC Security Enforcement Simulator
-              </h4>
-            </div>
-            <button
-              type="button"
-              onClick={handleTestRbacSecurity}
-              disabled={isTestingRbac}
-              style={{
-                background: '#dc2626',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.45rem 1rem',
-                borderRadius: '8px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                boxShadow: '0 2px 6px rgba(220, 38, 38, 0.25)'
-              }}
-            >
-              {isTestingRbac ? <RefreshCw size={14} className="spinner-icon" /> : <ShieldAlert size={14} />}
-              <span>{isTestingRbac ? 'Simulating...' : 'Test Company-Only Access'}</span>
-            </button>
-          </div>
-
-          <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Simulates a cross-role breach attempt: sends this <strong>Driver</strong> JWT token to the company-only endpoint (<code>GET /api/company/stations</code>). The backend <code>RoleAuthorizationMiddleware</code> must reject with <strong>403 Forbidden</strong> and log an audit warning.
-          </p>
-
-          {rbacResult && (
-            <div
-              style={{
-                background: rbacResult.status === 403 ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.08)',
-                border: `1px solid ${rbacResult.status === 403 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(34, 197, 94, 0.3)'}`,
-                borderRadius: '10px',
-                padding: '0.85rem 1rem'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                <span
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.4rem',
-                    fontWeight: '700',
-                    fontSize: '0.875rem',
-                    color: rbacResult.status === 403 ? '#dc2626' : '#16a34a'
-                  }}
-                >
-                  {rbacResult.status === 403 ? <CheckCircle2 size={16} color="#dc2626" /> : <AlertTriangle size={16} />}
-                  {rbacResult.status === 403 ? 'HTTP 403 Forbidden (RBAC Enforcement Verified)' : 'RBAC Failed (Unexpected 200 OK)'}
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    fontWeight: '700',
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '6px',
-                    background: rbacResult.status === 403 ? '#fee2e2' : '#dcfce7',
-                    color: rbacResult.status === 403 ? '#b91c1c' : '#15803d'
-                  }}
-                >
-                  HTTP {rbacResult.status} | {rbacResult.latencyMs}ms
-                </span>
-              </div>
-              <p style={{ margin: 0, fontSize: '0.825rem', color: rbacResult.status === 403 ? '#991b1b' : '#166534' }}>
-                <strong>Server Response:</strong> {rbacResult.errorMsg}
-              </p>
-              {rbacResult.errors?.length > 0 && (
-                <div style={{ marginTop: '0.35rem', fontSize: '0.8rem', color: '#b91c1c' }}>
-                  {rbacResult.errors.map((e, idx) => (
-                    <div key={`driver-rbac-err-${idx}`}>• {e}</div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* Edit Profile Modal */}
-      {/* ========================================================================= */}
-      {showEditProfileModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => setShowEditProfileModal(false)}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              maxWidth: '520px',
-              width: '100%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-              overflow: 'hidden',
-              animation: 'modalSlideIn 0.25s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '1.25rem 1.5rem',
-                borderBottom: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                color: '#ffffff'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Edit3 size={18} />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#ffffff' }}>
-                  Edit Driver Profile
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowEditProfileModal(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  border: 'none',
-                  color: '#ffffff',
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleSubmitProfile} style={{ padding: '1.5rem' }}>
-              {profileSuccessMsg && (
-                <div
-                  style={{
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    border: '1px solid rgba(34, 197, 94, 0.3)',
-                    color: '#15803d',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>{profileSuccessMsg}</span>
-                </div>
-              )}
-
-              {profileErrorMsg && (
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.08)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    color: '#b91c1c',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
-                    <AlertTriangle size={16} />
-                    <span>{profileErrorMsg}</span>
-                  </div>
-                  {profileValidationErrors.length > 0 && (
-                    <ul style={{ margin: '0.4rem 0 0 1.25rem', padding: 0 }}>
-                      {profileValidationErrors.map((err, idx) => (
-                        <li key={`prof-val-err-${idx}`}>{err}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Full Name */}
-                <div className="form-group">
-                  <label htmlFor="driver-name" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    Driver Full Name <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    id="driver-name"
-                    type="text"
-                    name="name"
-                    value={profileFormData.name}
-                    onChange={handleProfileFormChange}
-                    placeholder="Enter your full name"
-                    className="form-input"
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                    Between 2 and 100 characters.
-                  </span>
-                </div>
-
-                {/* Phone Number */}
-                <div className="form-group">
-                  <label htmlFor="driver-phone" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    Contact Phone Number <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    id="driver-phone"
-                    type="tel"
-                    name="phone"
-                    value={profileFormData.phone}
-                    onChange={handleProfileFormChange}
-                    placeholder="+1-555-123-4567"
-                    className="form-input"
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem'
-                    }}
-                  />
-                </div>
-
-                {/* Email (Read-Only) */}
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                    <label htmlFor="driver-email" style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)' }}>
-                      Account Login Email
-                    </label>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
-                      <Lock size={11} /> Primary Driver ID
-                    </span>
-                  </div>
-                  <input
-                    id="driver-email"
-                    type="email"
-                    value={effectiveEmail}
-                    disabled
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid #e2e8f0',
-                      background: '#f8fafc',
-                      color: '#64748b',
-                      fontSize: '0.9rem',
-                      cursor: 'not-allowed'
-                    }}
-                  />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-                    Driver email is your secure account identity and cannot be edited.
-                  </span>
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowEditProfileModal(false)}
-                  style={{
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: '#ffffff',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingProfile}
-                  className="submit-btn"
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    fontSize: '0.85rem',
-                    margin: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  {isUpdatingProfile ? <RefreshCw size={14} className="spinner-icon" /> : <Check size={14} />}
-                  <span>{isUpdatingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* Change Password Modal */}
-      {/* ========================================================================= */}
-      {showChangePasswordModal && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-          onClick={() => setShowChangePasswordModal(false)}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              maxWidth: '500px',
-              width: '100%',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-              overflow: 'hidden',
-              animation: 'modalSlideIn 0.25s ease-out'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: '1.25rem 1.5rem',
-                borderBottom: '1px solid var(--border-subtle)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
-                color: '#ffffff'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Key size={18} />
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: '#ffffff' }}>
-                  Change Account Password
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowChangePasswordModal(false)}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.15)',
-                  border: 'none',
-                  color: '#ffffff',
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleSubmitPasswordChange} style={{ padding: '1.5rem' }}>
-              {passwordSuccessMsg && (
-                <div
-                  style={{
-                    background: 'rgba(34, 197, 94, 0.1)',
-                    border: '1px solid rgba(34, 197, 94, 0.3)',
-                    color: '#15803d',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.875rem'
-                  }}
-                >
-                  <CheckCircle2 size={16} />
-                  <span>{passwordSuccessMsg}</span>
-                </div>
-              )}
-
-              {passwordErrorMsg && (
-                <div
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.08)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    color: '#b91c1c',
-                    padding: '0.75rem 1rem',
-                    borderRadius: '8px',
-                    marginBottom: '1rem',
-                    fontSize: '0.85rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
-                    <AlertTriangle size={16} />
-                    <span>{passwordErrorMsg}</span>
-                  </div>
-                  {passwordValidationErrors.length > 0 && (
-                    <ul style={{ margin: '0.4rem 0 0 1.25rem', padding: 0 }}>
-                      {passwordValidationErrors.map((err, idx) => (
-                        <li key={`pwd-val-err-${idx}`}>{err}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
-                {/* Current Password */}
-                <div className="form-group">
-                  <label htmlFor="current-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    Current Password <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      id="current-password"
-                      type={showPasswords.current ? 'text' : 'password'}
-                      name="currentPassword"
-                      value={passwordFormData.currentPassword}
-                      onChange={handlePasswordFormChange}
-                      placeholder="Enter your current password"
-                      required
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: '0.9rem'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
-                      style={{
-                        position: 'absolute',
-                        right: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      {showPasswords.current ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* New Password */}
-                <div className="form-group">
-                  <label htmlFor="new-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    New Password <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      id="new-password"
-                      type={showPasswords.next ? 'text' : 'password'}
-                      name="newPassword"
-                      value={passwordFormData.newPassword}
-                      onChange={handlePasswordFormChange}
-                      placeholder="Enter new password"
-                      required
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: '0.9rem'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords((prev) => ({ ...prev, next: !prev.next }))}
-                      style={{
-                        position: 'absolute',
-                        right: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      {showPasswords.next ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-
-                  {/* Password Checklist Pills */}
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: '0.725rem',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        background: isLengthValid ? '#dcfce7' : '#f1f5f9',
-                        color: isLengthValid ? '#15803d' : '#64748b',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                    >
-                      {isLengthValid ? <Check size={12} /> : '○'} Min 8 characters
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: '0.725rem',
-                        padding: '0.2rem 0.5rem',
-                        borderRadius: '6px',
-                        fontWeight: '600',
-                        background: hasDigit ? '#dcfce7' : '#f1f5f9',
-                        color: hasDigit ? '#15803d' : '#64748b',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}
-                    >
-                      {hasDigit ? <Check size={12} /> : '○'} At least 1 number
-                    </span>
-                  </div>
-                </div>
-
-                {/* Confirm New Password */}
-                <div className="form-group">
-                  <label htmlFor="confirm-new-password" style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.35rem', color: 'var(--text-main)' }}>
-                    Confirm New Password <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      id="confirm-new-password"
-                      type={showPasswords.confirm ? 'text' : 'password'}
-                      name="confirmNewPassword"
-                      value={passwordFormData.confirmNewPassword}
-                      onChange={handlePasswordFormChange}
-                      placeholder="Re-type new password"
-                      required
-                      className="form-input"
-                      style={{
-                        width: '100%',
-                        padding: '0.65rem 2.5rem 0.65rem 0.85rem',
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-subtle)',
-                        fontSize: '0.9rem'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
-                      style={{
-                        position: 'absolute',
-                        right: '10px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center'
-                      }}
-                    >
-                      {showPasswords.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-
-                  {passwordFormData.confirmNewPassword && (
-                    <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', fontWeight: '600', color: passwordsMatch ? '#16a34a' : '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {passwordsMatch ? <Check size={12} /> : <AlertTriangle size={12} />}
-                      <span>{passwordsMatch ? 'Passwords match' : 'Passwords do not match'}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowChangePasswordModal(false)}
-                  style={{
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: '#ffffff',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isChangingPassword}
-                  className="submit-btn"
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    fontSize: '0.85rem',
-                    margin: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  {isChangingPassword ? <RefreshCw size={14} className="spinner-icon" /> : <Key size={14} />}
-                  <span>{isChangingPassword ? 'Updating Password...' : 'Update Password'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Vehicle Add / Edit Modal */}
-      {showVehicleModal && (
-        <div
-          className="modal-backdrop"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.6)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '1rem'
-          }}
-        >
-          <div
-            className="modal-dialog"
-            style={{
-              background: '#ffffff',
-              borderRadius: '16px',
-              width: '100%',
-              maxWidth: '480px',
-              padding: '1.75rem',
-              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
-              position: 'relative'
-            }}
-          >
-            {/* Close button */}
-            <button
-              type="button"
-              onClick={() => setShowVehicleModal(false)}
-              style={{
-                position: 'absolute',
-                top: '1.25rem',
-                right: '1.25rem',
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                padding: '0.25rem'
-              }}
-            >
-              <X size={20} />
-            </button>
-
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background: 'var(--primary-50)',
-                color: 'var(--primary-600)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Car size={20} />
-              </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  {editingVehicleId ? 'Edit Vehicle' : 'Add New Vehicle'}
-                </h3>
-                <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  {editingVehicleId ? 'Update your vehicle information' : 'Register an electric vehicle to your driver profile'}
+                <strong>Please verify your driver email address</strong>
+                <p style={{ fontSize: '0.85rem', marginTop: '0.15rem' }}>
+                  Full network charging sessions and automated billing require email confirmation for <strong>{effectiveEmail}</strong>. Codes expire after 24 hours.
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleSaveVehicle}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {/* Make */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                    Vehicle Make <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Tesla, Hyundai, Nissan, BMW"
-                    value={vehicleFormData.make}
-                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, make: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+            {verifyEmailSuccess && (
+              <div className="alert alert-success" style={{ margin: '0.5rem 0' }}>
+                <CheckCircle2 size={16} />
+                <span>{verifyEmailSuccess}</span>
+              </div>
+            )}
+
+            {verifyEmailError && (
+              <div className="alert alert-danger" style={{ margin: '0.5rem 0' }}>
+                <AlertCircle size={16} />
+                <span>{verifyEmailError}</span>
+              </div>
+            )}
+
+            {resendStatusMsg && (
+              <div className="alert alert-info" style={{ margin: '0.5rem 0' }}>
+                <Clock size={16} />
+                <span>{resendStatusMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyEmail} style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.5rem' }}>
+              <input
+                type="text"
+                placeholder="Enter 6-digit code"
+                maxLength={6}
+                value={verificationCodeInput}
+                onChange={(e) => setVerificationCodeInput(e.target.value)}
+                style={{
+                  padding: '0.55rem 0.85rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-subtle)',
+                  fontFamily: 'monospace',
+                  fontSize: '1rem',
+                  letterSpacing: '2px',
+                  width: '180px',
+                  textAlign: 'center',
+                  background: '#ffffff'
+                }}
+              />
+              <button
+                type="submit"
+                disabled={isVerifyingEmail || !verificationCodeInput.trim()}
+                className="submit-btn"
+                style={{ width: 'auto', margin: 0, padding: '0.55rem 1.1rem', fontSize: '0.85rem' }}
+              >
+                {isVerifyingEmail ? <RefreshCw size={14} className="spinner" /> : <ShieldCheck size={14} />}
+                <span>Verify Email</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={isResendingVerification}
+                className="btn-secondary"
+                style={{ padding: '0.55rem 1rem', fontSize: '0.85rem' }}
+              >
+                {isResendingVerification ? <RefreshCw size={14} className="spinner" /> : <Clock size={14} />}
+                <span>Resend Code</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* Navigation Tabs Bar */}
+        {/* ========================================================================= */}
+        <nav className="dash-tabs-bar" aria-label="Driver navigation">
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
+          >
+            <BarChart3 size={16} />
+            <span>Overview & Wallet</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'vehicles' ? 'active' : ''}`}
+            onClick={() => setActiveTab('vehicles')}
+          >
+            <Car size={16} />
+            <span>My EV Vehicles</span>
+            <span className="dash-tab-badge">{vehicles.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
+            onClick={() => setActiveTab('activity')}
+          >
+            <Activity size={16} />
+            <span>Charging & Stations</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'security' ? 'active' : ''}`}
+            onClick={() => setActiveTab('security')}
+          >
+            <Shield size={16} />
+            <span>Security Sandbox</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => setActiveTab('settings')}
+          >
+            <Settings size={16} />
+            <span>Account Settings</span>
+          </button>
+        </nav>
+
+        {/* ========================================================================= */}
+        {/* TAB 1: OVERVIEW & WALLET */}
+        {/* ========================================================================= */}
+        {activeTab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* KPI Cards */}
+            <div className="kpi-grid">
+              <div className="kpi-card">
+                <div className="kpi-icon-box kpi-icon-green">
+                  <WalletIcon size={26} />
+                </div>
+                <div className="kpi-body">
+                  <div className="kpi-label">EV Wallet Balance</div>
+                  <div className="kpi-value">${Number(effectiveBalance).toFixed(2)}</div>
+                  <div className="kpi-subtext">Currency: {effectiveCurrency} • Ready for charging</div>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon-box kpi-icon-blue">
+                  <Car size={26} />
+                </div>
+                <div className="kpi-body">
+                  <div className="kpi-label">Registered EVs</div>
+                  <div className="kpi-value">{vehicles.length}</div>
+                  <div className="kpi-subtext">
+                    {vehicles.find((v) => v.isDefault)?.make || 'No default EV set'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon-box kpi-icon-purple">
+                  <Zap size={26} />
+                </div>
+                <div className="kpi-body">
+                  <div className="kpi-label">Charging Pass</div>
+                  <div className="kpi-value" style={{ fontSize: '1.3rem' }}>Nexus Pass</div>
+                  <div className="kpi-subtext">All universal connector protocols</div>
+                </div>
+              </div>
+
+              <div className="kpi-card">
+                <div className="kpi-icon-box kpi-icon-amber">
+                  <ShieldCheck size={26} />
+                </div>
+                <div className="kpi-body">
+                  <div className="kpi-label">Account Health</div>
+                  <div className="kpi-value" style={{ fontSize: '1.3rem' }}>
+                    {isEmailVerified ? '100% Verified' : 'Action Required'}
+                  </div>
+                  <div className="kpi-subtext">
+                    {isEmailVerified ? 'Full Access Unlocked' : 'Verify Email Address'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Wallet Showcase & Driver Profile Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+              {/* Wallet Card */}
+              <div className="dash-card">
+                <div className="dash-card-header">
+                  <div>
+                    <h3 className="dash-card-title">
+                      <CreditCard size={18} color="var(--primary-600)" />
+                      Driver Digital Wallet
+                    </h3>
+                    <p className="dash-card-subtitle">Automated station payment ledger</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(effectiveWalletId, 'wallet')}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
+                  >
+                    {copiedWalletId ? <Check size={12} color="#15803d" /> : <Copy size={12} />}
+                    <span>{copiedWalletId ? 'Copied' : 'Copy Wallet ID'}</span>
+                  </button>
                 </div>
 
-                {/* Model */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                    Vehicle Model <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Model 3, Ioniq 5, Leaf, i4"
-                    value={vehicleFormData.model}
-                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, model: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                <div
+                  style={{
+                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+                    borderRadius: '12px',
+                    padding: '1.5rem',
+                    color: '#ffffff',
+                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
+                    marginBottom: '1rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.8, fontSize: '0.8rem', marginBottom: '1rem' }}>
+                    <span>EVNEXUS UNIVERSAL CHARGING WALLET</span>
+                    <Zap size={18} color="#38bdf8" />
+                  </div>
+                  <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#38bdf8' }}>
+                    ${Number(effectiveBalance).toFixed(2)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>{effectiveCurrency}</span>
+                  </div>
+                  <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.8rem', opacity: 0.85 }}>
+                    <div>
+                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>WALLET IDENTIFIER</div>
+                      <div style={{ fontFamily: 'monospace', fontWeight: 600 }}>{effectiveWalletId}</div>
+                    </div>
+                    <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.25)', color: '#86efac' }}>
+                      ● Active Balance
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Driver Details Card */}
+              <div className="dash-card">
+                <div className="dash-card-header">
+                  <div>
+                    <h3 className="dash-card-title">
+                      <User size={18} color="var(--primary-600)" />
+                      Driver Profile Snapshot
+                    </h3>
+                    <p className="dash-card-subtitle">Personal account credentials</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenEditProfile}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                  >
+                    <Edit3 size={13} />
+                    <span>Edit</span>
+                  </button>
                 </div>
 
-                {/* Plate Number */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                    License Plate Number <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. CA-8XYZ12"
-                    value={vehicleFormData.plateNumber}
-                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, plateNumber: e.target.value.toUpperCase() })}
-                    style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem',
-                      fontFamily: 'monospace',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.875rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Full Name:</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{effectiveName}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Email:</span>
+                    <span>{effectiveEmail}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Phone:</span>
+                    <span>{effectivePhone || 'Not provided'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Default Vehicle:</span>
+                    <span style={{ fontWeight: 600, color: 'var(--primary-700)' }}>
+                      {vehicles.find((v) => v.isDefault)?.make
+                        ? `${vehicles.find((v) => v.isDefault).make} ${vehicles.find((v) => v.isDefault).model}`
+                        : `${vehicles.length} EVs connected`}
+                    </span>
+                  </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-                {/* Connector Type */}
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', marginBottom: '0.35rem' }}>
-                    Connector Type <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <select
-                    value={vehicleFormData.connectorType}
-                    onChange={(e) => setVehicleFormData({ ...vehicleFormData, connectorType: e.target.value })}
+        {/* ========================================================================= */}
+        {/* TAB 2: MY EV VEHICLES */}
+        {/* ========================================================================= */}
+        {activeTab === 'vehicles' && (
+          <div className="dash-card">
+            <div className="dash-card-header">
+              <div>
+                <h3 className="dash-card-title">
+                  <Car size={18} color="var(--primary-600)" />
+                  My Registered Electric Vehicles
+                </h3>
+                <p className="dash-card-subtitle">
+                  Configure your EV models, connector types (CCS2, Type 2, CHAdeMO, NACS), and default charging car.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOpenAddVehicle}
+                className="submit-btn"
+                style={{ width: 'auto', margin: 0, padding: '0.55rem 1.1rem', fontSize: '0.85rem' }}
+              >
+                <Plus size={15} />
+                <span>Add Electric Vehicle</span>
+              </button>
+            </div>
+
+            {vehicleSuccess && (
+              <div className="alert alert-success">
+                <CheckCircle2 size={16} />
+                <span>{vehicleSuccess}</span>
+              </div>
+            )}
+
+            {vehicleError && (
+              <div className="alert alert-danger">
+                <AlertTriangle size={16} />
+                <span>{vehicleError}</span>
+              </div>
+            )}
+
+            {loadingVehicles ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                <RefreshCw size={24} className="spinner" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading registered vehicles...</p>
+              </div>
+            ) : vehicles.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+                {vehicles.map((v) => (
+                  <div
+                    key={v.vehicleId}
                     style={{
-                      width: '100%',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: '8px',
-                      border: '1px solid var(--border-subtle)',
-                      fontSize: '0.9rem',
-                      background: '#ffffff',
-                      boxSizing: 'border-box'
+                      background: 'var(--bg-page)',
+                      border: v.isDefault ? '2px solid var(--primary-500)' : '1px solid var(--border-subtle)',
+                      borderRadius: '12px',
+                      padding: '1.25rem',
+                      boxShadow: 'var(--shadow-sm)',
+                      position: 'relative',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: '1rem'
                     }}
                   >
-                    <option value="CCS2">CCS2 (Combined Charging System 2)</option>
-                    <option value="CCS1">CCS1 (Combined Charging System 1)</option>
-                    <option value="Type 2">Type 2 (Mennekes - AC)</option>
-                    <option value="Type 1">Type 1 (J1772 - AC)</option>
-                    <option value="CHAdeMO">CHAdeMO (DC Fast)</option>
-                    <option value="Tesla NACS">Tesla (NACS)</option>
-                  </select>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: 'var(--primary-100)', color: 'var(--primary-700)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Car size={20} />
+                          </div>
+                          <div>
+                            <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
+                              {v.make} {v.model}
+                            </h4>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Plate: <strong>{v.plateNumber}</strong></div>
+                          </div>
+                        </div>
+
+                        {v.isDefault && (
+                          <span className="badge badge-success">
+                            <Star size={11} fill="#15803d" /> Default EV
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                        <span className="badge badge-info">
+                          <Zap size={11} /> {v.connectorType || 'CCS2'}
+                        </span>
+                        <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                          ID: {v.vehicleId}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-subtle)', paddingTop: '0.75rem' }}>
+                      {!v.isDefault ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSetDefaultVehicle(v.vehicleId)}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        >
+                          <Star size={12} />
+                          <span>Set Default</span>
+                        </button>
+                      ) : (
+                        <div style={{ fontSize: '0.75rem', color: '#15803d', fontWeight: 600 }}>● Primary Vehicle</div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditVehicle(v)}
+                          className="btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        >
+                          <Edit3 size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVehicle(v.vehicleId)}
+                          disabled={deletingVehicleId === v.vehicleId}
+                          className="btn-danger"
+                          style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--bg-page)', borderRadius: '8px', border: '1px dashed var(--border-subtle)' }}>
+                <Car size={34} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
+                <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>No electric vehicles registered in your garage yet.</p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                  Add your EV model and connector type to unlock automated smart charging sessions.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: CHARGING & ACTIVITY */}
+        {/* ========================================================================= */}
+        {activeTab === 'activity' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="dash-card">
+              <div className="dash-card-header">
+                <div>
+                  <h3 className="dash-card-title">
+                    <Zap size={18} color="var(--primary-600)" />
+                    Charging Network Explorer
+                  </h3>
+                  <p className="dash-card-subtitle">Locate public charging stations and initiate plug & charge sessions.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+                <div style={{ background: 'var(--bg-page)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>GreenPulse Hub Downtown</h4>
+                    <span className="badge badge-success">Available</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>500 Market St • 4x 150kW CCS2</p>
+                  <button type="button" className="submit-btn" style={{ margin: 0, padding: '0.45rem', fontSize: '0.8rem' }}>
+                    <Zap size={14} /> Start Charging Session
+                  </button>
                 </div>
 
-                {/* Default Vehicle Checkbox */}
+                <div style={{ background: 'var(--bg-page)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Voltera Supercharge Airport</h4>
+                    <span className="badge badge-success">Available</span>
+                  </div>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Terminal 2 Plaza • 8x 250kW CCS2</p>
+                  <button type="button" className="submit-btn" style={{ margin: 0, padding: '0.45rem', fontSize: '0.8rem' }}>
+                    <Zap size={14} /> Start Charging Session
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: SECURITY & DEVELOPER SANDBOX */}
+        {/* ========================================================================= */}
+        {activeTab === 'security' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* RBAC Simulator */}
+            <div className="dash-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+              <div className="dash-card-header">
+                <div>
+                  <h3 className="dash-card-title">
+                    <Lock size={18} color="#d97706" />
+                    Role-Based Access Control (RBAC) Cross-Role Simulator
+                  </h3>
+                  <p className="dash-card-subtitle">
+                    Sends this Driver token to company-only endpoint (<code>GET /api/company/stations</code>). Backend must reject with <strong>403 Forbidden</strong>.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleTestRbacSecurity}
+                  disabled={isTestingRbac}
+                  className="submit-btn"
+                  style={{ width: 'auto', margin: 0, padding: '0.55rem 1.25rem', background: '#d97706', fontSize: '0.85rem' }}
+                >
+                  {isTestingRbac ? <RefreshCw size={14} className="spinner" /> : <ShieldAlert size={14} />}
+                  <span>Test Driver -&gt; Company Access</span>
+                </button>
+              </div>
+
+              {rbacResult && (
+                <div
+                  className="alert"
+                  style={{
+                    margin: 0,
+                    background: rbacResult.status === 403 ? '#fef2f2' : '#f0fdf4',
+                    border: `1px solid ${rbacResult.status === 403 ? '#f87171' : '#86efac'}`
+                  }}
+                >
+                  {rbacResult.status === 403 ? <CheckCircle2 size={18} color="#dc2626" /> : <AlertTriangle size={18} />}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <strong style={{ color: rbacResult.status === 403 ? '#b91c1c' : '#15803d' }}>
+                        {rbacResult.status === 403 ? 'HTTP 403 Forbidden (RBAC Enforcement Verified)' : 'Access Allowed'}
+                      </strong>
+                      <span className="badge" style={{ background: rbacResult.status === 403 ? '#fee2e2' : '#dcfce7', color: rbacResult.status === 403 ? '#b91c1c' : '#15803d' }}>
+                        Status: {rbacResult.status} | {rbacResult.latencyMs}ms
+                      </span>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: rbacResult.status === 403 ? '#991b1b' : '#166534', margin: 0 }}>
+                      {rbacResult.errorMsg}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Protected API Check & Raw Token */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+              <div className="dash-card">
+                <div className="dash-card-header">
+                  <div>
+                    <h3 className="dash-card-title">
+                      <Server size={18} color="var(--primary-600)" />
+                      Protected Driver API
+                    </h3>
+                    <p className="dash-card-subtitle">Validates Bearer token on profile endpoint</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleVerifyProtectedApi}
+                    disabled={isVerifying}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                  >
+                    <RefreshCw size={13} className={isVerifying ? 'spinner' : ''} />
+                    <span>Ping Endpoint</span>
+                  </button>
+                </div>
+
+                {profileResult && (
+                  <div style={{ background: 'var(--success-50)', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.85rem', fontSize: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700, marginBottom: '0.5rem' }}>
+                      <span>HTTP 200 OK — Authorized</span>
+                      <span>{profileResult.latencyMs}ms</span>
+                    </div>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      Verified: {profileResult.timestamp}
+                    </div>
+                  </div>
+                )}
+
+                {profileError && (
+                  <div className="alert alert-danger" style={{ margin: 0 }}>
+                    <AlertTriangle size={16} />
+                    <span>Error ({profileError.status}): {profileError.message}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="dash-card">
+                <div className="dash-card-header">
+                  <div>
+                    <h3 className="dash-card-title">
+                      <Key size={18} color="var(--primary-600)" />
+                      Driver JWT Token
+                    </h3>
+                    <p className="dash-card-subtitle">Active signed token payload</p>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowFullToken(!showFullToken)}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                    >
+                      {showFullToken ? 'Truncate' : 'Expand'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(authUser?.accessToken, 'token')}
+                      className="btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem' }}
+                    >
+                      {copiedToken ? <Check size={12} color="#15803d" /> : <Copy size={12} />}
+                      {copiedToken ? 'Copied' : 'Copy'}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    background: '#0f172a',
+                    color: '#38bdf8',
+                    fontFamily: 'monospace',
+                    fontSize: '0.75rem',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    overflowX: 'auto',
+                    wordBreak: showFullToken ? 'break-all' : 'normal',
+                    whiteSpace: showFullToken ? 'pre-wrap' : 'nowrap',
+                    maxHeight: showFullToken ? '150px' : 'none'
+                  }}
+                >
+                  {authUser?.accessToken}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 5: ACCOUNT SETTINGS */}
+        {/* ========================================================================= */}
+        {activeTab === 'settings' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div className="dash-card">
+              <div className="dash-card-header">
+                <div>
+                  <h3 className="dash-card-title">
+                    <User size={18} color="var(--primary-600)" />
+                    Personal Driver Details
+                  </h3>
+                  <p className="dash-card-subtitle">Manage name, contact numbers, and security credentials.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button type="button" className="submit-btn" style={{ width: 'auto', margin: 0, padding: '0.5rem 1rem', fontSize: '0.85rem' }} onClick={handleOpenEditProfile}>
+                    <Edit3 size={14} />
+                    <span>Edit Profile</span>
+                  </button>
+                  <button type="button" className="btn-secondary" onClick={handleOpenChangePassword}>
+                    <Key size={14} />
+                    <span>Change Password</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>FULL NAME</span>
+                  <span style={{ fontWeight: 600 }}>{effectiveName}</span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>EMAIL ADDRESS</span>
+                  <span style={{ fontWeight: 600 }}>{effectiveEmail}</span>
+                  <span className="badge badge-success" style={{ marginTop: '0.25rem', display: 'inline-flex' }}>
+                    <Lock size={10} /> Verified
+                  </span>
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block' }}>PHONE NUMBER</span>
+                  <span style={{ fontWeight: 600 }}>{effectivePhone || 'Not provided'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* ADD / EDIT VEHICLE MODAL */}
+        {/* ========================================================================= */}
+        {showVehicleModal && (
+          <div className="modal-backdrop">
+            <div className="modal-dialog">
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <Car size={20} color="var(--primary-600)" />
+                  {editingVehicleId ? 'Edit Electric Vehicle' : 'Register New Electric Vehicle'}
+                </h3>
+                <button type="button" className="modal-close-btn" onClick={() => setShowVehicleModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveVehicle} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Make / Manufacturer *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Tesla, Hyundai, Nissan"
+                      value={vehicleFormData.make}
+                      onChange={(e) => setVehicleFormData({ ...vehicleFormData, make: e.target.value })}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Model *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Model Y, Ioniq 5, Leaf"
+                      value={vehicleFormData.model}
+                      onChange={(e) => setVehicleFormData({ ...vehicleFormData, model: e.target.value })}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">License Plate Number *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. EV-9402"
+                      value={vehicleFormData.plateNumber}
+                      onChange={(e) => setVehicleFormData({ ...vehicleFormData, plateNumber: e.target.value })}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Charging Connector Type *</label>
+                    <select
+                      value={vehicleFormData.connectorType}
+                      onChange={(e) => setVehicleFormData({ ...vehicleFormData, connectorType: e.target.value })}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    >
+                      <option value="CCS2">CCS2 (European Standard)</option>
+                      <option value="CCS1">CCS1 (North American Standard)</option>
+                      <option value="Type 2">Type 2 (Mennekes AC)</option>
+                      <option value="NACS">NACS (Tesla Universal)</option>
+                      <option value="CHAdeMO">CHAdeMO (DC Fast)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
                   <input
                     type="checkbox"
                     id="isDefaultVehicle"
                     checked={vehicleFormData.isDefault}
                     onChange={(e) => setVehicleFormData({ ...vehicleFormData, isDefault: e.target.checked })}
-                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    style={{ width: '16px', height: '16px' }}
                   />
-                  <label htmlFor="isDefaultVehicle" style={{ fontSize: '0.85rem', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '500' }}>
+                  <label htmlFor="isDefaultVehicle" style={{ fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
                     Set as default vehicle for charging sessions
                   </label>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowVehicleModal(false)}
-                  style={{
-                    padding: '0.6rem 1.1rem',
-                    borderRadius: '8px',
-                    border: '1px solid var(--border-subtle)',
-                    background: '#ffffff',
-                    color: 'var(--text-main)',
-                    fontSize: '0.85rem',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={isSubmittingVehicle}
-                  className="submit-btn"
-                  style={{
-                    padding: '0.6rem 1.25rem',
-                    fontSize: '0.85rem',
-                    margin: 0,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.4rem'
-                  }}
-                >
-                  {isSubmittingVehicle ? <RefreshCw size={14} className="spinner-icon" /> : <Check size={14} />}
-                  <span>{isSubmittingVehicle ? 'Saving...' : editingVehicleId ? 'Update Vehicle' : 'Register Vehicle'}</span>
-                </button>
-              </div>
-            </form>
+                <div className="modal-footer">
+                  <button type="button" className="btn-secondary" onClick={() => setShowVehicleModal(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingVehicle}
+                    className="submit-btn"
+                    style={{ width: 'auto', margin: 0, padding: '0.55rem 1.3rem', fontSize: '0.875rem' }}
+                  >
+                    {isSubmittingVehicle ? <RefreshCw size={14} className="spinner" /> : <Check size={14} />}
+                    <span>{isSubmittingVehicle ? 'Saving...' : 'Save Vehicle'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ========================================================================= */}
+        {/* EDIT PROFILE MODAL */}
+        {/* ========================================================================= */}
+        {showEditProfileModal && (
+          <div className="modal-backdrop">
+            <div className="modal-dialog">
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <User size={20} color="var(--primary-600)" />
+                  Edit Driver Profile
+                </h3>
+                <button type="button" className="modal-close-btn" onClick={() => setShowEditProfileModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {profileSuccessMsg && (
+                <div className="alert alert-success">
+                  <CheckCircle2 size={16} />
+                  <span>{profileSuccessMsg}</span>
+                </div>
+              )}
+
+              {profileErrorMsg && (
+                <div className="alert alert-danger">
+                  <AlertTriangle size={16} />
+                  <span>{profileErrorMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitProfile} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    name="name"
+                    value={profileFormData.name}
+                    onChange={handleProfileFormChange}
+                    className="form-input"
+                    style={{ paddingLeft: '0.85rem' }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Phone Number *</label>
+                  <input
+                    type="tel"
+                    required
+                    name="phone"
+                    value={profileFormData.phone}
+                    onChange={handleProfileFormChange}
+                    className="form-input"
+                    style={{ paddingLeft: '0.85rem' }}
+                  />
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn-secondary" onClick={() => setShowEditProfileModal(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingProfile}
+                    className="submit-btn"
+                    style={{ width: 'auto', margin: 0, padding: '0.55rem 1.3rem', fontSize: '0.875rem' }}
+                  >
+                    {isUpdatingProfile ? <RefreshCw size={14} className="spinner" /> : <Check size={14} />}
+                    <span>{isUpdatingProfile ? 'Saving...' : 'Save Profile'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* CHANGE PASSWORD MODAL */}
+        {/* ========================================================================= */}
+        {showChangePasswordModal && (
+          <div className="modal-backdrop">
+            <div className="modal-dialog">
+              <div className="modal-header">
+                <h3 className="modal-title">
+                  <Lock size={20} color="var(--primary-600)" />
+                  Change Password
+                </h3>
+                <button type="button" className="modal-close-btn" onClick={() => setShowChangePasswordModal(false)}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {passwordSuccessMsg && (
+                <div className="alert alert-success">
+                  <CheckCircle2 size={16} />
+                  <span>{passwordSuccessMsg}</span>
+                </div>
+              )}
+
+              {passwordErrorMsg && (
+                <div className="alert alert-danger">
+                  <AlertTriangle size={16} />
+                  <span>{passwordErrorMsg}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitPasswordChange} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Current Password *</label>
+                  <div className="input-wrapper">
+                    <input
+                      type={showPasswords.current ? 'text' : 'password'}
+                      required
+                      name="currentPassword"
+                      value={passwordFormData.currentPassword}
+                      onChange={handlePasswordFormChange}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password-btn"
+                      onClick={() => setShowPasswords({ ...showPasswords, current: !showPasswords.current })}
+                    >
+                      {showPasswords.current ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">New Password *</label>
+                  <div className="input-wrapper">
+                    <input
+                      type={showPasswords.next ? 'text' : 'password'}
+                      required
+                      name="newPassword"
+                      value={passwordFormData.newPassword}
+                      onChange={handlePasswordFormChange}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password-btn"
+                      onClick={() => setShowPasswords({ ...showPasswords, next: !showPasswords.next })}
+                    >
+                      {showPasswords.next ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+                    <span className={isLengthValid ? 'badge badge-success' : 'badge badge-neutral'} style={{ fontSize: '0.72rem' }}>
+                      {isLengthValid ? <Check size={11} /> : null} 8+ Characters
+                    </span>
+                    <span className={hasDigit ? 'badge badge-success' : 'badge badge-neutral'} style={{ fontSize: '0.72rem' }}>
+                      {hasDigit ? <Check size={11} /> : null} Number (0-9)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Confirm New Password *</label>
+                  <div className="input-wrapper">
+                    <input
+                      type={showPasswords.confirm ? 'text' : 'password'}
+                      required
+                      name="confirmNewPassword"
+                      value={passwordFormData.confirmNewPassword}
+                      onChange={handlePasswordFormChange}
+                      className="form-input"
+                      style={{ paddingLeft: '0.85rem' }}
+                    />
+                    <button
+                      type="button"
+                      className="toggle-password-btn"
+                      onClick={() => setShowPasswords({ ...showPasswords, confirm: !showPasswords.confirm })}
+                    >
+                      {showPasswords.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {passwordFormData.confirmNewPassword && (
+                    <span className={passwordsMatch ? 'badge badge-success' : 'badge badge-danger'} style={{ fontSize: '0.72rem', marginTop: '0.25rem' }}>
+                      {passwordsMatch ? 'Passwords match' : 'Passwords do not match'}
+                    </span>
+                  )}
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn-secondary" onClick={() => setShowChangePasswordModal(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="submit-btn"
+                    style={{ width: 'auto', margin: 0, padding: '0.55rem 1.3rem', fontSize: '0.875rem' }}
+                  >
+                    {isChangingPassword ? <RefreshCw size={14} className="spinner" /> : <Lock size={14} />}
+                    <span>{isChangingPassword ? 'Updating...' : 'Update Password'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
