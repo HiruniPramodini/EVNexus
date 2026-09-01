@@ -269,11 +269,12 @@ public class SmtpEmailService : IEmailService
             var htmlView = AlternateView.CreateAlternateViewFromString(htmlBody, Encoding.UTF8, "text/html");
             mailMessage.AlternateViews.Add(htmlView);
 
+            var cleanPassword = _settings.SenderPassword.Replace(" ", "").Trim();
             using var client = new SmtpClient(_settings.SmtpHost, _settings.SmtpPort)
             {
                 EnableSsl = _settings.EnableSsl,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(_settings.SenderEmail, _settings.SenderPassword),
+                Credentials = new NetworkCredential(_settings.SenderEmail.Trim(), cleanPassword),
                 DeliveryMethod = SmtpDeliveryMethod.Network,
                 Timeout = 15000
             };
