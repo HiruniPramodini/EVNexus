@@ -104,6 +104,11 @@ builder.Services.AddScoped<IDriverAuthService, DriverAuthService>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ITokenBlacklistService, TokenBlacklistService>();
 builder.Services.AddScoped<ISessionService, SessionService>();
+// Configure Email Settings
+var emailSection = builder.Configuration.GetSection(EmailSettings.SectionName);
+builder.Services.Configure<EmailSettings>(emailSection);
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
 builder.Services.AddScoped<IAccountAuditRepository, AccountAuditRepository>();
 builder.Services.AddScoped<IAccountManagementService, AccountManagementService>();
 builder.Services.AddSingleton<IStatusNotificationService, StatusNotificationService>();

@@ -16,9 +16,10 @@ import {
   Loader2,
   ShieldCheck,
   Clock,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
-import { registerCompany, verifyEmail } from '../services/api';
+import { registerCompany, verifyEmail, resendVerificationCode } from '../services/api';
 
 export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver }) {
   const [formData, setFormData] = useState({
@@ -193,10 +194,14 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
     }
   };
 
+  const [isResending, setIsResending] = useState(false);
+  const [resendStatusMsg, setResendStatusMsg] = useState(null);
+
   const handleInlineVerify = async () => {
     if (!inlineVerifyCode.trim()) return;
     setIsVerifying(true);
     setVerificationError(null);
+    setResendStatusMsg(null);
 
     try {
       const res = await verifyEmail(successData.businessEmail, inlineVerifyCode.trim());
@@ -209,6 +214,22 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
       setVerificationError(err.message || 'Invalid or expired verification code.');
     } finally {
       setIsVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!successData?.businessEmail) return;
+    setIsResending(true);
+    setResendStatusMsg(null);
+    setVerificationError(null);
+
+    try {
+      const res = await resendVerificationCode(successData.businessEmail);
+      setResendStatusMsg(res?.message || 'A fresh verification code has been dispatched to your email inbox.');
+    } catch (err) {
+      setVerificationError(err.message || 'Failed to resend verification email.');
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -228,13 +249,13 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
       <div className="register-card animate-fade-in" style={{ maxWidth: '640px' }}>
         <div className="card-top-glow" />
         <div className="success-state">
-          <div className="success-icon-badge">
-            <CheckCircle2 size={40} />
+          <div className="success-icon-badge" style={{ background: '#e0f2fe', color: '#0284c7' }}>
+            <Mail size={38} />
           </div>
 
-          <h2 className="success-title">Company Registered!</h2>
+          <h2 className="success-title">Verification Email Sent!</h2>
           <p className="success-subtitle">
-            Your isolated tenant has been provisioned. Please verify your email to unlock full platform access.
+            An automated verification email has been dispatched to <strong>{successData.businessEmail}</strong>. Please check your inbox (or spam folder) to verify your account.
           </p>
 
           {/* Assigned Tenant ID Box */}
@@ -257,61 +278,47 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
             </div>
           </div>
 
-          {/* Email Verification Box with 24-Hour Expiration */}
+          {/* Email Verification Box */}
           <div
             className="tenant-id-box"
             style={{
               marginTop: '1rem',
-              borderColor: verificationSuccess ? 'rgba(16, 185, 129, 0.4)' : 'rgba(245, 158, 11, 0.4)',
-              background: verificationSuccess ? 'rgba(16, 185, 129, 0.05)' : 'rgba(245, 158, 11, 0.05)'
+              borderColor: verificationSuccess ? 'rgba(16, 185, 129, 0.4)' : 'rgba(2, 132, 199, 0.4)',
+              background: verificationSuccess ? 'rgba(16, 185, 129, 0.05)' : 'rgba(240, 249, 255, 0.7)'
             }}
           >
-            <div className="tenant-id-label" style={{ color: verificationSuccess ? '#059669' : '#d97706', display: 'flex', justifyContent: 'space-between' }}>
+            <div className="tenant-id-label" style={{ color: verificationSuccess ? '#059669' : '#0369a1', display: 'flex', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Clock size={14} />
-                <span>Verification Code (Valid for 24 Hours)</span>
+                <span>Email Verification (Valid for 24 Hours)</span>
               </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(245, 158, 11, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(2, 132, 199, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', color: '#0369a1' }}>
                 Expires in 24h
               </span>
             </div>
 
-            <div className="tenant-id-value-row" style={{ marginTop: '0.5rem' }}>
-              <div>
-                <span
-                  className="tenant-id-text"
-                  style={{
-                    fontSize: '1.4rem',
-                    letterSpacing: '3px',
-                    fontWeight: 700,
-                    color: verificationSuccess ? '#047857' : '#b45309'
-                  }}
-                >
-                  {successData.verificationCode}
-                </span>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  Sent to: <strong>{successData.businessEmail}</strong>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="copy-btn"
-                onClick={() => copyToClipboard(successData.verificationCode, 'code')}
-                title="Copy Verification Code"
-              >
-                {copiedCode ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
-                <span>{copiedCode ? 'Copied!' : 'Copy'}</span>
-              </button>
-            </div>
-
             {/* Instant Verification Form */}
             {!verificationSuccess ? (
-              <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <p style={{ fontSize: '0.85rem', color: '#92400e', marginBottom: '0.6rem' }}>
-                  Verify now to immediately unlock all enterprise features:
+              <div style={{ marginTop: '0.75rem' }}>
+                <p style={{ fontSize: '0.85rem', color: '#334155', marginBottom: '0.75rem', lineHeight: 1.4 }}>
+                  Enter the <strong>6-digit verification code</strong> from your email inbox below, or click the direct activation link inside the email:
                 </p>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+
+                {resendStatusMsg && (
+                  <div className="alert alert-info" style={{ margin: '0 0 0.75rem 0', padding: '0.5rem 0.75rem', fontSize: '0.82rem' }}>
+                    <CheckCircle2 size={15} />
+                    <span>{resendStatusMsg}</span>
+                  </div>
+                )}
+
+                {verificationError && (
+                  <div className="alert alert-danger" style={{ margin: '0 0 0.75rem 0', padding: '0.5rem 0.75rem', fontSize: '0.82rem' }}>
+                    <AlertCircle size={15} />
+                    <span>{verificationError}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <input
                     type="text"
                     placeholder="Enter 6-digit code"
@@ -320,47 +327,49 @@ export default function CompanyRegisterForm({ onSwitchToLogin, onSwitchToDriver 
                     onChange={(e) => setInlineVerifyCode(e.target.value)}
                     style={{
                       flex: 1,
-                      padding: '0.5rem 0.75rem',
+                      minWidth: '150px',
+                      padding: '0.55rem 0.75rem',
                       borderRadius: '6px',
                       border: '1px solid var(--border-subtle)',
-                      background: 'var(--bg-input, #fff)',
+                      background: '#ffffff',
                       fontFamily: 'monospace',
-                      fontSize: '1rem',
-                      letterSpacing: '2px',
-                      textAlign: 'center'
+                      fontSize: '1.1rem',
+                      letterSpacing: '3px',
+                      textAlign: 'center',
+                      fontWeight: 700
                     }}
                   />
                   <button
                     type="button"
                     onClick={handleInlineVerify}
                     disabled={isVerifying || !inlineVerifyCode.trim()}
+                    className="submit-btn"
                     style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '6px',
-                      background: 'var(--primary-600, #2563eb)',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.4rem'
+                      width: 'auto',
+                      margin: 0,
+                      padding: '0.55rem 1.2rem',
+                      fontSize: '0.85rem'
                     }}
                   >
-                    {isVerifying ? <Loader2 size={16} className="spinner" /> : <ShieldCheck size={16} />}
-                    <span>Verify</span>
+                    {isVerifying ? <Loader2 size={15} className="spinner" /> : <ShieldCheck size={15} />}
+                    <span>Verify Code</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={isResending}
+                    className="btn-secondary"
+                    style={{ padding: '0.55rem 0.9rem', fontSize: '0.85rem' }}
+                  >
+                    {isResending ? <RefreshCw size={14} className="spinner" /> : <Mail size={14} />}
+                    <span>Resend Email</span>
                   </button>
                 </div>
-                {verificationError && (
-                  <p style={{ color: '#dc2626', fontSize: '0.82rem', marginTop: '0.4rem' }}>
-                    {verificationError}
-                  </p>
-                )}
               </div>
             ) : (
               <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.9rem', fontWeight: 600 }}>
                 <CheckCircle2 size={18} />
-                <span>Email verified successfully! Full access is unlocked.</span>
+                <span>Email verified successfully! Your company workspace is fully unlocked.</span>
               </div>
             )}
           </div>

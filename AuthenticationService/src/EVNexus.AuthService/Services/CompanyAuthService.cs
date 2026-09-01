@@ -30,19 +30,22 @@ public class CompanyAuthService : ICompanyAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ILogger<CompanyAuthService> _logger;
     private readonly ISessionService? _sessionService;
+    private readonly IEmailService? _emailService;
 
     public CompanyAuthService(
         ITenantRepository tenantRepository,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
         ILogger<CompanyAuthService> logger,
-        ISessionService? sessionService = null)
+        ISessionService? sessionService = null,
+        IEmailService? emailService = null)
     {
         _tenantRepository = tenantRepository;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
         _logger = logger;
         _sessionService = sessionService;
+        _emailService = emailService;
     }
 
     public async Task<CompanyRegisterResponseDto> RegisterCompanyAsync(
@@ -101,7 +104,16 @@ public class CompanyAuthService : ICompanyAuthService
         await _tenantRepository.SaveEmailVerificationCodeAsync(
             tenant.TenantId, tenant.BusinessEmail, verificationCode, expiresAt, cancellationToken);
 
-        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId} in Pending status. Verification code generated with 24-hour expiry.", tenantId);
+        var verificationLink = $"?email={Uri.EscapeDataString(tenant.BusinessEmail)}&code={verificationCode}";
+
+        // 8. Dispatch real verification email to the user's inbox
+        if (_emailService != null)
+        {
+            await _emailService.SendVerificationEmailAsync(
+                tenant.BusinessEmail, tenant.CompanyName, verificationCode, verificationLink, cancellationToken);
+        }
+
+        _logger.LogInformation("Company successfully registered with Tenant ID: {TenantId}. Verification email dispatched.", tenantId);
 
         return new CompanyRegisterResponseDto
         {
@@ -111,9 +123,9 @@ public class CompanyAuthService : ICompanyAuthService
             BusinessEmail = tenant.BusinessEmail,
             Phone = tenant.Phone,
             CreatedAt = tenant.CreatedAt,
-            Message = "Company registered successfully. A verification code has been dispatched. Please verify your email to unlock full platform access.",
+            Message = "Company registered successfully. An automated verification code and link have been dispatched to your email. Please check your inbox and verify your email.",
             VerificationCode = verificationCode,
-            VerificationLink = $"/verify-email?email={Uri.EscapeDataString(tenant.BusinessEmail)}&code={verificationCode}",
+            VerificationLink = verificationLink,
             ExpiresAt = expiresAt,
             IsEmailVerified = false
         };
@@ -372,7 +384,13 @@ public class CompanyAuthService : ICompanyAuthService
         await _tenantRepository.SaveEmailVerificationCodeAsync(
             tenantId, normalizedNewEmail, verificationCode, expiresAt, cancellationToken);
 
-        _logger.LogInformation("Generated email change verification code for Tenant {TenantId} to new email {NewEmail}.", tenantId, normalizedNewEmail);
+        if (_emailService != null)
+        {
+            await _emailService.SendEmailChangeVerificationCodeAsync(
+                normalizedNewEmail, currentTenant.CompanyName, verificationCode, cancellationToken);
+        }
+
+        _logger.LogInformation("Generated and sent email change verification code for Tenant {TenantId} to new email {NewEmail}.", tenantId, normalizedNewEmail);
 
         return new InitiateEmailChangeResponseDto
         {
@@ -458,11 +476,19 @@ public class CompanyAuthService : ICompanyAuthService
         await _tenantRepository.SaveEmailVerificationCodeAsync(
             tenant.TenantId, normalizedEmail, verificationCode, expiresAt, cancellationToken);
 
-        _logger.LogInformation("Resent 24-hour verification code for Tenant {TenantId}.", tenant.TenantId);
+        var verificationLink = $"?email={Uri.EscapeDataString(tenant.BusinessEmail)}&code={verificationCode}";
+
+        if (_emailService != null)
+        {
+            await _emailService.SendVerificationEmailAsync(
+                tenant.BusinessEmail, tenant.CompanyName, verificationCode, verificationLink, cancellationToken);
+        }
+
+        _logger.LogInformation("Resent 24-hour verification email and code for Tenant {TenantId}.", tenant.TenantId);
 
         return new InitiateEmailChangeResponseDto
         {
-            Message = "New verification code generated successfully. It will expire in 24 hours.",
+            Message = "A fresh verification code and link have been dispatched to your email address. It will expire in 24 hours.",
             NewBusinessEmail = normalizedEmail,
             VerificationCode = verificationCode,
             ExpiresAt = expiresAt
