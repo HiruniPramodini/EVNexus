@@ -160,9 +160,7 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
       const response = await registerDriver(formData);
       if (response && response.success && response.data) {
         setSuccessData(response.data);
-        if (response.data.verificationCode) {
-          setInlineVerifyCode(response.data.verificationCode);
-        }
+        setInlineVerifyCode('');
       } else {
         setServerError(response?.message || 'Driver registration failed. Please try again.');
       }
