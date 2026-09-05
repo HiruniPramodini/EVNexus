@@ -1,0 +1,52 @@
+name: Authentication Service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'AuthenticationService/**'
+      - '.github/workflows/auth-cd.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build-publish:
+    name: Build, Test and Package Authentication Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Authentication Service
+        run: dotnet restore AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj
+
+      - name: Build Authentication Service
+        run: dotnet build AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Authentication Service tests
+        run: dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Publish Authentication Service
+        run: dotnet publish AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --configuration Release --output ./publish
+
+      - name: Build Authentication Docker image
+        run: docker build -t evnexus-auth-service:cd AuthenticationService/src/EVNexus.AuthService
+
+      - name: Upload published application
+        uses: actions/upload-artifact@v4
+        with:
+          name: evnexus-auth-service
+          path: ./publish
