@@ -1,0 +1,207 @@
+services:
+
+  # =========================
+  # API GATEWAY
+  # =========================
+  api-gateway:
+    build:
+      context: ../../ApiGateway
+      dockerfile: Dockerfile
+    container_name: evnexus-api-gateway
+    ports:
+      - "5000:8080"
+    depends_on:
+      - authentication-service
+      - map-service
+      - payment-service
+      - dashboard-service
+    networks:
+      - evnexus-network
+
+  # =========================
+  # AUTHENTICATION SERVICE
+  # =========================
+  authentication-service:
+    build:
+      context: ../../AuthenticationService/src/EVNexus.AuthService
+      dockerfile: Dockerfile
+    container_name: evnexus-auth-service
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=auth-db;Port=3306;Database=auth_db;User=evnexus;Password=evnexus_password;
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - evnexus-network
+
+  # =========================
+  # MAP SERVICE
+  # =========================
+  map-service:
+    build:
+      context: ../../MapService/src/EVNexus.MapService
+      dockerfile: Dockerfile
+    container_name: evnexus-map-service
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=map-db;Port=3306;Database=map_db;User=evnexus;Password=evnexus_password;
+    depends_on:
+      map-db:
+        condition: service_healthy
+    networks:
+      - evnexus-network
+
+  # =========================
+  # PAYMENT SERVICE
+  # =========================
+  payment-service:
+    build:
+      context: ../../PaymentService/src/EVNexus.PaymentService
+      dockerfile: Dockerfile
+    container_name: evnexus-payment-service
+    ports:
+      - "5003:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=payment-db;Port=3306;Database=payment_db;User=evnexus;Password=evnexus_password;
+    depends_on:
+      payment-db:
+        condition: service_healthy
+    networks:
+      - evnexus-network
+
+  # =========================
+  # DASHBOARD & ANALYTICS
+  # =========================
+  dashboard-service:
+    build:
+      context: ../../DashboardAnalyticsService/src/EVNexus.DashboardService
+      dockerfile: Dockerfile
+    container_name: evnexus-dashboard-service
+    ports:
+      - "5004:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=dashboard-db;Port=3306;Database=dashboard_db;User=evnexus;Password=evnexus_password;
+    depends_on:
+      dashboard-db:
+        condition: service_healthy
+    networks:
+      - evnexus-network
+
+  # =========================
+  # AUTH DATABASE
+  # =========================
+  auth-db:
+    image: mysql:8.0
+    container_name: evnexus-auth-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: auth_db
+      MYSQL_USER: evnexus
+      MYSQL_PASSWORD: evnexus_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - auth-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evnexus-network
+
+  # =========================
+  # MAP DATABASE
+  # =========================
+  map-db:
+    image: mysql:8.0
+    container_name: evnexus-map-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: map_db
+      MYSQL_USER: evnexus
+      MYSQL_PASSWORD: evnexus_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3308:3306"
+    volumes:
+      - map-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evnexus-network
+
+  # =========================
+  # PAYMENT DATABASE
+  # =========================
+  payment-db:
+    image: mysql:8.0
+    container_name: evnexus-payment-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: payment_db
+      MYSQL_USER: evnexus
+      MYSQL_PASSWORD: evnexus_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3309:3306"
+    volumes:
+      - payment-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evnexus-network
+
+  # =========================
+  # DASHBOARD DATABASE
+  # =========================
+  dashboard-db:
+    image: mysql:8.0
+    container_name: evnexus-dashboard-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: dashboard_db
+      MYSQL_USER: evnexus
+      MYSQL_PASSWORD: evnexus_password
+      MYSQL_ROOT_PASSWORD: root_password
+    ports:
+      - "3310:3306"
+    volumes:
+      - dashboard-db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evnexus-network
+
+# =========================
+# VOLUMES
+# =========================
+volumes:
+  auth-db-data:
+  map-db-data:
+  payment-db-data:
+  dashboard-db-data:
+
+# =========================
+# NETWORK
+# =========================
+networks:
+  evnexus-network:
+    driver: bridge

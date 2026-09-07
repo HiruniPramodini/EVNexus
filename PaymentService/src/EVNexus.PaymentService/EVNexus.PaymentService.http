@@ -1,0 +1,6 @@
+@EVNexus.PaymentService_HostAddress = http://localhost:5188
+
+GET {{EVNexus.PaymentService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
