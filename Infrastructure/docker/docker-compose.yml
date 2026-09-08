@@ -29,8 +29,8 @@ services:
     ports:
       - "5001:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=auth-db;Port=3306;Database=auth_db;User=evnexus;Password=evnexus_password;
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=auth-db;Port=3306;Database=auth_db;User=evnexus;Password=${MYSQL_PASSWORD};"
     depends_on:
       auth-db:
         condition: service_healthy
@@ -48,8 +48,8 @@ services:
     ports:
       - "5002:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=map-db;Port=3306;Database=map_db;User=evnexus;Password=evnexus_password;
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=map-db;Port=3306;Database=map_db;User=evnexus;Password=${MYSQL_PASSWORD};"
     depends_on:
       map-db:
         condition: service_healthy
@@ -67,8 +67,8 @@ services:
     ports:
       - "5003:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=payment-db;Port=3306;Database=payment_db;User=evnexus;Password=evnexus_password;
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=payment-db;Port=3306;Database=payment_db;User=evnexus;Password=${MYSQL_PASSWORD};"
     depends_on:
       payment-db:
         condition: service_healthy
@@ -86,8 +86,8 @@ services:
     ports:
       - "5004:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Server=dashboard-db;Port=3306;Database=dashboard_db;User=evnexus;Password=evnexus_password;
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=dashboard-db;Port=3306;Database=dashboard_db;User=evnexus;Password=${MYSQL_PASSWORD};"
     depends_on:
       dashboard-db:
         condition: service_healthy
@@ -104,14 +104,18 @@ services:
     environment:
       MYSQL_DATABASE: auth_db
       MYSQL_USER: evnexus
-      MYSQL_PASSWORD: evnexus_password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3307:3306"
     volumes:
       - auth-db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -128,14 +132,18 @@ services:
     environment:
       MYSQL_DATABASE: map_db
       MYSQL_USER: evnexus
-      MYSQL_PASSWORD: evnexus_password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3308:3306"
     volumes:
       - map-db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -152,14 +160,18 @@ services:
     environment:
       MYSQL_DATABASE: payment_db
       MYSQL_USER: evnexus
-      MYSQL_PASSWORD: evnexus_password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3309:3306"
     volumes:
       - payment-db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -176,14 +188,18 @@ services:
     environment:
       MYSQL_DATABASE: dashboard_db
       MYSQL_USER: evnexus
-      MYSQL_PASSWORD: evnexus_password
-      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3310:3306"
     volumes:
       - dashboard-db-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD"
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
