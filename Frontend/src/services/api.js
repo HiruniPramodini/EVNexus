@@ -1,4 +1,6 @@
-const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
+const API_GATEWAY_URL =
+  import.meta.env.VITE_API_GATEWAY_URL ||
+  'https://evnexus-auth-service-gshxddaxc9b7c5hx.southeastasia-01.azurewebsites.net';
 
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';
