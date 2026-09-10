@@ -11,6 +11,7 @@ import {
   AlertCircle,
   RefreshCw,
   Mail,
+  History,
   Phone,
   ShieldCheck,
   CreditCard,
@@ -46,6 +47,8 @@ import {
   deleteDriverVehicle,
   setDefaultDriverVehicle
 } from '../services/api';
+import MapDashboardPage from '../pages/driver/MapDashboardPage';
+import SessionHistoryPage from '../pages/driver/SessionHistoryPage';
 
 export default function DriverDashboard({ authUser, onLogout, onUpdateProfile }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -695,11 +698,19 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
           </button>
           <button
             type="button"
-            className={`dash-tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
-            onClick={() => setActiveTab('activity')}
+            className={`dash-tab-btn ${activeTab === 'map' ? 'active' : ''}`}
+            onClick={() => setActiveTab('map')}
           >
-            <Activity size={16} />
-            <span>Charging & Stations</span>
+            <Zap size={16} />
+            <span>Driver Map</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            <History size={16} />
+            <span>History & Receipts</span>
           </button>
           <button
             type="button"
@@ -1025,44 +1036,15 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         {/* ========================================================================= */}
         {/* TAB 3: CHARGING & ACTIVITY */}
         {/* ========================================================================= */}
-        {activeTab === 'activity' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div className="dash-card">
-              <div className="dash-card-header">
-                <div>
-                  <h3 className="dash-card-title">
-                    <Zap size={18} color="var(--primary-600)" />
-                    Charging Network Explorer
-                  </h3>
-                  <p className="dash-card-subtitle">Locate public charging stations and initiate plug & charge sessions.</p>
-                </div>
-              </div>
+        {activeTab === 'map' && (
+          <MapDashboardPage />
+        )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
-                <div style={{ background: 'var(--bg-page)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>GreenPulse Hub Downtown</h4>
-                    <span className="badge badge-success">Available</span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>500 Market St • 4x 150kW CCS2</p>
-                  <button type="button" className="submit-btn" style={{ margin: 0, padding: '0.45rem', fontSize: '0.8rem' }}>
-                    <Zap size={14} /> Start Charging Session
-                  </button>
-                </div>
-
-                <div style={{ background: 'var(--bg-page)', border: '1px solid var(--border-subtle)', borderRadius: '10px', padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Voltera Supercharge Airport</h4>
-                    <span className="badge badge-success">Available</span>
-                  </div>
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>Terminal 2 Plaza • 8x 250kW CCS2</p>
-                  <button type="button" className="submit-btn" style={{ margin: 0, padding: '0.45rem', fontSize: '0.8rem' }}>
-                    <Zap size={14} /> Start Charging Session
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* ========================================================================= */}
+        {/* TAB 3.5: HISTORY & RECEIPTS */}
+        {/* ========================================================================= */}
+        {activeTab === 'history' && (
+          <SessionHistoryPage />
         )}
 
         {/* ========================================================================= */}
