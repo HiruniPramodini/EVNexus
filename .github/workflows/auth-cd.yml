@@ -5,18 +5,18 @@ on:
     branches:
       - main
     paths:
-      - 'AuthenticationService/**'
+      - 'AuthenticationService/**' #Path specifying
       - '.github/workflows/auth-cd.yml'
 
   workflow_dispatch:
 
 jobs:
   build-publish:
-    name: Build, Test and Package Authentication Service
-    runs-on: ubuntu-latest
+    name: Build, Test and Package Authentication Service #Create a job named "Build, Test and Package Authentication Service"
+    runs-on: ubuntu-latest #Creatr VM (Runner)
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repository # download the repository source code into the runner
         uses: actions/checkout@v4
 
       - name: Setup .NET 8
@@ -24,7 +24,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore Authentication Service
+      - name: Restore Authentication Service  #prepares the dependencies.
         run: dotnet restore AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj
 
       - name: Build Authentication Service
@@ -39,12 +39,15 @@ jobs:
       - name: Run Authentication Service tests
         run: dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-build --configuration Release --verbosity normal
 
+        #Creates the deployable application output.
       - name: Publish Authentication Service
         run: dotnet publish AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --configuration Release --output ./publish
 
+        # Take application and packages it into a container
       - name: Build Authentication Docker image
         run: docker build -t evnexus-auth-service:cd AuthenticationService/src/EVNexus.AuthService
 
+        #uploads the publish folder to GitHub Actions as an artifact.
       - name: Upload published application
         uses: actions/upload-artifact@v4
         with:
