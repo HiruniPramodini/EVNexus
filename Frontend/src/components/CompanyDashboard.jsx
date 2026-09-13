@@ -15,6 +15,7 @@ import {
   Clock,
   ShieldAlert,
   Zap,
+  Activity,
   Plus,
   Layers,
   Lock,
@@ -35,6 +36,9 @@ import {
   Settings,
   Shield
 } from 'lucide-react';
+
+import StationManagementPage from '../pages/company/StationManagementPage';
+import CompanySessionsPage from '../pages/company/CompanySessionsPage';
 import {
   getCompanyProfile,
   updateCompanyProfile,
@@ -524,8 +528,9 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const companyStatus = profileResult?.data?.status || authUser?.status || 'Pending';
   const isPendingApproval = companyStatus?.toLowerCase() === 'pending';
 
-  const totalPortsCount = stations.reduce((acc, curr) => acc + (Number(curr.totalPorts) || 0), 0);
-  const activeStationsCount = stations.filter((s) => s.status === 'Active').length;
+  const totalPortsCount = stations.filter(s => s.isActive !== false).reduce((acc, curr) => acc + (Number(curr.totalPorts) || 0), 0);
+  const activeStations = stations.filter((s) => s.isActive !== false);
+  const activeStationsCount = activeStations.length;
 
   return (
     <div className="dashboard-page">
@@ -788,7 +793,15 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
           >
             <Zap size={16} />
             <span>Charging Stations</span>
-            <span className="dash-tab-badge">{stations.length}</span>
+            <span className="dash-tab-badge">{activeStations.length}</span>
+          </button>
+          <button
+            type="button"
+            className={`dash-tab-btn ${activeTab === 'live' ? 'active' : ''}`}
+            onClick={() => setActiveTab('live')}
+          >
+            <Activity size={16} />
+            <span>Live Sessions</span>
           </button>
           <button
             type="button"
@@ -838,9 +851,9 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                 </div>
                 <div className="kpi-body">
                   <div className="kpi-label">Charging Stations</div>
-                  <div className="kpi-value">{stations.length}</div>
+                  <div className="kpi-value">{activeStations.length}</div>
                   <div className="kpi-subtext">
-                    <span style={{ color: '#15803d', fontWeight: 600 }}>{activeStationsCount} Online</span> • {stations.length - activeStationsCount} Inactive
+                    <span style={{ color: '#15803d', fontWeight: 600 }}>{activeStationsCount} Online</span> • 0 Inactive
                   </div>
                 </div>
               </div>
@@ -940,21 +953,16 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                       <Zap size={18} color="var(--primary-600)" />
                       Recent Charging Stations
                     </h3>
-                    <p className="dash-card-subtitle">{stations.length} total stations registered</p>
+                    <p className="dash-card-subtitle">{activeStations.length} total stations registered</p>
                   </div>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-                    onClick={() => setActiveTab('stations')}
-                  >
+                  <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }} onClick={() => setActiveTab('stations')}>
                     View All
                   </button>
                 </div>
 
-                {stations.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    {stations.slice(0, 3).map((stn) => (
+                {activeStations.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {activeStations.slice(0, 3).map((stn) => (
                       <div
                         key={stn.stationId}
                         style={{
@@ -1006,191 +1014,14 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
         {/* TAB 2: CHARGING STATIONS */}
         {/* ========================================================================= */}
         {activeTab === 'stations' && (
-          <div className="dash-card">
-            <div className="dash-card-header">
-              <div>
-                <h3 className="dash-card-title">
-                  <Zap size={18} color="var(--primary-600)" />
-                  Tenant-Isolated Charging Stations
-                </h3>
-                <p className="dash-card-subtitle">
-                  Strictly scoped via ADO.NET SQL parameter binding: <code>WHERE tenant_id = @tenant_id</code>
-                </p>
-              </div>
+          <StationManagementPage />
+        )}
 
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={loadStations}
-                  disabled={loadingStations}
-                  className="btn-secondary"
-                >
-                  <RefreshCw size={14} className={loadingStations ? 'spinner' : ''} />
-                  <span>Refresh</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!isEmailVerified || isPendingApproval) return;
-                    setShowAddStation(!showAddStation);
-                  }}
-                  disabled={!isEmailVerified || isPendingApproval}
-                  className="submit-btn"
-                  style={{
-                    width: 'auto',
-                    margin: 0,
-                    padding: '0.55rem 1.1rem',
-                    fontSize: '0.85rem',
-                    opacity: !isEmailVerified || isPendingApproval ? 0.6 : 1,
-                    cursor: !isEmailVerified || isPendingApproval ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {!isEmailVerified || isPendingApproval ? <Lock size={14} /> : <Plus size={14} />}
-                  <span>{showAddStation ? 'Cancel Form' : 'Add Charging Station'}</span>
-                </button>
-              </div>
-            </div>
-
-            {stationSuccessMsg && (
-              <div className="alert alert-success">
-                <CheckCircle2 size={18} />
-                <span>{stationSuccessMsg}</span>
-              </div>
-            )}
-
-            {stationError && (
-              <div className="alert alert-danger">
-                <AlertTriangle size={18} />
-                <span>{stationError}</span>
-              </div>
-            )}
-
-            {/* Add Station Inline Form */}
-            {showAddStation && (
-              <form
-                onSubmit={handleCreateStation}
-                className="animate-fade-in"
-                style={{
-                  background: 'var(--primary-50)',
-                  border: '1px solid var(--primary-200)',
-                  borderRadius: '10px',
-                  padding: '1.25rem',
-                  marginBottom: '1.5rem'
-                }}
-              >
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary-900)', marginBottom: '1rem' }}>
-                  Register New Station (Auto-bound to Tenant ID: {authUser?.tenantId})
-                </h4>
-
-                <div className="form-grid" style={{ marginBottom: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">Station Name *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. GreenPulse Downtown Hub"
-                      value={stationForm.name}
-                      onChange={(e) => setStationForm({ ...stationForm, name: e.target.value })}
-                      className="form-input"
-                      style={{ paddingLeft: '0.85rem' }}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Location / Address *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 500 Market St, Financial District"
-                      value={stationForm.location}
-                      onChange={(e) => setStationForm({ ...stationForm, location: e.target.value })}
-                      className="form-input"
-                      style={{ paddingLeft: '0.85rem' }}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Total Ports *</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="50"
-                      required
-                      value={stationForm.totalPorts}
-                      onChange={(e) => setStationForm({ ...stationForm, totalPorts: e.target.value })}
-                      className="form-input"
-                      style={{ paddingLeft: '0.85rem' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                  <button type="button" className="btn-secondary" onClick={() => setShowAddStation(false)}>
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingStation}
-                    className="submit-btn"
-                    style={{ width: 'auto', margin: 0, padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
-                  >
-                    {isSubmittingStation ? <RefreshCw size={14} className="spinner" /> : <Plus size={14} />}
-                    <span>Save Station</span>
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Stations Table */}
-            {loadingStations ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                <RefreshCw size={24} className="spinner" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading stations from database...</p>
-              </div>
-            ) : stations.length > 0 ? (
-              <div className="dash-table-wrapper">
-                <table className="dash-table">
-                  <thead>
-                    <tr>
-                      <th>Station ID</th>
-                      <th>Name</th>
-                      <th>Location</th>
-                      <th>Ports</th>
-                      <th>Status</th>
-                      <th>Tenant Owner</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stations.map((stn) => (
-                      <tr key={stn.stationId}>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary-700)' }}>
-                          {stn.stationId}
-                        </td>
-                        <td style={{ fontWeight: 600 }}>{stn.name}</td>
-                        <td style={{ color: 'var(--text-muted)' }}>{stn.location}</td>
-                        <td>{stn.totalPorts} ports</td>
-                        <td>
-                          <span className="badge badge-success">{stn.status}</span>
-                        </td>
-                        <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#0369a1' }}>
-                          {stn.tenantId}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', background: 'var(--bg-page)', borderRadius: '8px', border: '1px dashed var(--border-subtle)' }}>
-                <Zap size={32} color="var(--text-muted)" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
-                <p style={{ fontWeight: 600, color: 'var(--text-main)' }}>No charging stations registered for this tenant yet.</p>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
-                  Click "Add Charging Station" above to create your first tenant-isolated asset.
-                </p>
-              </div>
-            )}
-          </div>
+        {/* ========================================================================= */}
+        {/* TAB 2.5: LIVE SESSIONS */}
+        {/* ========================================================================= */}
+        {activeTab === 'live' && (
+          <CompanySessionsPage />
         )}
 
         {/* ========================================================================= */}
