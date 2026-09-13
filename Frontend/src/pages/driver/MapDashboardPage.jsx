@@ -90,7 +90,8 @@ export default function MapDashboardPage() {
   useEffect(() => {
     if (activeSession && activeSession.status === 'Active') {
       const updateTimer = () => {
-        const start = new Date(activeSession.startTime + 'Z'); // ensure UTC
+        const startTimeStr = activeSession.startTime.endsWith('Z') ? activeSession.startTime : activeSession.startTime + 'Z';
+        const start = new Date(startTimeStr);
         const now = new Date();
         const diffMs = now - start;
         setElapsedMinutes(Math.floor(diffMs / 60000));
