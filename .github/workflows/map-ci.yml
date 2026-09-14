@@ -1,0 +1,48 @@
+name: Map Service CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'MapService/**'
+      - '.github/workflows/map-ci.yml'
+
+  push:
+    branches:
+      - develop
+    paths:
+      - 'MapService/**'
+      - '.github/workflows/map-ci.yml'
+
+jobs:
+  build-test:
+    name: Build, Test and Docker Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Map Service
+        run: dotnet restore MapService/src/EVNexus.MapService/EVNexus.MapService.csproj
+
+      - name: Build MapService
+        run: dotnet build MapService/src/EVNexus.MapService/EVNexus.MapService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Map Service tests
+        run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Build Map Docker image
+        run: docker build -t evnexus-map-service:ci MapService/src/EVNexus.MapService
