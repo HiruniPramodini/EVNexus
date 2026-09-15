@@ -7,7 +7,6 @@
 ![Auth Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-ci.yml/badge.svg)
 ![Auth Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-cd.yml/badge.svg)
 
-
 EVNexus is a **multi-tenant electric vehicle (EV) charging management platform** designed to connect EV charging companies and EV drivers through a unified digital ecosystem.
 
 The platform enables charging companies to manage charging stations, monitor charging activity, and access analytics, while EV drivers can discover charging stations, check availability, start and complete charging sessions, and make payments using an internal wallet.
