@@ -1,5 +1,7 @@
 ⚡ EVNexus
 Multi-Tenant EV Charging Management & Intelligent Charging Platform
+![Map Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/map-ci.yml/badge.svg)
+![Map Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/map-cd.yml/badge.svg)
 
 EVNexus is a multi-tenant electric vehicle (EV) charging platform designed to connect EV charging companies and EV drivers through a unified system.
 
