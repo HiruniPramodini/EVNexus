@@ -254,9 +254,128 @@ export async function getDriverProfile(token) {
   return handleResponse(response, 'Failed to retrieve driver profile.');
 }
 
+export async function getNearbyStations(lat, lng, radiusKm = 50) {
+  const authToken = getAuthToken();
+  const url = `${API_GATEWAY_URL}/api/driver/stations/nearby?latitude=${lat}&longitude=${lng}&radiusKm=${radiusKm}`;
+  
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to fetch nearby stations.');
+}
+
+export async function startChargingSession(chargingCode) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/start`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ chargingCode })
+  });
+  return handleResponse(response, 'Failed to start charging session.');
+}
+
+export async function stopChargingSession(sessionId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/${sessionId}/stop`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to stop charging session.');
+}
+
+export async function getActiveSession() {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/active`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to retrieve active session.');
+}
+
+export async function getSessionHistory() {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/history`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to retrieve session history.');
+}
+
+// -----------------------------------------
+// MAP SERVICE: COMPANY STATION MANAGEMENT
+// -----------------------------------------
+export async function createStation(stationData) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(stationData)
+  });
+  return handleResponse(response, 'Failed to create charging station.');
+}
+
+export async function getStationById(id) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to retrieve station details.');
+}
+
+export async function updateStation(id, stationData) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(stationData)
+  });
+  return handleResponse(response, 'Failed to update charging station.');
+}
+
+export async function deactivateStation(id) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to deactivate charging station.');
+}
+
 export async function getCompanyStations(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/company/stations`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -268,15 +387,28 @@ export async function getCompanyStations(token) {
   return handleResponse(response, 'Failed to retrieve stations for tenant.');
 }
 
+export async function getActiveCompanySessions(token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/sessions/active`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to retrieve active sessions.');
+}
+
 export async function createCompanyStation(stationData, token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/company/stations`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Authorization': `Bearer ${authToken}`
-    }
+    },
+    body: JSON.stringify(stationData)
   });
 
   return handleResponse(response, 'Failed to create charging station.');

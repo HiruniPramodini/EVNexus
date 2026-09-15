@@ -20,6 +20,25 @@ jobs:
     name: Build, Test and Docker Check
     runs-on: ubuntu-latest
 
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: map_db_test
+          MYSQL_USER: evnexus
+          MYSQL_PASSWORD: evnexus_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=map_db_test;User=evnexus;Password=evnexus_password;"
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,7 +51,7 @@ jobs:
       - name: Restore Map Service
         run: dotnet restore MapService/src/EVNexus.MapService/EVNexus.MapService.csproj
 
-      - name: Build MapService
+      - name: Build Map Service
         run: dotnet build MapService/src/EVNexus.MapService/EVNexus.MapService.csproj --no-restore --configuration Release
 
       - name: Restore test project
@@ -41,8 +60,15 @@ jobs:
       - name: Build test project
         run: dotnet build MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-restore --configuration Release
 
-      - name: Run Map Service tests
-        run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-build --configuration Release --verbosity normal
+      - name: Run Map Service tests (unit + integration)
+        run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test_results.trx" --results-directory ./TestResults
+
+      - name: Publish test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: map-service-test-results
+          path: ./TestResults/*.trx
 
       - name: Build Map Docker image
         run: docker build -t evnexus-map-service:ci MapService/src/EVNexus.MapService
