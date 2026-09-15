@@ -50,3 +50,10 @@ jobs:
         with:
           name: evnexus-map-service
           path: ./publish
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: evnexus-map-service-keshika
+          publish-profile: ${{ secrets.EVNEXUS_MAP_SERVICE_WEB_DEPLOY }}
+          package: ./publish
