@@ -11,6 +11,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+var aiConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (!string.IsNullOrEmpty(aiConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry();
+}
 
 // Configure JWT Settings & Authentication (using the same key as AuthService)
 var jwtSettings = new JwtSettings
@@ -94,6 +99,7 @@ builder.Services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 builder.Services.AddScoped<IStationRepository, StationRepository>();
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();
 builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -122,6 +128,7 @@ app.UseMiddleware<TenantResolutionMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 await app.RunAsync();
 
