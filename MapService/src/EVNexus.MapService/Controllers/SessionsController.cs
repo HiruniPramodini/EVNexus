@@ -93,8 +93,8 @@ public class SessionsController : ControllerBase
 
         var session = await _sessionRepo.GetActiveSessionForDriverAsync(driverId);
         if (session == null)
-            return Ok(new { success = true, data = (object)null });
-
+            return Ok(new { success = true, data = (object?)null });
+            
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
         var station = allStations.FirstOrDefault(s => s.Id == session.StationId);
 
