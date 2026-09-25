@@ -1,5 +1,6 @@
 using EVNexus.PaymentService.Data;
 using EVNexus.PaymentService.Kafka;
+using EVNexus.PaymentService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,14 @@ builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
 
 // Add Kafka
 builder.Services.AddSingleton<KafkaProducerService>();
+
+// Register WalletDeductService with a typed HttpClient -> auth-service container
+var authServiceUrl = builder.Configuration["Services:AuthServiceUrl"] ?? "http://authentication-service:8080";
+builder.Services.AddHttpClient<WalletDeductService>(client =>
+{
+    client.BaseAddress = new Uri(authServiceUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 
 var app = builder.Build();
 

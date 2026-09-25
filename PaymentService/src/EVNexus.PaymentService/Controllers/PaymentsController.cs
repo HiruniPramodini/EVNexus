@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using EVNexus.PaymentService.Data;
 using EVNexus.PaymentService.Kafka;
 using EVNexus.PaymentService.Models;
+using EVNexus.PaymentService.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVNexus.PaymentService.Controllers;
@@ -12,11 +13,16 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentRepository _repository;
     private readonly KafkaProducerService _kafkaProducer;
+    private readonly WalletDeductService _walletDeduct;
 
-    public PaymentsController(IPaymentRepository repository, KafkaProducerService kafkaProducer)
+    public PaymentsController(
+        IPaymentRepository repository,
+        KafkaProducerService kafkaProducer,
+        WalletDeductService walletDeduct)
     {
         _repository = repository;
         _kafkaProducer = kafkaProducer;
+        _walletDeduct = walletDeduct;
     }
 
     [HttpPost("authorize")]
@@ -76,6 +82,14 @@ public class PaymentsController : ControllerBase
         var completed = await _repository.GetPaymentByIdAsync(paymentId);
         if (completed != null)
         {
+            // Deduct from driver's wallet (non-fatal — payment is already recorded)
+            await _walletDeduct.DeductAsync(
+                completed.DriverId,
+                completed.FinalAmount,
+                completed.SessionId,
+                HttpContext.RequestAborted);
+
+            // Publish payment-completed Kafka event for dashboard analytics
             await _kafkaProducer.PublishPaymentCompletedAsync(completed);
         }
 
