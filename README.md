@@ -6,6 +6,8 @@
 ![Map Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/map-cd.yml/badge.svg)
 ![Auth Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-ci.yml/badge.svg)
 ![Auth Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-cd.yml/badge.svg)
+![Payment Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/payment-ci.yml/badge.svg)
+![Payment Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/payment-cd.yml/badge.svg)
 
 EVNexus is a **multi-tenant electric vehicle (EV) charging management platform** designed to connect EV charging companies and EV drivers through a unified digital ecosystem.
 
@@ -797,7 +799,8 @@ GitHub Actions
    │
    ├── Restore
    ├── Build
-   ├── Test
+   ├── Automated Tests (Top-Up, Deduction, Refund, Concurrency)
+   ├── Code Coverage Artifact Upload
    └── Docker Check
    │
    ▼
@@ -806,6 +809,15 @@ Code Review
    ▼
 Merge
 ```
+
+### 💳 Payment Service Test Suite
+
+The Payment Service CI pipeline executes automated tests across core financial scenarios:
+* **Top-Up**: Balance increments, boundary validation, and negative value rejection.
+* **Deduction**: EV charging session payment deductions, insufficient balance protection.
+* **Refund**: Valid charging refund processing, balance restoration, and state transitions.
+* **Concurrency & Idempotency**: Multi-threaded top-ups, duplicate session payment prevention.
+* **Code Coverage**: Generated using `coverlet.collector` and published as a pipeline artifact.
 
 ## Continuous Deployment
 
@@ -822,7 +834,7 @@ GitHub Actions
  └── Package
  │
  ▼
-Azure App Service
+Azure App Service / Container Apps
 ```
 
 Running tests again before deployment provides an additional deployment gate and prevents an invalid production artifact from being deployed.

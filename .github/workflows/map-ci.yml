@@ -3,6 +3,7 @@ name: Map Service CI
 on:
   pull_request:
     branches:
+      - main
       - develop
     paths:
       - 'MapService/**'
@@ -10,10 +11,13 @@ on:
 
   push:
     branches:
+      - main
       - develop
     paths:
       - 'MapService/**'
       - '.github/workflows/map-ci.yml'
+
+  workflow_dispatch:
 
 jobs:
   build-test:
