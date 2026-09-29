@@ -2,33 +2,43 @@ using System.Threading.Tasks;
 using EVNexus.PaymentService.Data;
 using EVNexus.PaymentService.Kafka;
 using EVNexus.PaymentService.Models;
-using EVNexus.PaymentService.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EVNexus.PaymentService.Controllers;
 
 [ApiController]
 [Route("api/payment")]
+[Authorize]
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentRepository _repository;
     private readonly KafkaProducerService _kafkaProducer;
-    private readonly WalletDeductService _walletDeduct;
+    private readonly IWalletRepository _walletRepo;
 
     public PaymentsController(
         IPaymentRepository repository,
         KafkaProducerService kafkaProducer,
-        WalletDeductService walletDeduct)
+        IWalletRepository walletRepo)
     {
         _repository = repository;
         _kafkaProducer = kafkaProducer;
-        _walletDeduct = walletDeduct;
+        _walletRepo = walletRepo;
     }
 
     [HttpPost("authorize")]
+    [Authorize(Roles = "Driver")]
     public async Task<IActionResult> AuthorizePayment([FromBody] AuthorizePaymentDto dto)
     {
-        // 1. Idempotency Check: Don't authorize if already exists for this session
+        // 1. Get identity from JWT
+        var driverIdClaim = User.FindFirst("driver_id")?.Value;
+        
+        if (string.IsNullOrEmpty(driverIdClaim))
+        {
+            return Unauthorized("Driver identity not found in token");
+        }
+
+        // 2. Idempotency Check: Don't authorize if already exists for this session
         var existing = await _repository.GetPaymentBySessionIdAsync(dto.SessionId);
         if (existing != null)
         {
@@ -38,7 +48,7 @@ public class PaymentsController : ControllerBase
         var payment = new PaymentTransaction
         {
             SessionId = dto.SessionId,
-            DriverId = dto.DriverId,
+            DriverId = driverIdClaim, // Ignore dto.DriverId
             CompanyId = dto.CompanyId,
             StationId = dto.StationId,
             ChargerId = dto.ChargerId,
@@ -70,30 +80,87 @@ public class PaymentsController : ControllerBase
     {
         var payment = await _repository.GetPaymentByIdAsync(paymentId);
         if (payment == null) return NotFound("Payment not found");
+        
+        // Ensure tenant isolation for completion operations, or if driver, driver owns payment
+        var roleClaim = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
+        if (roleClaim == "Driver")
+        {
+            var driverIdClaim = User.FindFirst("driver_id")?.Value;
+            if (payment.DriverId != driverIdClaim) return Forbid();
+        }
+        else
+        {
+            var tenantIdClaim = User.FindFirst("tenant_id")?.Value;
+            if (string.IsNullOrEmpty(tenantIdClaim)) return Unauthorized("Tenant identity missing");
+            if (payment.CompanyId != tenantIdClaim) return Forbid();
+        }
 
         if (payment.Status == "COMPLETED")
         {
             return Ok(new { success = true, data = payment });
         }
 
-        var success = await _repository.CompletePaymentAsync(paymentId, finalAmount);
-        if (!success) return BadRequest("Failed to complete payment");
+        var success = await _walletRepo.ChargeWalletAndCompletePaymentAsync(payment.DriverId, paymentId, finalAmount, payment.SessionId, payment.EnergyConsumedKwh);
+        if (!success) return BadRequest("Insufficient balance or payment failed");
 
         var completed = await _repository.GetPaymentByIdAsync(paymentId);
-        if (completed != null)
-        {
-            // Deduct from driver's wallet (non-fatal — payment is already recorded)
-            await _walletDeduct.DeductAsync(
-                completed.DriverId,
-                completed.FinalAmount,
-                completed.SessionId,
-                HttpContext.RequestAborted);
+        
+        return Ok(new { success = true, data = completed });
+    }
 
-            // Publish payment-completed Kafka event for dashboard analytics
-            await _kafkaProducer.PublishPaymentCompletedAsync(completed);
+    [HttpGet("transactions")]
+    [Authorize(Roles = "Driver")]
+    public async Task<IActionResult> GetPaymentTransactions([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (page < 1 || pageSize < 1 || pageSize > 100)
+            return BadRequest("Invalid pagination parameters. page >= 1, 1 <= pageSize <= 100.");
+
+        var driverIdClaim = User.FindFirst("driver_id")?.Value;
+        if (string.IsNullOrEmpty(driverIdClaim)) return Unauthorized("Driver identity not found in token");
+
+        var (transactions, totalCount) = await _repository.GetPaymentTransactionsAsync(driverIdClaim, page, pageSize);
+        var totalPages = totalCount == 0 ? 0 : (int)System.Math.Ceiling((double)totalCount / pageSize);
+
+        return Ok(new Models.PaginatedResponse<PaymentTransaction>
+        {
+            Success = true,
+            Data = transactions,
+            Pagination = new Models.PaginationMetadata
+            {
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages
+            }
+        });
+    }
+
+    [HttpGet("session/{sessionId}/status")]
+    [Authorize(Roles = "Driver")]
+    public async Task<IActionResult> GetPaymentStatusBySession(string sessionId)
+    {
+        var driverIdClaim = User.FindFirst("driver_id")?.Value;
+        if (string.IsNullOrEmpty(driverIdClaim)) return Unauthorized("Driver identity not found in token");
+
+        var payment = await _repository.GetPaymentBySessionForDriverAsync(sessionId, driverIdClaim);
+        if (payment == null)
+        {
+            return NotFound(new { success = false, message = "Payment not found for session" });
         }
 
-        return Ok(new { success = true, data = completed });
+        return Ok(new
+        {
+            success = true,
+            data = new
+            {
+                sessionId = payment.SessionId,
+                paymentId = payment.PaymentId,
+                status = payment.Status,
+                amount = payment.Status == "COMPLETED" ? payment.FinalAmount : payment.EstimatedAmount,
+                currency = payment.Currency,
+                completedAt = payment.CompletedAt
+            }
+        });
     }
 }
 
