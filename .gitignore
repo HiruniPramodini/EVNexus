@@ -1,6 +1,7 @@
-Get-ChildItem -Recurse -Include docker-compose.yml,docker-compose.yaml,package.json,*.csproj,appsettings.json# .NET
+# .NET
 **/bin/
 **/obj/
+*.zip
 
 # Visual Studio
 .vs/
