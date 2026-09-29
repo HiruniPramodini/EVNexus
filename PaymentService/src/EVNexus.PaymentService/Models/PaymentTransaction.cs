@@ -13,6 +13,7 @@ public class PaymentTransaction
     public string ChargerId { get; set; } = string.Empty;
     public decimal EstimatedAmount { get; set; }
     public decimal FinalAmount { get; set; }
+    public decimal EnergyConsumedKwh { get; set; }
     public string Currency { get; set; } = "LKR";
     public string PaymentMethod { get; set; } = "DEMO_PAYMENT";
     public string Status { get; set; } = "PENDING";

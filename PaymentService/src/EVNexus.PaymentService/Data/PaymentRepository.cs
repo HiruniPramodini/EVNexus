@@ -20,8 +20,8 @@ public class PaymentRepository : IPaymentRepository
         transaction.Status = "AUTHORIZED";
         
         var sql = @"
-            INSERT INTO payment_transactions (PaymentId, TransactionId, SessionId, DriverId, CompanyId, StationId, ChargerId, EstimatedAmount, FinalAmount, Currency, PaymentMethod, Status, CreatedAt)
-            VALUES (@PaymentId, @TransactionId, @SessionId, @DriverId, @CompanyId, @StationId, @ChargerId, @EstimatedAmount, @FinalAmount, @Currency, @PaymentMethod, @Status, @CreatedAt);
+            INSERT INTO payment_transactions (PaymentId, TransactionId, SessionId, DriverId, CompanyId, StationId, ChargerId, EstimatedAmount, FinalAmount, EnergyConsumedKwh, Currency, PaymentMethod, Status, CreatedAt)
+            VALUES (@PaymentId, @TransactionId, @SessionId, @DriverId, @CompanyId, @StationId, @ChargerId, @EstimatedAmount, @FinalAmount, @EnergyConsumedKwh, @Currency, @PaymentMethod, @Status, @CreatedAt);
         ";
 
         using var connection = _connectionFactory.CreateConnection();
@@ -42,6 +42,19 @@ public class PaymentRepository : IPaymentRepository
         return rows > 0;
     }
 
+    public async Task<bool> UpdatePaymentStatusAsync(string paymentId, string status)
+    {
+        var sql = @"
+            UPDATE payment_transactions
+            SET Status = @Status
+            WHERE PaymentId = @PaymentId;
+        ";
+
+        using var connection = _connectionFactory.CreateConnection();
+        var rows = await connection.ExecuteAsync(sql, new { PaymentId = paymentId, Status = status });
+        return rows > 0;
+    }
+
     public async Task<PaymentTransaction?> GetPaymentByIdAsync(string paymentId)
     {
         var sql = "SELECT * FROM payment_transactions WHERE PaymentId = @PaymentId;";
@@ -54,5 +67,30 @@ public class PaymentRepository : IPaymentRepository
         var sql = "SELECT * FROM payment_transactions WHERE SessionId = @SessionId LIMIT 1;";
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QuerySingleOrDefaultAsync<PaymentTransaction>(sql, new { SessionId = sessionId });
+    }
+
+    public async Task<PaymentTransaction?> GetPaymentBySessionForDriverAsync(string sessionId, string driverId)
+    {
+        var sql = "SELECT * FROM payment_transactions WHERE SessionId = @SessionId AND DriverId = @DriverId LIMIT 1;";
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QuerySingleOrDefaultAsync<PaymentTransaction>(sql, new { SessionId = sessionId, DriverId = driverId });
+    }
+
+    public async Task<(System.Collections.Generic.IEnumerable<PaymentTransaction> Transactions, int TotalCount)> GetPaymentTransactionsAsync(string driverId, int page, int pageSize)
+    {
+        var offset = (page - 1) * pageSize;
+        var sqlCount = "SELECT COUNT(*) FROM payment_transactions WHERE DriverId = @DriverId;";
+        var sqlData = @"
+            SELECT * FROM payment_transactions 
+            WHERE DriverId = @DriverId 
+            ORDER BY CreatedAt DESC 
+            LIMIT @Limit OFFSET @Offset;
+        ";
+
+        using var connection = _connectionFactory.CreateConnection();
+        var totalCount = await connection.ExecuteScalarAsync<int>(sqlCount, new { DriverId = driverId });
+        var transactions = await connection.QueryAsync<PaymentTransaction>(sqlData, new { DriverId = driverId, Limit = pageSize, Offset = offset });
+
+        return (transactions, totalCount);
     }
 }
