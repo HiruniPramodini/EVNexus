@@ -93,11 +93,30 @@ public class CompanyStationsController : ControllerBase
     {
         var tenantId = _tenantContext.TenantId;
         var station = await _repository.GetStationByIdAsync(id, tenantId);
-        
+
         if (station == null)
             return NotFound();
 
         return Ok(new { success = true, data = station });
+    }
+
+    [HttpGet("{id}/qr")]
+    public async Task<IActionResult> GetStationQr(string id)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(id, tenantId);
+
+        if (station == null || !station.IsActive)
+            return NotFound(new { success = false, message = "Station not found or inactive." });
+
+        var payload = new {
+            system = "EVNEXUS",
+            companyId = station.TenantId,
+            stationId = station.Id,
+            chargerId = station.Id // Fallback for frontend compatibility
+        };
+
+        return Ok(new { success = true, data = payload });
     }
 
     [HttpPut("{id}")]
@@ -108,7 +127,7 @@ public class CompanyStationsController : ControllerBase
 
         var tenantId = _tenantContext.TenantId;
         var station = await _repository.GetStationByIdAsync(id, tenantId);
-        
+
         if (station == null)
             return NotFound("Station not found or you don't have access.");
 
@@ -140,7 +159,7 @@ public class CompanyStationsController : ControllerBase
         var updated = await _repository.UpdateStationAsync(station);
         if (updated)
             return Ok(new { success = true });
-        
+
         return BadRequest("Failed to update station.");
     }
 
@@ -160,7 +179,7 @@ public class CompanyStationsController : ControllerBase
     public async Task<IActionResult> GetActiveCompanySessions([FromServices] ISessionRepository sessionRepo)
     {
         var sessions = await sessionRepo.GetActiveSessionsForTenantAsync(_tenantContext.TenantId);
-        
+
         var allStations = await _repository.GetAllByTenantIdAsync(_tenantContext.TenantId);
         var enrichedSessions = sessions.Select(s => {
             var station = allStations.FirstOrDefault(st => st.Id == s.StationId);
