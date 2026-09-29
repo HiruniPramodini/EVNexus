@@ -39,13 +39,16 @@ public class DatabaseInitializer : IDatabaseInitializer
 
             CREATE TABLE IF NOT EXISTS charging_sessions (
                 Id VARCHAR(36) PRIMARY KEY,
+                CompanyId VARCHAR(36) NOT NULL,
                 StationId VARCHAR(36) NOT NULL,
+                ChargerId VARCHAR(36) NOT NULL,
                 DriverId VARCHAR(36) NOT NULL,
                 StartTime DATETIME DEFAULT CURRENT_TIMESTAMP,
                 EndTime DATETIME NULL,
                 Status VARCHAR(50) NOT NULL DEFAULT 'Active',
                 EnergyConsumedKwh DECIMAL(10, 4) DEFAULT 0,
                 TotalCost DECIMAL(10, 2) DEFAULT 0,
+                EstimatedCost DECIMAL(10, 2) DEFAULT 0,
                 FOREIGN KEY (StationId) REFERENCES stations(Id)
             );
         ";
