@@ -893,3 +893,47 @@ export async function getCompanyNotifications(tenantId, token = null) {
 
   return handleResponse(response, 'Failed to retrieve company notifications.');
 }
+
+export async function validateQrCode(qrPayloadRaw, token) {
+  const authToken = token || getAuthToken();
+
+  // qrPayloadRaw may be a raw JSON string (from jsqr) or an already-parsed object.
+  let parsed;
+  if (typeof qrPayloadRaw === 'string') {
+    try {
+      parsed = JSON.parse(qrPayloadRaw);
+    } catch {
+      throw new Error('Invalid QR code. Could not read the QR data.');
+    }
+  } else {
+    parsed = qrPayloadRaw;
+  }
+
+  // Validate system field before sending network request
+  if (!parsed || parsed.system !== 'EVNEXUS') {
+    throw new Error('This QR code is not an EVNexus charger QR code.');
+  }
+
+  const response = await fetch(`${API_GATEWAY_URL}/api/driver/stations/qr/validate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(parsed)
+  });
+  return handleResponse(response, 'Failed to validate QR code.');
+}
+
+export async function getStationQr(stationId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/qr`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get QR for station.');
+}
