@@ -39,12 +39,14 @@ import {
 
 import StationManagementPage from '../pages/company/StationManagementPage';
 import CompanySessionsPage from '../pages/company/CompanySessionsPage';
+import CompanyRevenuePage from '../pages/company/CompanyRevenuePage';
 import {
   getCompanyProfile,
   updateCompanyProfile,
   requestEmailChange,
   clearAuthSession,
   getCompanyStations,
+  getActiveCompanySessions,
   createCompanyStation,
   testCrossTenantAccess,
   testCompanyAccessToDriverEndpoint,
@@ -55,8 +57,18 @@ import {
   deactivateCompanyStaff,
   reactivateCompanyStaff,
   getCompanyBilling,
-  deleteCompanyAccount
+  deleteCompanyAccount,
+  getDashboardAnalytics,
+  getCompanyTransactions,
+  getCompanyRevenueTrend,
+  getCompanyForecast,
+  getStationAnalytics
 } from '../services/api';
+
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
+  LineChart, Line
+} from 'recharts';
 
 const PRESET_LOGOS = [
   { label: 'GreenPulse', url: 'https://images.unsplash.com/photo-1558441719-8b489c652756?w=200' },
@@ -65,8 +77,17 @@ const PRESET_LOGOS = [
   { label: 'EcoCharge', url: 'https://images.unsplash.com/photo-1617788138017-80ad40651399?w=200' }
 ];
 
-export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }) {
+export default function CompanyDashboard({ authUser, activeView, onLogout, onUpdateProfile }) {
   const [activeTab, setActiveTab] = useState('overview');
+
+  useEffect(() => {
+    if (activeView === 'dashboard') setActiveTab('overview');
+    else if (activeView === 'billing') setActiveTab('billing');
+    else if (activeView === 'analytics') setActiveTab('analytics');
+    else if (activeView === 'live') setActiveTab('live');
+    else if (activeView === 'staff') setActiveTab('staff');
+    else setActiveTab(activeView);
+  }, [activeView]);
 
   const [copiedTenantId, setCopiedTenantId] = useState(false);
   const [copiedToken, setCopiedToken] = useState(false);
@@ -153,10 +174,19 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const [billingInfo, setBillingInfo] = useState(null);
   const [loadingBilling, setLoadingBilling] = useState(false);
 
-  // Company Deletion State
   const [isDeletingCompany, setIsDeletingCompany] = useState(false);
   const [deleteCompanyMsg, setDeleteCompanyMsg] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Analytics State
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [transactionsData, setTransactionsData] = useState([]);
+  const [revenueTrend, setRevenueTrend] = useState([]);
+  const [forecastData, setForecastData] = useState(null);
+  const [stationAnalyticsData, setStationAnalyticsData] = useState([]);
+  const [activeSessionsData, setActiveSessionsData] = useState(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
 
   useEffect(() => {
     handleVerifyProtectedApi();
@@ -166,6 +196,62 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
       loadBilling();
     }
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'overview' || activeTab === 'analytics') {
+      loadAnalytics();
+    }
+  }, [activeTab]);
+
+  const loadAnalytics = async () => {
+    setLoadingAnalytics(true);
+    setAnalyticsError(null);
+    try {
+      const companyId = authUser?.tenantId;
+      const [analyticsRes, txRes, trendRes, forecastRes, stationRes] = await Promise.all([
+        getDashboardAnalytics(companyId).catch(() => ({ data: null })),
+        getCompanyTransactions(companyId).catch(() => ({ data: [] })),
+        getCompanyRevenueTrend(companyId).catch(() => ({ data: [] })),
+        getCompanyForecast(companyId).catch(() => ({ data: null })),
+        getStationAnalytics(companyId).catch(() => ({ data: [] }))
+      ]);
+
+      const rawAnalytics = analyticsRes?.data ?? (analyticsRes?.totalRevenue !== undefined || analyticsRes?.TotalRevenue !== undefined ? analyticsRes : null);
+      if (rawAnalytics) {
+        setAnalyticsData({
+          totalRevenue: rawAnalytics.totalRevenue ?? rawAnalytics.TotalRevenue ?? 0,
+          totalRevenueToday: rawAnalytics.totalRevenueToday ?? rawAnalytics.TotalRevenueToday ?? 0,
+          completedTransactions: rawAnalytics.completedTransactions ?? rawAnalytics.CompletedTransactions ?? 0,
+          totalEnergyKwh: rawAnalytics.totalEnergyKwh ?? rawAnalytics.TotalEnergyKwh ?? 0
+        });
+      }
+      
+      const txData = txRes?.data ?? (Array.isArray(txRes) ? txRes : null);
+      if (txData) setTransactionsData(Array.isArray(txData) ? txData : []);
+      
+      const trendData = trendRes?.data ?? (Array.isArray(trendRes) ? trendRes : null);
+      if (trendData && Array.isArray(trendData)) {
+        const normalized = trendData.map(item => ({
+          date: item.date || item.Date || '',
+          revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0),
+          energyKwh: typeof item.energyKwh === 'number' ? item.energyKwh : (parseFloat(item.EnergyKwh || item.energyKwh) || 0),
+          sessions: typeof item.sessions === 'number' ? item.sessions : (parseInt(item.Sessions || item.sessions) || 0)
+        }));
+        setRevenueTrend(normalized);
+      }
+      
+      const forecast = forecastRes?.data ?? (Array.isArray(forecastRes) || forecastRes?.forecast ? forecastRes : null);
+      if (forecast) setForecastData(Array.isArray(forecast) ? forecast : (forecast.forecast || []));
+      
+      const stationData = stationRes?.data ?? (Array.isArray(stationRes) ? stationRes : null);
+      if (stationData) setStationAnalyticsData(Array.isArray(stationData) ? stationData : []);
+
+    } catch (err) {
+      setAnalyticsError(err.message || 'Failed to load analytics.');
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
 
   const loadStaff = async () => {
     setLoadingStaff(true);
@@ -536,143 +622,6 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
     <div className="dashboard-page">
       <div className="dashboard-container">
         {/* ========================================================================= */}
-        {/* Hero Header Banner */}
-        {/* ========================================================================= */}
-        <div className="dash-hero-banner">
-          <div className="dash-hero-content">
-            <div className="dash-hero-profile">
-              <div className="dash-avatar">
-                {activeLogoUrl ? (
-                  <img
-                    src={activeLogoUrl}
-                    alt={`${activeCompanyName} Logo`}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <Building2 size={34} color="#0284c7" />
-                )}
-              </div>
-
-              <div className="dash-hero-meta">
-                <div className="dash-badge-row">
-                  <span className="badge badge-info" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff', border: 'none' }}>
-                    <ShieldCheck size={13} />
-                    Authenticated Session
-                  </span>
-                  <span className="badge" style={{ background: '#10b981', color: '#ffffff' }}>
-                    {isOperator ? 'Role: Operator (Restricted)' : 'Role: Company Admin'}
-                  </span>
-                  <span
-                    className="badge"
-                    style={{
-                      background: isEmailVerified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)',
-                      color: '#ffffff',
-                      border: isEmailVerified ? '1px solid #10b981' : '1px solid #f59e0b'
-                    }}
-                  >
-                    {isEmailVerified ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-                    {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
-                  </span>
-                  <span
-                    className="badge"
-                    style={{
-                      background: isPendingApproval ? 'rgba(59, 130, 246, 0.4)' : 'rgba(16, 185, 129, 0.3)',
-                      color: '#ffffff',
-                      border: isPendingApproval ? '1px solid #93c5fd' : '1px solid #10b981'
-                    }}
-                  >
-                    {isPendingApproval ? <Clock size={13} /> : <CheckCircle2 size={13} />}
-                    {isPendingApproval ? 'Pending Approval' : 'Approved'}
-                  </span>
-                </div>
-
-                <h1 className="dash-title">{activeCompanyName}</h1>
-                <p className="dash-subtitle">
-                  <Mail size={15} /> {activeBusinessEmail}
-                </p>
-              </div>
-            </div>
-
-            <div className="dash-hero-actions">
-              {isAdmin && (
-                <button
-                  type="button"
-                  className="hero-btn"
-                  onClick={() => {
-                    setProfileUpdateError(null);
-                    setProfileUpdateSuccess(null);
-                    setProfileUpdateValidationErrors([]);
-                    setProfileFormData({
-                      companyName: profileResult?.data?.companyName || authUser?.companyName || '',
-                      phone: profileResult?.data?.phone || authUser?.phone || '',
-                      address: profileResult?.data?.address || authUser?.address || '',
-                      logoUrl: profileResult?.data?.logoUrl || authUser?.logoUrl || '',
-                      businessEmail: profileResult?.data?.businessEmail || authUser?.businessEmail || '',
-                      emailVerificationCode: ''
-                    });
-                    setShowEditProfileModal(true);
-                  }}
-                >
-                  <Edit3 size={15} />
-                  <span>Edit Profile</span>
-                </button>
-              )}
-
-              <button type="button" className="hero-btn" onClick={handleLogoutClick}>
-                <LogOut size={15} />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Tenant ID & Session Strip */}
-          <div className="hero-id-strip">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <span style={{ opacity: 0.85 }}>Scoped Tenant ID:</span>
-              <code
-                style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '6px',
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  color: '#e0f2fe'
-                }}
-              >
-                {authUser?.tenantId}
-              </code>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(authUser?.tenantId, 'tenant')}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                {copiedTenantId ? <Check size={12} color="#86efac" /> : <Copy size={12} />}
-                {copiedTenantId ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-
-            <div style={{ opacity: 0.9, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Clock size={14} />
-              <span>Token Lifetime: {Math.round((authUser?.expiresIn || 3600) / 60)} mins ({authUser?.tokenType || 'Bearer'})</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
         {/* Urgent Alerts / Notice Banners */}
         {/* ========================================================================= */}
         {isOperator && (
@@ -775,243 +724,7 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
         )}
 
         {/* ========================================================================= */}
-        {/* Navigation Tabs Bar */}
-        {/* ========================================================================= */}
-        <nav className="dash-tabs-bar" aria-label="Dashboard navigation">
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-            onClick={() => setActiveTab('overview')}
-          >
-            <BarChart3 size={16} />
-            <span>Overview</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'stations' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stations')}
-          >
-            <Zap size={16} />
-            <span>Charging Stations</span>
-            <span className="dash-tab-badge">{activeStations.length}</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'live' ? 'active' : ''}`}
-            onClick={() => setActiveTab('live')}
-          >
-            <Activity size={16} />
-            <span>Live Sessions</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'staff' ? 'active' : ''}`}
-            onClick={() => setActiveTab('staff')}
-          >
-            <Users size={16} />
-            <span>Team & Operators</span>
-            <span className="dash-tab-badge">{staffList.length}</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'billing' ? 'active' : ''}`}
-            onClick={() => setActiveTab('billing')}
-          >
-            <CreditCard size={16} />
-            <span>Billing & Plan</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'security' ? 'active' : ''}`}
-            onClick={() => setActiveTab('security')}
-          >
-            <Shield size={16} />
-            <span>Security Sandbox</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            <Settings size={16} />
-            <span>Settings & Profile</span>
-          </button>
-        </nav>
-
-        {/* ========================================================================= */}
         {/* TAB 1: OVERVIEW & KPIS */}
-        {/* ========================================================================= */}
-        {activeTab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* KPI Summary Cards */}
-            <div className="kpi-grid">
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-blue">
-                  <Zap size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Charging Stations</div>
-                  <div className="kpi-value">{activeStations.length}</div>
-                  <div className="kpi-subtext">
-                    <span style={{ color: '#15803d', fontWeight: 600 }}>{activeStationsCount} Online</span> • 0 Inactive
-                  </div>
-                </div>
-              </div>
-
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-green">
-                  <Layers size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Total Ports</div>
-                  <div className="kpi-value">{totalPortsCount}</div>
-                  <div className="kpi-subtext">Provisioned across network</div>
-                </div>
-              </div>
-
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-purple">
-                  <Users size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Staff & Operators</div>
-                  <div className="kpi-value">{staffList.length}</div>
-                  <div className="kpi-subtext">Tenant scoped users</div>
-                </div>
-              </div>
-
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-amber">
-                  <ShieldCheck size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Account Status</div>
-                  <div className="kpi-value" style={{ fontSize: '1.25rem' }}>
-                    {isPendingApproval ? 'Pending Review' : 'Active Approved'}
-                  </div>
-                  <div className="kpi-subtext">
-                    {isEmailVerified ? 'Email Confirmed' : 'Verification Required'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Profile Summary & Stations Preview */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-              {/* Organization Overview */}
-              <div className="dash-card">
-                <div className="dash-card-header">
-                  <div>
-                    <h3 className="dash-card-title">
-                      <Building2 size={18} color="var(--primary-600)" />
-                      Organization Profile
-                    </h3>
-                    <p className="dash-card-subtitle">Registered tenant credentials</p>
-                  </div>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-                      onClick={() => setShowEditProfileModal(true)}
-                    >
-                      <Edit3 size={13} />
-                      <span>Edit</span>
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Company Name:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{activeCompanyName}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Registration Number:</span>
-                    <strong>{profileResult?.data?.registrationNumber || 'Pending'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Contact Phone:</span>
-                    <span>{profileResult?.data?.phone || authUser?.phone || 'Not provided'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Registered Address:</span>
-                    <span>{profileResult?.data?.address || authUser?.address || 'Not provided'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Data Isolation Scope:</span>
-                    <span className="badge badge-info">Tenant {authUser?.tenantId}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Station Quick View */}
-              <div className="dash-card">
-                <div className="dash-card-header">
-                  <div>
-                    <h3 className="dash-card-title">
-                      <Zap size={18} color="var(--primary-600)" />
-                      Recent Charging Stations
-                    </h3>
-                    <p className="dash-card-subtitle">{activeStations.length} total stations registered</p>
-                  </div>
-                  <button className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }} onClick={() => setActiveTab('stations')}>
-                    View All
-                  </button>
-                </div>
-
-                {activeStations.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {activeStations.slice(0, 3).map((stn) => (
-                      <div
-                        key={stn.stationId}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          padding: '0.65rem 0.85rem',
-                          background: 'var(--bg-page)',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-subtle)'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{stn.name}</div>
-                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{stn.location}</div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <span className="badge badge-success">{stn.totalPorts} Ports</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                    <Zap size={30} color="var(--text-light)" style={{ margin: '0 auto 0.5rem', display: 'block' }} />
-                    No charging stations created yet.
-                    <div style={{ marginTop: '0.75rem' }}>
-                      <button
-                        type="button"
-                        className="submit-btn"
-                        style={{ width: 'auto', margin: '0 auto', padding: '0.45rem 1rem', fontSize: '0.8rem' }}
-                        onClick={() => {
-                          setActiveTab('stations');
-                          setShowAddStation(true);
-                        }}
-                      >
-                        <Plus size={14} />
-                        Add First Station
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 2: CHARGING STATIONS */}
         {/* ========================================================================= */}
         {activeTab === 'stations' && (
           <StationManagementPage />
@@ -1025,9 +738,268 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: TEAM & STAFF */}
+        {/* TAB 2.6: ANALYTICS */}
         {/* ========================================================================= */}
-        {activeTab === 'staff' && (
+        {activeTab === 'analytics' && (
+          <CompanyRevenuePage 
+            authUser={authUser} 
+            stations={stations} 
+            onNavigateToOverview={() => setActiveTab('overview')} 
+          />
+        )}
+        
+        {activeTab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Header */}
+            <div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
+                Welcome back, Company Administrator
+              </h2>
+              <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
+                {activeCompanyName} — Monitor your charging network and business performance.
+              </div>
+            </div>
+
+            {loadingAnalytics ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                <RefreshCw size={32} className="spinner" style={{ color: 'var(--primary-600)' }} />
+              </div>
+            ) : (
+              <>
+                {/* KPI Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CreditCard size={16} /> Revenue Today
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {analyticsData ? (
+                        `$${(analyticsData.totalRevenueToday || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ) : (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <BarChart3 size={16} /> Total Revenue
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {analyticsData ? (
+                        `$${(analyticsData.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      ) : (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Zap size={16} /> Energy Delivered
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {analyticsData ? (
+                        `${(analyticsData.totalEnergyKwh || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWh`
+                      ) : (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Activity size={16} /> Total Transactions
+                    </div>
+                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {analyticsData ? (
+                        (analyticsData.completedTransactions || 0).toLocaleString()
+                      ) : (
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <MapPin size={16} /> Stations / Chargers
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {stations ? `${stations.length} / ${totalPortsCount}` : <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>}
+                    </div>
+                  </div>
+
+                  {activeSessionsData && (
+                    <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Zap size={16} style={{ color: '#10b981' }} /> Active Charging Sessions
+                      </div>
+                      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981', marginTop: '0.5rem' }}>
+                        {activeSessionsData.length}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Charts Area */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                  {/* Revenue Trend */}
+                  <div className="dash-card" style={{ padding: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <BarChart3 size={18} /> Revenue Trend
+                    </h3>
+                    {revenueTrend && revenueTrend.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={revenueTrend}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
+                          <RechartsTooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                          <Bar dataKey="revenue" fill="var(--primary-600)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px' }}>
+                        No revenue data available yet.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Forecast */}
+                  <div className="dash-card" style={{ padding: '1.5rem' }}>
+                    <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Sparkles size={18} color="#8b5cf6" /> 7-Day Revenue Forecast
+                    </h3>
+                    {forecastData && forecastData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={250}>
+                        <LineChart data={forecastData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                          <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} />
+                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
+                          <RechartsTooltip cursor={{ stroke: '#cbd5e1' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} labelFormatter={(val) => new Date(val).toLocaleDateString()} />
+                          <Line type="monotone" dataKey="predictedRevenue" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px', flexDirection: 'column', gap: '0.5rem' }}>
+                        <Sparkles size={24} color="#cbd5e1" />
+                        <div>Forecast will appear once sufficient historical data is available.</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Recent Transactions */}
+                <div className="dash-card" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Activity size={18} /> Recent Transactions
+                  </h3>
+                  {transactionsData && transactionsData.length > 0 ? (
+                    <div className="dash-table-wrapper">
+                      <table className="dash-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                            <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Date</th>
+                            <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Station</th>
+                            <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Amount</th>
+                            <th style={{ padding: '1rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transactionsData.slice(0, 5).map((tx) => (
+                            <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{new Date(tx.timestamp).toLocaleString()}</td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{tx.stationId || 'Unknown'}</td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>{tx.currency || '$'} {(tx.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>
+                                <span className={`badge ${tx.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
+                                  {tx.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px' }}>
+                      No charging activity yet.
+                    </div>
+                  )}
+                </div>
+
+                {/* Station Analytics */}
+                <div className="dash-card" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <MapPin size={18} /> Station Analytics
+                  </h3>
+                  {stationAnalyticsData && stationAnalyticsData.length > 0 ? (
+                    (() => {
+                      const grouped = stationAnalyticsData.reduce((acc, curr) => {
+                        const sId = curr.stationId || curr.StationId || 'Unknown';
+                        if (!acc[sId]) acc[sId] = [];
+                        acc[sId].push(curr);
+                        return acc;
+                      }, {});
+                      return Object.entries(grouped).map(([sId, records]) => {
+                        const totalSessions = records.reduce((sum, r) => sum + (r.sessions || r.Sessions || 0), 0);
+                        const totalKwh = records.reduce((sum, r) => sum + (r.energyKwh || r.EnergyKwh || 0), 0);
+                        const totalRevenue = records.reduce((sum, r) => sum + (r.revenue || r.Revenue || 0), 0);
+                        
+                        return (
+                          <div key={sId} style={{ marginBottom: '2rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: 600 }}>Station: {sId}</h4>
+                            <div className="dash-table-wrapper" style={{ marginBottom: '1rem' }}>
+                              <table className="dash-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', background: '#fff' }}>
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Date</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Sessions</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>kWh</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Revenue</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {records.map((r, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{r.date || r.Date}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{r.sessions || r.Sessions || 0}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{(r.energyKwh || r.EnergyKwh || 0).toFixed(2)}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>${(r.revenue || r.Revenue || 0).toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div style={{ padding: '1rem', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', gap: '2rem' }}>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Sessions</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{totalSessions}</span>
+                              </div>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Energy</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{totalKwh.toFixed(2)} kWh</span>
+                              </div>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Revenue</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-600)' }}>${totalRevenue.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px' }}>
+                      No charging activity yet.
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+{activeTab === 'staff' && (
           <div className="dash-card">
             <div className="dash-card-header">
               <div>
