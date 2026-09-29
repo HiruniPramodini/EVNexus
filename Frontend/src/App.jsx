@@ -7,6 +7,8 @@ import CompanyDashboard from './components/CompanyDashboard';
 import DriverLoginPage from './pages/DriverLoginPage';
 import DriverRegisterPage from './pages/DriverRegisterPage';
 import DriverDashboard from './components/DriverDashboard';
+import WalletPage from './pages/driver/WalletPage';
+import SessionHistoryPage from './pages/driver/SessionHistoryPage';
 import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink } from './services/api';
 
 export default function App() {
@@ -109,6 +111,12 @@ export default function App() {
           onUpdateProfile={handleProfileUpdated}
         />
       );
+    }
+    if (activeView === 'wallet' && authUser) {
+      return <WalletPage authUser={authUser} />;
+    }
+    if (activeView === 'history' && authUser) {
+      return <SessionHistoryPage authUser={authUser} />;
     }
     if (activeView === 'driver-dashboard' && authUser) {
       return (
