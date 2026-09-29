@@ -1037,7 +1037,7 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         {/* TAB 3: CHARGING & ACTIVITY */}
         {/* ========================================================================= */}
         {activeTab === 'map' && (
-          <MapDashboardPage />
+          <MapDashboardPage authUser={authUser} onViewChange={setActiveTab} />
         )}
 
         {/* ========================================================================= */}
