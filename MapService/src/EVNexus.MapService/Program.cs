@@ -103,11 +103,17 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-// Initialize database schema asynchronously on startup
-using (var scope = app.Services.CreateScope())
+// Initialize database schema asynchronously on startup (with graceful fallback)
+try
 {
+    using var scope = app.Services.CreateScope();
     var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
     await initializer.InitializeAsync();
+}
+catch (Exception ex)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogWarning(ex, "Database initialization could not be completed on startup. Service will proceed.");
 }
 
 // Configure the HTTP request pipeline.
