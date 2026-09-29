@@ -77,4 +77,4 @@ jobs:
           path: ./TestResults/*.trx
 
       - name: Build Map Docker image
-        run: docker build -t evnexus-map-service:ci MapService/src/EVNexus.MapService
+        run: docker build -t evnexus-map-service:ci MapService/src/EVNexus.MapService

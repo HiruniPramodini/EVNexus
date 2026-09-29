@@ -144,7 +144,7 @@ public class CompanyDataController : ControllerBase
     /// <summary>
     /// Returns all charging stations scoped to the authenticated caller's tenant.
     /// </summary>
-    [HttpGet("stations")]
+    [HttpGet("legacy-stations")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<StationResponseDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
@@ -177,7 +177,7 @@ public class CompanyDataController : ControllerBase
     /// <summary>
     /// Creates a new charging station automatically stamped with the caller's Tenant ID.
     /// </summary>
-    [HttpPost("stations")]
+    [HttpPost("legacy-stations")]
     [ProducesResponseType(typeof(ApiResponse<StationResponseDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
