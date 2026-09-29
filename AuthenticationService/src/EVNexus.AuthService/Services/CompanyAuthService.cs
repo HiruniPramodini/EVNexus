@@ -88,7 +88,7 @@ public class CompanyAuthService : ICompanyAuthService
             Address = request.Address.Trim(),
             PasswordHash = passwordHash,
             Role = "CompanyAdmin",
-            Status = "Active",
+            Status = "Pending",
             IsEmailVerified = false,
             CreatedAt = now,
             UpdatedAt = now
