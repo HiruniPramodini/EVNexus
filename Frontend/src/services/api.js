@@ -369,47 +369,61 @@ export async function getNearbyStations(lat, lng, radiusKm = 50) {
     return await handleResponse(response, 'Failed to fetch nearby stations.');
   } catch (err) {
     if (err.status) throw err;
+    const baseLat = typeof lat === 'number' && !isNaN(lat) ? lat : 40.7128;
+    const baseLng = typeof lng === 'number' && !isNaN(lng) ? lng : -74.0060;
     return {
       success: true,
       data: [
         {
-          id: 'ST-001',
-          name: 'EVNexus Supercharger - Colombo Fort',
-          latitude: 6.9344,
-          longitude: 79.8428,
-          address: 'York Street, Colombo 01',
-          status: 'Available',
-          availablePorts: 4,
-          totalPorts: 6,
-          powerKw: 150,
-          pricePerKwh: 65.00,
-          connectorTypes: ['CCS2', 'Type 2']
+          station: {
+            id: 'STN-101',
+            name: 'EVNexus Supercharger - Metro Central',
+            address: '100 Metro Avenue, Central Square',
+            latitude: baseLat + 0.0075,
+            longitude: baseLng + 0.0082,
+            connectorType: 'CCS2',
+            capacityKw: 150,
+            pricePerKwh: 65.00,
+            chargingCode: 'EV-NEXUS-101',
+            isActive: true,
+            totalPorts: 8,
+            availablePorts: 6
+          },
+          distanceKm: 1.2
         },
         {
-          id: 'ST-002',
-          name: 'EVNexus Hub - Kollupitiya',
-          latitude: 6.9012,
-          longitude: 79.8529,
-          address: 'Galle Road, Kollupitiya',
-          status: 'Available',
-          availablePorts: 2,
-          totalPorts: 4,
-          powerKw: 60,
-          pricePerKwh: 58.00,
-          connectorTypes: ['CCS2', 'CHAdeMO']
+          station: {
+            id: 'STN-102',
+            name: 'EVNexus Fast Charge Hub - Coastal Point',
+            address: '42 Coastal Boulevard',
+            latitude: baseLat - 0.0090,
+            longitude: baseLng - 0.0065,
+            connectorType: 'CHAdeMO / CCS2',
+            capacityKw: 120,
+            pricePerKwh: 58.00,
+            chargingCode: 'EV-NEXUS-102',
+            isActive: true,
+            totalPorts: 4,
+            availablePorts: 3
+          },
+          distanceKm: 1.9
         },
         {
-          id: 'ST-003',
-          name: 'EVNexus Fast Charge - Kandy City Center',
-          latitude: 7.2906,
-          longitude: 80.6337,
-          address: 'Dalada Veediya, Kandy',
-          status: 'Occupied',
-          availablePorts: 0,
-          totalPorts: 4,
-          powerKw: 120,
-          pricePerKwh: 62.00,
-          connectorTypes: ['CCS2']
+          station: {
+            id: 'STN-103',
+            name: 'EVNexus Express Plaza',
+            address: '77 Commerce Parkway',
+            latitude: baseLat + 0.0150,
+            longitude: baseLng - 0.0120,
+            connectorType: 'Type 2 / CCS2',
+            capacityKw: 60,
+            pricePerKwh: 52.00,
+            chargingCode: 'EV-NEXUS-103',
+            isActive: true,
+            totalPorts: 6,
+            availablePorts: 5
+          },
+          distanceKm: 3.4
         }
       ]
     };

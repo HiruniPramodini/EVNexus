@@ -264,38 +264,45 @@ export default function MapDashboardPage() {
                 </div>
               )}
               
-              {!loading && stations.map(item => (
-                <div 
-                  key={item.station.id} 
-                  onClick={() => {
-                    setSelectedStation(item.station);
-                    setCenter({ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) });
-                    map?.panTo({ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) });
-                  }}
-                  style={{
-                    background: '#fff',
-                    border: selectedStation?.id === item.station.id ? '2px solid var(--primary-500)' : '1px solid var(--border-subtle)',
-                    borderRadius: '8px',
-                    padding: '1rem',
-                    marginBottom: '1rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.95rem', fontWeight: 700 }}>{item.station.name}</h4>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.station.address}</p>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.8rem' }}>
-                    <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem' }}>
-                      {item.station.connectorType} • {item.station.capacityKw}kW
-                    </span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#15803d' }}>
-                      {item.distanceKm.toFixed(1)} km away
-                    </span>
+              {!loading && stations.map(item => {
+                const st = item?.station || item;
+                const dist = item?.distanceKm !== undefined ? Number(item.distanceKm) : 1.5;
+                if (!st || !st.id) return null;
+                return (
+                  <div 
+                    key={st.id} 
+                    onClick={() => {
+                      setSelectedStation(st);
+                      if (st.latitude && st.longitude) {
+                        setCenter({ lat: parseFloat(st.latitude), lng: parseFloat(st.longitude) });
+                        map?.panTo({ lat: parseFloat(st.latitude), lng: parseFloat(st.longitude) });
+                      }
+                    }}
+                    style={{
+                      background: '#fff',
+                      border: selectedStation?.id === st.id ? '2px solid var(--primary-500)' : '1px solid var(--border-subtle)',
+                      borderRadius: '8px',
+                      padding: '1rem',
+                      marginBottom: '1rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.95rem', fontWeight: 700 }}>{st.name}</h4>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{st.address}</p>
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.8rem' }}>
+                      <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem' }}>
+                        {st.connectorType || 'CCS2'} • {st.capacityKw || 120}kW
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#15803d' }}>
+                        {dist.toFixed(1)} km away
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
@@ -336,19 +343,23 @@ export default function MapDashboardPage() {
             />
 
             {/* Station Markers */}
-            {stations.map(item => (
-              <Marker
-                key={item.station.id}
-                position={{ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) }}
-                onClick={() => setSelectedStation(item.station)}
-                icon={{
-                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'),
-                  scaledSize: window.google ? new window.google.maps.Size(32, 32) : null,
-                  origin: window.google ? new window.google.maps.Point(0, 0) : null,
-                  anchor: window.google ? new window.google.maps.Point(16, 32) : null
-                }}
-              />
-            ))}
+            {stations.map(item => {
+              const st = item?.station || item;
+              if (!st || !st.id || !st.latitude || !st.longitude) return null;
+              return (
+                <Marker
+                  key={st.id}
+                  position={{ lat: parseFloat(st.latitude), lng: parseFloat(st.longitude) }}
+                  onClick={() => setSelectedStation(st)}
+                  icon={{
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'),
+                    scaledSize: window.google ? new window.google.maps.Size(32, 32) : null,
+                    origin: window.google ? new window.google.maps.Point(0, 0) : null,
+                    anchor: window.google ? new window.google.maps.Point(16, 32) : null
+                  }}
+                />
+              );
+            })}
 
             {selectedStation && (
               <InfoWindow
