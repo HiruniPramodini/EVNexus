@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using EVNexus.MapService.Data;
+using EVNexus.MapService.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -46,4 +47,46 @@ public class DriverStationsController : ControllerBase
         
         return 6376500.0 * (2.0 * Math.Atan2(Math.Sqrt(d3), Math.Sqrt(1.0 - d3))) / 1000.0; // Distance in Km
     }
+
+    [HttpPost("qr/validate")]
+    [Authorize]
+    public async Task<IActionResult> ValidateQrCode([FromBody] QrValidationRequestDto request)
+    {
+        if (request == null || request.System != "EVNEXUS")
+            return BadRequest(new { success = false, message = "Invalid QR Code — this QR code does not belong to a valid EVNexus charging port." });
+
+        if (string.IsNullOrEmpty(request.StationId) || string.IsNullOrEmpty(request.CompanyId))
+            return BadRequest(new { success = false, message = "Incorrect QR Code format. Missing required identifiers." });
+
+        var allStations = await _repository.GetAllActiveStationsAsync();
+        var station = allStations.FirstOrDefault(s => s.Id == request.StationId && s.TenantId == request.CompanyId);
+
+        if (station == null)
+            return NotFound(new { success = false, message = "Incorrect QR Code — station or charger not found or inactive." });
+
+        // Since a Station represents a single physical charger/port in this MVP, we map it back to the expected frontend format
+        return Ok(new {
+            success = true,
+            data = new {
+                stationId = station.Id,
+                companyId = station.TenantId,
+                chargerId = request.ChargerId ?? station.Id, // Fallback if frontend sends it
+                stationName = station.Name,
+                address = station.Address,
+                connectorType = station.ConnectorType,
+                powerKw = station.CapacityKw,
+                pricePerKwh = station.PricePerKwh,
+                status = station.IsActive ? "Available" : "Offline",
+                chargingCode = station.ChargingCode
+            }
+        });
+    }
+}
+
+public class QrValidationRequestDto
+{
+    public string? System { get; set; }
+    public string? CompanyId { get; set; }
+    public string? StationId { get; set; }
+    public string? ChargerId { get; set; }
 }
