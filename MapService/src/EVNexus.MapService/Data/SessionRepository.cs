@@ -16,8 +16,8 @@ public class SessionRepository : ISessionRepository
     public async Task<string> StartSessionAsync(ChargingSession session)
     {
         var sql = @"
-            INSERT INTO charging_sessions (Id, StationId, DriverId, StartTime, Status, EnergyConsumedKwh, TotalCost)
-            VALUES (@Id, @StationId, @DriverId, @StartTime, @Status, @EnergyConsumedKwh, @TotalCost);
+            INSERT INTO charging_sessions (Id, CompanyId, StationId, ChargerId, DriverId, StartTime, Status, EnergyConsumedKwh, TotalCost, EstimatedCost)
+            VALUES (@Id, @CompanyId, @StationId, @ChargerId, @DriverId, @StartTime, @Status, @EnergyConsumedKwh, @TotalCost, @EstimatedCost);
         ";
 
         using var connection = _connectionFactory.CreateConnection();
