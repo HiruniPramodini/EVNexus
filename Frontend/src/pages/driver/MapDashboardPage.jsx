@@ -1,55 +1,129 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from '@react-google-maps/api';
-import { Search, MapPin, Zap, Navigation, Navigation2, X, RefreshCw, BatteryCharging, CheckCircle2, AlertTriangle, Play } from 'lucide-react';
-import { getNearbyStations, getActiveSession, startChargingSession, stopChargingSession } from '../../services/api';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { Search, MapPin, Zap, Navigation, Navigation2, X, RefreshCw, BatteryCharging, CheckCircle2, AlertTriangle, Play, UploadCloud } from 'lucide-react';
+import { getNearbyStations, getActiveSession, startChargingSession, stopChargingSession, validateQrCode } from '../../services/api';
+import { searchNominatimLocations } from '../../services/nominatim';
+import { createStationIcon, createSearchIcon, createUserLocationIcon } from '../../utils/leafletIcons';
+import jsQR from 'jsqr';
 
-const containerStyle = {
-  width: '100%',
-  height: '100%',
-  borderRadius: '0 8px 8px 0'
-};
-
+// Default map center fallback (Colombo area)
 const defaultCenter = {
-  lat: 40.7128, // Default to NY
-  lng: -74.0060
+  lat: 6.9271,
+  lng: 79.8612
 };
 
-// Replace with a real key or mock key if not provided
-const GOOGLE_MAPS_API_KEY = "AIzaSyB_O1v5DjPx3HeTaQGuM6o6CdRd5VgCxIk";
+// Helper component to center map when center state updates
+function MapFlyTo({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center && typeof center.lat === 'number' && typeof center.lng === 'number' && !isNaN(center.lat) && !isNaN(center.lng)) {
+      map.flyTo([center.lat, center.lng], map.getZoom() || 13, { duration: 0.8 });
+    }
+  }, [center, map]);
+  return null;
+}
 
-export default function MapDashboardPage() {
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY
-  });
+// Helper component to trigger invalidateSize after mount / render
+function MapResizeInvalidator() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
 
-  const [map, setMap] = useState(null);
+export default function MapDashboardPage({ authUser, onViewChange }) {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [radius, setRadius] = useState(50);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(defaultCenter);
-  
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedStation, setSelectedStation] = useState(null);
 
-  // Charging Session State
+  // OpenStreetMap / Nominatim Location Search State
+  const [locationSearchQuery, setLocationSearchQuery] = useState('');
+  const [nominatimResults, setNominatimResults] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchingLocation, setIsSearchingLocation] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState(null);
+  const [noLocationResult, setNoLocationResult] = useState(false);
+  const [searchMarker, setSearchMarker] = useState(null);
+
+  // Session tracking
   const [activeSession, setActiveSession] = useState(null);
   const [activeStationInfo, setActiveStationInfo] = useState(null);
+  const [activeChargerInfo, setActiveChargerInfo] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState(null);
-  
+
   const [showStartModal, setShowStartModal] = useState(false);
-  const [chargingCode, setChargingCode] = useState('');
+  const [qrPayload, setQrPayload] = useState('');
+  const [validatedData, setValidatedData] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
-  
+
+
+
   // Real-time counter
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const timerRef = useRef(null);
 
+  // Debounced Nominatim Location Search (450ms)
   useEffect(() => {
-    // Attempt to get user's location
+    if (!locationSearchQuery || locationSearchQuery.trim().length < 2) {
+      setNominatimResults([]);
+      setShowSuggestions(false);
+      setNoLocationResult(false);
+      setLocationSearchError(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingLocation(true);
+      setLocationSearchError(null);
+      setNoLocationResult(false);
+      try {
+        const results = await searchNominatimLocations(locationSearchQuery);
+        setNominatimResults(results);
+        if (results.length === 0) {
+          setNoLocationResult(true);
+        }
+        setShowSuggestions(true);
+      } catch (err) {
+        console.error('Nominatim search error:', err);
+        setLocationSearchError('Location search is temporarily unavailable.');
+        setNominatimResults([]);
+      } finally {
+        setIsSearchingLocation(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [locationSearchQuery]);
+
+  const handleSelectSearchResult = (result) => {
+    const lat = parseFloat(result.lat);
+    const lng = parseFloat(result.lon);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      const newPos = { lat, lng };
+      setCenter(newPos);
+      setSearchMarker({
+        lat,
+        lng,
+        displayName: result.display_name
+      });
+    }
+    setShowSuggestions(false);
+  };
+
+  useEffect(() => {
+    // Attempt to get user's browser location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -57,8 +131,8 @@ export default function MapDashboardPage() {
           setCenter(loc);
           setUserLocation(loc);
         },
-        () => {
-          // Fallback to default
+        (err) => {
+          console.warn("Driver geolocation unavailable, using default center fallback.", err);
         }
       );
     }
@@ -72,13 +146,15 @@ export default function MapDashboardPage() {
   const fetchActiveSession = async () => {
     setSessionLoading(true);
     try {
-      const res = await getActiveSession();
+      const res = await getActiveSession(authUser?.accessToken);
       if (res?.data) {
         setActiveSession(res.data);
         setActiveStationInfo(res.station);
+        setActiveChargerInfo(res.charger);
       } else {
         setActiveSession(null);
         setActiveStationInfo(null);
+        setActiveChargerInfo(null);
       }
     } catch (err) {
       console.error(err);
@@ -88,377 +164,766 @@ export default function MapDashboardPage() {
   };
 
   useEffect(() => {
-    if (activeSession && activeSession.status === 'Active') {
-      const updateTimer = () => {
-        const startTimeStr = activeSession.startTime.endsWith('Z') ? activeSession.startTime : activeSession.startTime + 'Z';
-        const start = new Date(startTimeStr);
-        const now = new Date();
-        const diffMs = now - start;
-        setElapsedMinutes(Math.floor(diffMs / 60000));
+    if (activeSession && (activeSession.status === 'CHARGING' || activeSession.status === 'Active' || activeSession.status === 'PENDING')) {
+      const pollMeter = async () => {
+        try {
+          const res = await getActiveSession(authUser?.accessToken);
+          if (res?.data) {
+            setActiveSession(res.data);
+            if (res.station) setActiveStationInfo(res.station);
+            if (res.charger) setActiveChargerInfo(res.charger);
+          }
+        } catch (err) {
+          console.error("Meter polling error:", err);
+        }
       };
-      updateTimer();
-      timerRef.current = setInterval(updateTimer, 60000);
+
+      timerRef.current = setInterval(pollMeter, 2000);
     } else {
       clearInterval(timerRef.current);
     }
     return () => clearInterval(timerRef.current);
-  }, [activeSession]);
+  }, [activeSession?.id, activeSession?.status]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if (code) {
+          setQrPayload(code.data);
+          handleValidateQR(code.data);
+        } else {
+          setSessionError("No QR code found in the image. Please try a clearer image. (Hint: Upload the original downloaded QR image without screenshots or compression.)");
+        }
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleValidateQR = async (payloadToValidate = qrPayload) => {
+    setSessionError(null);
+    setValidatedData(null);
+    try {
+      const res = await validateQrCode(payloadToValidate, authUser?.accessToken);
+      if (res.success && res.data) {
+        setValidatedData(res.data);
+      }
+    } catch (err) {
+      setSessionError(err.message || "Incorrect QR Code — this QR code does not belong to a valid EVNexus charging port.");
+    }
+  };
+
+  const handleGoBack = () => {
+    setValidatedData(null);
+    setShowStartModal(false);
+    setQrPayload('');
+    setSessionError(null);
+  };
 
   const handleStartSession = async (e) => {
     e.preventDefault();
+    if (!validatedData) return;
+
     setIsStarting(true);
     setSessionError(null);
     try {
-      const res = await startChargingSession(chargingCode);
+      const pricePerKwh = parseFloat(validatedData.pricePerKwh) || 0;
+      const powerKw = parseFloat(validatedData.powerKw) || 22;
+      const estimatedKwh = Math.min(powerKw * 1.0, 50);
+      const estimatedAmount = Math.round(pricePerKwh * estimatedKwh * 100) / 100;
+
+      // 1. Start Session
+      const sessionPayload = {
+        chargingCode: validatedData.chargingCode,
+        companyId: validatedData.companyId,
+        stationId: validatedData.stationId,
+        chargerId: validatedData.chargerId,
+        estimatedCost: estimatedAmount
+      };
+      const res = await startChargingSession(sessionPayload, authUser?.accessToken);
+
       setActiveSession(res.data);
       setActiveStationInfo(res.station);
+      setActiveChargerInfo(res.charger);
       setShowStartModal(false);
-      setChargingCode('');
+      setQrPayload('');
+      setValidatedData(null);
     } catch (err) {
-      setSessionError(err.message || 'Failed to start session.');
+      setSessionError(err.message || 'Failed to start session. Please try again.');
     } finally {
       setIsStarting(false);
     }
   };
+
+  // Ref to prevent state updates on unmounted component
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [showStopConfirm, setShowStopConfirm] = useState(false);
   const [stopSuccessMsg, setStopSuccessMsg] = useState(null);
 
   const handleStopSession = async () => {
     setIsStopping(true);
+    const stoppedSessionId = activeSession.id || activeSession.sessionId;
     try {
-      await stopChargingSession(activeSession.id);
-      setActiveSession(null);
-      setActiveStationInfo(null);
-      setShowStopConfirm(false);
-      setStopSuccessMsg('Charging session completed successfully. View receipt in History.');
-      setTimeout(() => setStopSuccessMsg(null), 5000);
+      const stopRes = await stopChargingSession(stoppedSessionId, authUser?.accessToken);
+      const sessionData = stopRes?.data;
+
+      if (isMountedRef.current) {
+        setActiveSession(null);
+        setActiveStationInfo(null);
+        setActiveChargerInfo(null);
+        setShowStopConfirm(false);
+      }
+
+      if (isMountedRef.current) {
+        setStopSuccessMsg("Session stopped successfully.");
+        setTimeout(() => {
+          if (isMountedRef.current) setStopSuccessMsg(null);
+        }, 5000);
+      }
     } catch (err) {
-      alert(err.message || 'Failed to stop session.');
+      if (isMountedRef.current) {
+        setSessionError(err.message || 'Failed to stop session.');
+      }
     } finally {
-      setIsStopping(false);
+      if (isMountedRef.current) {
+        setIsStopping(false);
+      }
     }
   };
 
-  // Fetch stations when user location or radius changes
-  useEffect(() => {
-    fetchNearbyStations();
-  }, [userLocation.lat, userLocation.lng, radius]);
-
-  const fetchNearbyStations = async () => {
+  const fetchNearbyStations = useCallback(async () => {
+    if (!center || typeof center.lat !== 'number' || typeof center.lng !== 'number') return;
     setLoading(true);
+    setError(null);
     try {
-      const res = await getNearbyStations(userLocation.lat, userLocation.lng, radius);
-      setStations(res?.data || []);
+      const res = await getNearbyStations(center.lat, center.lng, radius);
+      setStations(res.data || []);
     } catch (err) {
-      setError(err.message || 'Failed to fetch nearby stations');
+      setError(err.message || 'Failed to load nearby stations');
     } finally {
       setLoading(false);
     }
-  };
+  }, [center, radius]);
 
-  const onLoad = useCallback(function callback(mapInstance) {
-    setMap(mapInstance);
-  }, []);
+  useEffect(() => {
+    fetchNearbyStations();
+  }, [fetchNearbyStations]);
 
-  const onUnmount = useCallback(function callback(mapInstance) {
-    setMap(null);
-  }, []);
+  const filteredStations = stations.filter(item => {
+    const query = searchQuery.toLowerCase();
+    const stn = item.station;
+    const matchesName = stn.name.toLowerCase().includes(query);
+    const matchesAddress = stn.address.toLowerCase().includes(query);
+    const matchesConnector = stn.connectorType?.toLowerCase().includes(query);
+    return matchesName || matchesAddress || matchesConnector;
+  });
 
   return (
-    <div style={{ display: 'flex', height: '600px', background: '#fff', border: '1px solid var(--border-subtle)', borderRadius: '8px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
-      
-      {/* Left Sidebar: List & Filters */}
-      <div style={{ width: '350px', borderRight: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)', background: '#f8fafc', borderRadius: '8px 0 0 0' }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-800)' }}>
-            <MapPin size={18} />
-            Find Charging Stations
-          </h3>
-          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Discover stations near you (Drag the blue dot to adjust your location)</p>
-        </div>
+    <div style={{ display: 'flex', height: 'calc(100vh - 70px)', width: '100%', overflow: 'hidden' }}>
+      {/* Left Sidebar: Controls & Station List */}
+      <div style={{
+        width: '380px',
+        background: 'var(--color-surface)',
+        borderRight: '1px solid var(--color-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 2,
+        boxShadow: 'var(--shadow-md)'
+      }}>
+        <div style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--color-border)' }}>
+          <h2 className="text-h3" style={{ marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Zap color="var(--color-primary)" size={24} /> Charging Stations
+          </h2>
 
-        <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)' }}>
-          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
-            <label className="form-label" style={{ fontSize: '0.8rem' }}>Search Radius (km)</label>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input 
-                type="range" 
-                min="5" 
-                max="200" 
-                value={radius} 
-                onChange={(e) => setRadius(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, width: '40px' }}>{radius}km</span>
-            </div>
+          <div style={{ position: 'relative', marginBottom: 'var(--space-3)' }}>
+            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search station, city, connector..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              style={{ paddingLeft: '38px' }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
-          <button 
-            type="button" 
-            className="btn-secondary" 
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+            <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Radius: <strong>{radius} km</strong></span>
+            <input
+              type="range"
+              min="5"
+              max="200"
+              step="5"
+              value={radius}
+              onChange={e => setRadius(Number(e.target.value))}
+              style={{ width: '120px', accentColor: 'var(--color-primary)' }}
+            />
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-outline"
             onClick={fetchNearbyStations}
-            style={{ width: '100%', fontSize: '0.8rem', padding: '0.4rem', display: 'flex', justifyContent: 'center', gap: '0.4rem' }}
+            style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.4rem' }}
           >
-            <RefreshCw size={14} className={loading ? 'spinner' : ''} />
+            <RefreshCw size={16} className={loading ? 'spinner' : ''} />
             Refresh Stations
           </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem', background: '#f8fafc', position: 'relative' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-4)', position: 'relative' }}>
           {/* ACTIVE SESSION OVERLAY */}
           {activeSession ? (
-            <div className="animate-fade-in" style={{
+            <div className="animate-fade-in card" style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              background: '#fff', zIndex: 10, padding: '1.5rem',
-              display: 'flex', flexDirection: 'column'
+              zIndex: 10, border: 'none', borderRadius: 0,
+              display: 'flex', flexDirection: 'column', height: '100%',
+              margin: 0
             }}>
-              <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'inline-flex', padding: '1rem', background: '#ecfdf5', borderRadius: '50%', marginBottom: '1rem' }}>
-                  <BatteryCharging size={40} color="#10b981" className="spinner" />
+              <div style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
+                <div style={{ display: 'inline-flex', padding: 'var(--space-4)', background: 'var(--color-success-light)', borderRadius: '50%', marginBottom: 'var(--space-3)' }}>
+                  <BatteryCharging size={40} color="var(--color-success-dark)" className="spinner" />
                 </div>
-                <h3 style={{ margin: '0 0 0.5rem 0', color: '#10b981' }}>Charging in Progress</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-                  {activeStationInfo?.name || 'Public Station'}
+                <h3 className="text-h3" style={{ color: 'var(--color-success-dark)', marginBottom: 'var(--space-1)' }}>Charging in Progress</h3>
+                <p className="text-secondary" style={{ margin: 0, fontWeight: 'var(--weight-bold)' }}>
+                  {activeStationInfo?.name || 'Public Charging Station'}
                 </p>
-              </div>
-
-              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Duration</span>
-                  <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                    {Math.floor(elapsedMinutes / 60)}h {elapsedMinutes % 60}m
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem' }}>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Energy Delivered</span>
-                  <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>
-                    {((elapsedMinutes * 0.5) || 0.5).toFixed(2)} kWh
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Current Cost</span>
-                  <span style={{ fontWeight: 600, fontSize: '1.1rem', color: '#0369a1' }}>
-                    ${(((elapsedMinutes * 0.5) || 0.5) * (activeStationInfo?.pricePerKwh || 0.5)).toFixed(2)}
-                  </span>
+                <div className="text-caption" style={{ marginTop: 'var(--space-1)' }}>
+                  {activeChargerInfo?.type || 'CCS2'} • {activeSession.powerKw || activeChargerInfo?.powerKw || 60} kW
                 </div>
               </div>
 
-              <button 
-                type="button" 
-                className="btn-danger" 
+              <div style={{ background: 'var(--color-background)', padding: 'var(--space-4)', borderRadius: 'var(--radius-md)', marginBottom: 'var(--space-5)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Initial Meter</span>
+                  <span style={{ fontWeight: 'var(--weight-bold)', fontFamily: 'monospace' }}>
+                    {parseFloat(activeSession.meterStartKwh || 100.0).toFixed(4)} kWh
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Current Meter</span>
+                  <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-success-dark)', fontFamily: 'monospace' }}>
+                    {parseFloat(activeSession.meterCurrentKwh || activeSession.meterStartKwh || 100.0).toFixed(4)} kWh
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Energy Used</span>
+                  <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-primary-dark)' }}>
+                    {parseFloat(activeSession.energyConsumedKwh || 0).toFixed(4)} kWh
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Rate</span>
+                  <span style={{ fontWeight: 'var(--weight-semibold)' }}>
+                    ${parseFloat(activeSession.pricePerKwh || 0).toFixed(2)} / kWh
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--color-border)', paddingTop: 'var(--space-3)' }}>
+                  <span className="text-secondary" style={{ fontSize: '0.9rem', fontWeight: 'var(--weight-semibold)' }}>Estimated Cost</span>
+                  <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-info-dark)', fontSize: '1.1rem' }}>
+                    ${parseFloat(activeSession.estimatedCost || 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-outline"
                 onClick={() => setShowStopConfirm(true)}
                 disabled={isStopping}
-                style={{ width: '100%', padding: '0.8rem', fontSize: '1rem', marginTop: 'auto', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ width: '100%', marginTop: 'auto', borderColor: 'var(--color-danger)', color: 'var(--color-danger)', padding: 'var(--space-3)' }}
               >
                 {isStopping ? <RefreshCw size={18} className="spinner" /> : <X size={18} />}
-                Stop Charging
+                {isStopping ? 'Stopping charging...' : 'Stop Charging'}
               </button>
             </div>
           ) : (
             <>
-              {loading && <div style={{ textAlign: 'center', padding: '2rem' }}><RefreshCw className="spinner" size={24} color="var(--primary-600)" /></div>}
-              {!loading && error && <div className="alert alert-danger" style={{ fontSize: '0.8rem' }}>{error}</div>}
-              {!loading && !error && stations.length === 0 && (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '2rem' }}>
-                  No stations found within {radius}km.
+              {loading && <div style={{ textAlign: 'center', padding: '2rem' }}><RefreshCw className="spinner" size={24} color="var(--color-primary)" /></div>}
+              {!loading && error && <div className="alert alert-danger" style={{ fontSize: '0.85rem' }}>{error}</div>}
+              {!loading && !error && filteredStations.length === 0 && (
+                <div className="empty-state" style={{ marginTop: '2rem' }}>
+                  <MapPin size={32} className="empty-state-icon" />
+                  <h4 className="empty-state-title" style={{ fontSize: '1rem' }}>No stations found.</h4>
+                  <p className="empty-state-description">Expand your search radius, try a different location, or adjust your search term.</p>
                 </div>
               )}
-              
-              {!loading && stations.map(item => (
-                <div 
-                  key={item.station.id} 
-                  onClick={() => {
-                    setSelectedStation(item.station);
-                    setCenter({ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) });
-                    map?.panTo({ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) });
-                  }}
-                  style={{
-                    background: '#fff',
-                    border: selectedStation?.id === item.station.id ? '2px solid var(--primary-500)' : '1px solid var(--border-subtle)',
-                    borderRadius: '8px',
-                    padding: '1rem',
-                    marginBottom: '1rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.95rem', fontWeight: 700 }}>{item.station.name}</h4>
-                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.station.address}</p>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.8rem' }}>
-                    <span className="badge" style={{ background: '#e0f2fe', color: '#0369a1', fontSize: '0.7rem' }}>
-                      {item.station.connectorType} • {item.station.capacityKw}kW
-                    </span>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#15803d' }}>
-                      {item.distanceKm.toFixed(1)} km away
-                    </span>
+
+              {!loading && filteredStations.map(item => {
+                const lat = Number(item.station.latitude);
+                const lng = Number(item.station.longitude);
+                return (
+                  <div
+                    key={item.station.id}
+                    onClick={() => {
+                      setSelectedStation(item.station);
+                      if (!isNaN(lat) && !isNaN(lng)) {
+                        setCenter({ lat, lng });
+                      }
+                    }}
+                    className={`card card-interactive ${selectedStation?.id === item.station.id ? 'selected' : ''}`}
+                    style={{
+                      padding: 'var(--space-4)',
+                      marginBottom: 'var(--space-3)',
+                      borderColor: selectedStation?.id === item.station.id ? 'var(--color-primary)' : 'var(--color-border)',
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>{item.station.name}</h4>
+                    <p className="text-caption" style={{ margin: 0, marginBottom: '0.75rem' }}>{item.station.address}</p>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span className="badge badge-info">
+                        {item.station.connectorType} • {item.station.capacityKw}kW
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 'var(--weight-semibold)', color: 'var(--color-success-dark)' }}>
+                        {item.distanceKm.toFixed(1)} km away
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </>
           )}
         </div>
       </div>
 
-      {/* Right Sidebar: Google Map */}
-      <div style={{ flex: 1, position: 'relative' }}>
-        {isLoaded ? (
-          <GoogleMap
-            mapContainerStyle={containerStyle}
-            center={center}
-            zoom={12}
-            onLoad={onLoad}
-            onUnmount={onUnmount}
-            options={{
-              disableDefaultUI: false,
-              zoomControl: true,
-              streetViewControl: false,
-              mapTypeControl: false
+      {/* Right Sidebar: Leaflet OpenStreetMap */}
+      <div style={{ flex: 1, position: 'relative', height: '100%', minHeight: '500px' }}>
+        {/* OPENSTREETMAP / NOMINATIM LOCATION SEARCH BAR OVERLAY */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '16px',
+            left: '16px',
+            right: '16px',
+            maxWidth: '440px',
+            zIndex: 1000
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#ffffff',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+              padding: '4px 8px',
+              border: '1px solid var(--color-border)'
             }}
           >
-            {/* User Location Marker */}
-            <Marker 
-              position={userLocation} 
-              draggable={true}
-              onDragEnd={(e) => {
-                const newLoc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-                setUserLocation(newLoc);
+            <Search size={18} color="var(--color-text-muted)" style={{ marginLeft: '8px', flexShrink: 0 }} />
+            <input
+              type="text"
+              placeholder="Search map location (e.g. Colombo, Kaduwela, Kandy)..."
+              value={locationSearchQuery}
+              onChange={(e) => setLocationSearchQuery(e.target.value)}
+              onFocus={() => {
+                if (nominatimResults.length > 0) setShowSuggestions(true);
               }}
-              icon={{
-                path: window.google?.maps?.SymbolPath?.CIRCLE,
-                scale: 7,
-                fillColor: "#3b82f6",
-                fillOpacity: 1,
-                strokeWeight: 2,
-                strokeColor: "#ffffff"
-              }} 
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                padding: '8px 12px',
+                fontSize: '0.9rem',
+                color: 'var(--color-text)',
+                background: 'transparent'
+              }}
             />
 
-            {/* Station Markers */}
-            {stations.map(item => (
+            {isSearchingLocation && (
+              <RefreshCw size={16} className="spinner" color="var(--color-primary)" style={{ marginRight: '8px' }} />
+            )}
+
+            {locationSearchQuery && !isSearchingLocation && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocationSearchQuery('');
+                  setNominatimResults([]);
+                  setShowSuggestions(false);
+                  setSearchMarker(null);
+                  setNoLocationResult(false);
+                  setLocationSearchError(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: 'var(--color-text-muted)'
+                }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Autocomplete Suggestions Dropdown */}
+          {showSuggestions && nominatimResults.length > 0 && (
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: '0 6px 16px rgba(0,0,0,0.15)',
+                marginTop: '6px',
+                overflow: 'hidden',
+                border: '1px solid var(--color-border)',
+                maxHeight: '240px',
+                overflowY: 'auto'
+              }}
+            >
+              {nominatimResults.map((result) => (
+                <div
+                  key={result.place_id}
+                  onClick={() => handleSelectSearchResult(result)}
+                  style={{
+                    padding: '10px 14px',
+                    cursor: 'pointer',
+                    borderBottom: '1px solid var(--color-border-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    fontSize: '0.88rem',
+                    color: 'var(--color-text)',
+                    transition: 'background 0.15s ease'
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-background)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                >
+                  <MapPin size={16} color="var(--color-primary)" style={{ flexShrink: 0 }} />
+                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {result.display_name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty Results State */}
+          {noLocationResult && !isSearchingLocation && (
+            <div
+              style={{
+                background: '#fff3cd',
+                color: '#856404',
+                border: '1px solid #ffeeba',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                marginTop: '6px',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+              }}
+            >
+              <AlertTriangle size={15} />
+              <span>No locations found. Try a different search.</span>
+            </div>
+          )}
+
+          {/* Failure State */}
+          {locationSearchError && !isSearchingLocation && (
+            <div
+              style={{
+                background: '#f8d7da',
+                color: '#721c24',
+                border: '1px solid #f5c6cb',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                marginTop: '6px',
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+              }}
+            >
+              <AlertTriangle size={15} />
+              <span>{locationSearchError}</span>
+            </div>
+          )}
+        </div>
+
+        <MapContainer
+          center={[center.lat, center.lng]}
+          zoom={12}
+          style={{ width: '100%', height: '100%', borderRadius: '0 8px 8px 0', zIndex: 1 }}
+          zoomControl={true}
+        >
+          <MapFlyTo center={center} />
+          <MapResizeInvalidator />
+
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          {/* Live Driver Location Marker */}
+          {userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number' && (
+            <Marker
+              position={[userLocation.lat, userLocation.lng]}
+              icon={createUserLocationIcon('#0284c7', 20)}
+            >
+              <Popup>
+                <div style={{ padding: '4px', fontSize: '0.85rem' }}>
+                  <strong>Your Location</strong>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Searched Location Pin */}
+          {searchMarker && (
+            <Marker
+              position={[searchMarker.lat, searchMarker.lng]}
+              icon={createSearchIcon('#e11d48', 38)}
+            >
+              <Popup>
+                <div style={{ padding: '4px', maxWidth: '200px' }}>
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--color-text)' }}>Searched Location</strong>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--color-text-secondary)', lineHeight: 1.3 }}>
+                    {searchMarker.displayName}
+                  </p>
+                </div>
+              </Popup>
+            </Marker>
+          )}
+
+          {/* Charging Station Markers */}
+          {filteredStations.map(item => {
+            const lat = Number(item.station.latitude);
+            const lng = Number(item.station.longitude);
+            if (isNaN(lat) || isNaN(lng)) return null;
+
+            const isSelected = selectedStation?.id === item.station.id;
+
+            return (
               <Marker
                 key={item.station.id}
-                position={{ lat: parseFloat(item.station.latitude), lng: parseFloat(item.station.longitude) }}
-                onClick={() => setSelectedStation(item.station)}
-                icon={{
-                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#0ea5e9" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>'),
-                  scaledSize: window.google ? new window.google.maps.Size(32, 32) : null,
-                  origin: window.google ? new window.google.maps.Point(0, 0) : null,
-                  anchor: window.google ? new window.google.maps.Point(16, 32) : null
+                position={[lat, lng]}
+                icon={createStationIcon(isSelected ? '#0284c7' : '#0369a1', isSelected ? 40 : 36)}
+                eventHandlers={{
+                  click: () => {
+                    setSelectedStation(item.station);
+                    setCenter({ lat, lng });
+                  }
                 }}
-              />
-            ))}
-
-            {selectedStation && (
-              <InfoWindow
-                position={{ lat: parseFloat(selectedStation.latitude), lng: parseFloat(selectedStation.longitude) }}
-                onCloseClick={() => setSelectedStation(null)}
-                options={{ pixelOffset: window.google ? new window.google.maps.Size(0, -32) : null }}
               >
-                <div style={{ padding: '0.2rem', maxWidth: '200px' }}>
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)' }}>{selectedStation.name}</h4>
-                  <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{selectedStation.address}</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginBottom: '0.5rem' }}>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>💵 ${selectedStation.pricePerKwh}/kWh</div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 600 }}>⚡ {selectedStation.capacityKw}kW ({selectedStation.connectorType})</div>
+                <Popup>
+                  <div style={{ padding: 'var(--space-2)', minWidth: '200px' }}>
+                    <h4 style={{ margin: '0 0 var(--space-1) 0', fontSize: '1rem', fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>
+                      {item.station.name}
+                    </h4>
+                    <p className="text-caption" style={{ margin: '0 0 var(--space-3) 0' }}>
+                      {item.station.address}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', marginBottom: 'var(--space-3)' }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-medium)' }}>
+                        💵 ${item.station.pricePerKwh} / kWh
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-medium)' }}>
+                        ⚡ {item.station.capacityKw} kW ({item.station.connectorType})
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={!!activeSession}
+                      onClick={() => {
+                        setQrPayload('');
+                        setValidatedData(null);
+                        setSessionError(null);
+                        setShowStartModal(true);
+                      }}
+                      style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.4rem', padding: '0.5rem' }}
+                    >
+                      <Play size={14} /> Scan Charger QR
+                    </button>
+
+                    {!!activeSession && (
+                      <div className="text-caption" style={{ textAlign: 'center', marginTop: 'var(--space-2)', color: 'var(--color-danger)' }}>
+                        You already have an active session.
+                      </div>
+                    )}
                   </div>
-                  <button 
-                    type="button" 
-                    className="submit-btn" 
-                    onClick={() => {
-                      setChargingCode(selectedStation.chargingCode);
-                      setShowStartModal(true);
-                    }}
-                    style={{ margin: 0, padding: '0.35rem', fontSize: '0.75rem', width: '100%', display: 'flex', justifyContent: 'center', gap: '0.3rem' }}
-                  >
-                    <Play size={14} /> Start Charge
-                  </button>
-                </div>
-              </InfoWindow>
-            )}
-          </GoogleMap>
-        ) : (
-          <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9' }}>
-            <RefreshCw size={32} className="spinner" color="var(--primary-400)" />
-          </div>
-        )}
+                </Popup>
+              </Marker>
+            );
+          })}
+        </MapContainer>
       </div>
 
       {/* START CHARGE MODAL */}
       {showStartModal && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div className="animate-fade-in" style={{
-            background: '#fff', borderRadius: '12px', padding: '2rem',
-            width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Zap color="#eab308" /> Start Charging
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-              Enter the 6-character Station Code found on the physical charger to authenticate and unlock it.
+        <div className="modal-backdrop">
+          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title">
+                <Zap color="var(--color-warning-dark)" size={24} /> Scan to Charge
+              </h3>
+              <button type="button" className="modal-close-btn" onClick={() => setShowStartModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-secondary" style={{ marginBottom: 'var(--space-5)' }}>
+              Upload a QR code image from the physical charger to authorize and begin charging.
             </p>
 
             {sessionError && (
-              <div className="alert alert-danger" style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
-                <AlertTriangle size={14} /> {sessionError}
+              <div className="alert alert-danger" style={{ marginBottom: 'var(--space-4)' }}>
+                <AlertTriangle size={18} /> <span>{sessionError}</span>
               </div>
             )}
 
-            <form onSubmit={handleStartSession}>
-              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
-                <input 
-                  type="text" 
-                  required 
-                  className="form-input" 
-                  placeholder="e.g. 8F3A21" 
-                  value={chargingCode}
-                  onChange={(e) => setChargingCode(e.target.value.toUpperCase())}
-                  style={{ fontSize: '1.5rem', letterSpacing: '0.2em', textAlign: 'center', textTransform: 'uppercase' }}
-                  maxLength={6}
-                />
-              </div>
+            {!validatedData ? (
+              <div>
+                <div className="card" style={{ borderStyle: 'dashed', textAlign: 'center', padding: 'var(--space-6)', marginBottom: 'var(--space-4)', background: 'var(--color-background)' }}>
+                  <UploadCloud size={32} color="var(--color-primary)" style={{ margin: '0 auto var(--space-3) auto' }} />
+                  <label className="btn btn-outline" style={{ display: 'inline-flex', cursor: 'pointer' }}>
+                    Upload QR Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                  <div className="text-caption" style={{ marginTop: 'var(--space-3)' }}>Supports JPG, PNG, WEBP</div>
+                </div>
 
-              <div style={{ display: 'flex', gap: '0.8rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setShowStartModal(false)} style={{ flex: 1 }}>
-                  Cancel
-                </button>
-                <button type="submit" className="submit-btn" disabled={isStarting || chargingCode.length < 3} style={{ flex: 1, margin: 0 }}>
-                  {isStarting ? <RefreshCw size={16} className="spinner" /> : 'Unlock & Charge'}
-                </button>
+                <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-5)' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setShowStartModal(false)} style={{ flex: 1 }}>
+                    Cancel
+                  </button>
+                </div>
               </div>
-            </form>
+            ) : (
+              <div>
+                <div className="card" style={{ marginBottom: 'var(--space-5)', border: '1px solid var(--color-success)', background: 'var(--color-success-light)', padding: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-success-dark)', marginBottom: 'var(--space-3)' }}>
+                    <CheckCircle2 size={20} />
+                    <h4 style={{ margin: 0, fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>Charger Verified</h4>
+                  </div>
+
+                  {/* Company Name */}
+                  <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-semibold)', color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.2rem' }}>
+                    Company: {validatedData.companyName || validatedData.companyId || 'EVNexus Charging Network'}
+                  </div>
+
+                  {/* Charging Station & Location */}
+                  <div style={{ fontSize: '1.2rem', fontWeight: 'var(--weight-bold)', color: 'var(--color-text)', marginBottom: '0.25rem' }}>
+                    {validatedData.stationName || 'EV Charging Station'}
+                  </div>
+                  <div className="text-secondary" style={{ fontSize: '0.9rem', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <MapPin size={14} color="var(--color-text-muted)" />
+                    {validatedData.address || 'Station Location'}
+                  </div>
+
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2" style={{ gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                    <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
+                      <div className="text-caption">Connector / Port</div>
+                      <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
+                        {validatedData.chargerType || 'Type 2 / CCS2'}
+                      </div>
+                    </div>
+                    <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
+                      <div className="text-caption">Power (kW)</div>
+                      <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
+                        {validatedData.powerKw || 22} kW
+                      </div>
+                    </div>
+                    <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
+                      <div className="text-caption">Price per kWh</div>
+                      <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
+                        ${validatedData.pricePerKwh || '0.00'} / kWh
+                      </div>
+                    </div>
+                    <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
+                      <div className="text-caption">Availability</div>
+                      <span className="badge badge-success" style={{ marginTop: '0.2rem', display: 'inline-block' }}>
+                        {validatedData.status || 'Available'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 'var(--space-3)', background: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-border)' }}>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <AlertTriangle size={15} color="var(--color-warning-dark)" />
+                      Estimated session cost: <strong>${(Math.round((parseFloat(validatedData.pricePerKwh) || 0) * Math.min((parseFloat(validatedData.powerKw) || 22) * 1.0, 50) * 100) / 100).toFixed(2)}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <form onSubmit={handleStartSession}>
+                  <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                    <button type="button" className="btn btn-secondary" onClick={handleGoBack} style={{ flex: 1 }}>
+                      Go Back
+                    </button>
+                    <button type="submit" className="btn btn-primary" disabled={isStarting} style={{ flex: 1.2 }}>
+                      {isStarting ? <><RefreshCw size={18} className="spinner" /> Authorizing...</> : 'Start Charging'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* STOP CHARGE MODAL */}
       {showStopConfirm && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>
-          <div className="animate-fade-in" style={{
-            background: '#fff', borderRadius: '12px', padding: '2rem',
-            width: '90%', maxWidth: '400px', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
-          }}>
-            <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#dc2626' }}>
-              <AlertTriangle size={20} /> Stop Charging?
-            </h3>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>
-              Are you sure you want to stop the charging session? You will be billed for the energy delivered so far, and the connector will unlock.
+        <div className="modal-backdrop">
+          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: 'var(--color-danger)' }}>
+                <AlertTriangle size={20} /> Stop Charging?
+              </h3>
+            </div>
+            <p className="text-secondary" style={{ marginBottom: 'var(--space-5)', lineHeight: 1.5 }}>
+              Are you sure you want to stop this charging session? You will be billed for the energy delivered so far, and the connector will unlock.
             </p>
-            <div style={{ display: 'flex', gap: '0.8rem' }}>
-              <button type="button" className="btn-secondary" onClick={() => setShowStopConfirm(false)} style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowStopConfirm(false)} style={{ flex: 1 }}>
                 Continue Charging
               </button>
-              <button type="button" className="btn-danger" onClick={handleStopSession} disabled={isStopping} style={{ flex: 1, margin: 0, background: '#dc2626', borderColor: '#dc2626' }}>
-                {isStopping ? <RefreshCw size={16} className="spinner" /> : 'Stop Session'}
+              <button type="button" className="btn" onClick={handleStopSession} disabled={isStopping} style={{ flex: 1, background: 'var(--color-danger)', color: 'white', border: 'none' }}>
+                {isStopping ? <><RefreshCw size={18} className="spinner" /> Stopping...</> : 'Stop Session'}
               </button>
             </div>
           </div>
@@ -469,12 +934,14 @@ export default function MapDashboardPage() {
       {stopSuccessMsg && (
         <div style={{
           position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
-          background: '#10b981', color: 'white', padding: '1rem 2rem', borderRadius: '30px',
-          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', zIndex: 1000, fontWeight: 600
+          background: 'var(--color-success-dark)', color: 'white', padding: '1rem 2rem', borderRadius: '30px',
+          boxShadow: 'var(--shadow-md)', zIndex: 1000, fontWeight: 'var(--weight-semibold)'
         }}>
           {stopSuccessMsg}
         </div>
       )}
+
+
     </div>
   );
 }
