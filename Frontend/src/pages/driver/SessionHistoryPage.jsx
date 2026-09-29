@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { History, Zap, Clock, CreditCard, RefreshCw, FileText, X } from 'lucide-react';
 import { getSessionHistory } from '../../services/api';
 
-export default function SessionHistoryPage() {
+export default function SessionHistoryPage({ authUser }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,7 +16,7 @@ export default function SessionHistoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await getSessionHistory();
+      const res = await getSessionHistory(authUser?.accessToken);
       setHistory(res?.data || []);
     } catch (err) {
       setError(err.message || 'Error loading history');
@@ -74,10 +74,13 @@ export default function SessionHistoryPage() {
               </thead>
               <tbody>
                 {history.map((item) => {
-                  const s = item.session;
-                  const start = new Date(s.startTime.endsWith('Z') ? s.startTime : s.startTime + 'Z');
-                  const end = new Date(s.endTime.endsWith('Z') ? s.endTime : s.endTime + 'Z');
-                  const durationMs = end - start;
+                  const s = item.session || item;
+                  const startTimeRaw = s.startTime || s.StartTime;
+                  const endTimeRaw = s.endTime || s.EndTime;
+                  
+                  const start = startTimeRaw ? new Date(startTimeRaw.endsWith('Z') ? startTimeRaw : startTimeRaw + 'Z') : new Date();
+                  const end = endTimeRaw ? new Date(endTimeRaw.endsWith('Z') ? endTimeRaw : endTimeRaw + 'Z') : null;
+                  const durationMs = end ? end - start : 0;
                   const mins = Math.floor(durationMs / 60000);
                   const hrs = Math.floor(mins / 60);
                   const remMins = mins % 60;
