@@ -430,7 +430,8 @@ export async function testCrossTenantAccess(targetTenantId, token) {
 
 export async function getDriverWallet(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+  // Wallet is owned by Payment Service — route via /api/payment/wallet
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -440,6 +441,42 @@ export async function getDriverWallet(token) {
   });
 
   return handleResponse(response, 'Failed to retrieve driver wallet.');
+}
+
+export async function topUpWallet(amount, idempotencyKey = null, token = null) {
+  const authToken = token || getAuthToken();
+  const body = { amount };
+  if (idempotencyKey) {
+    body.idempotencyKey = idempotencyKey;
+  }
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet/topup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  return handleResponse(response, 'Failed to top up wallet.');
+}
+
+export async function getWalletTransactions(page = 1, pageSize = 20, token) {
+  const authToken = token || getAuthToken();
+  const url = new URL(`${API_GATEWAY_URL}/api/payment/wallet/transactions`);
+  url.searchParams.append('page', page);
+  url.searchParams.append('pageSize', pageSize);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve wallet transactions.');
 }
 
 export async function testDriverAccessToCompanyEndpoint(token) {
