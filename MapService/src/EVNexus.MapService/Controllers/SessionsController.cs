@@ -15,11 +15,13 @@ public class SessionsController : ControllerBase
 {
     private readonly ISessionRepository _sessionRepo;
     private readonly IStationRepository _stationRepo;
+    private readonly Microsoft.Extensions.Configuration.IConfiguration _config;
 
-    public SessionsController(ISessionRepository sessionRepo, IStationRepository stationRepo)
+    public SessionsController(ISessionRepository sessionRepo, IStationRepository stationRepo, Microsoft.Extensions.Configuration.IConfiguration config)
     {
         _sessionRepo = sessionRepo;
         _stationRepo = stationRepo;
+        _config = config;
     }
 
     [HttpPost("start")]
@@ -31,7 +33,7 @@ public class SessionsController : ControllerBase
         // 1. Get all active stations and find the one matching the ChargingCode
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
         var station = allStations.FirstOrDefault(s => s.ChargingCode == request.ChargingCode);
-        
+
         if (station == null)
             return BadRequest(new { success = false, message = "Invalid or inactive Charging Code." });
 
@@ -41,12 +43,15 @@ public class SessionsController : ControllerBase
             return BadRequest(new { success = false, message = "You already have an active charging session." });
 
         // 3. For MVP, we simulate a wallet check - assume balance is okay if they have a token.
-        
+
         // 4. Start the session
         var session = new ChargingSession
         {
             StationId = station.Id,
-            DriverId = driverId
+            CompanyId = !string.IsNullOrEmpty(request.CompanyId) ? request.CompanyId : station.TenantId,
+            ChargerId = !string.IsNullOrEmpty(request.ChargerId) ? request.ChargerId : station.Id,
+            DriverId = driverId,
+            EstimatedCost = request.EstimatedCost
         };
 
         await _sessionRepo.StartSessionAsync(session);
@@ -58,7 +63,7 @@ public class SessionsController : ControllerBase
     public async Task<IActionResult> StopSession(string id, [FromServices] ITenantContext tenantContext)
     {
         var driverId = tenantContext.UserId;
-        
+
         var session = await _sessionRepo.GetSessionByIdAsync(id);
         if (session == null || session.DriverId != driverId)
             return NotFound(new { success = false, message = "Session not found." });
@@ -70,7 +75,7 @@ public class SessionsController : ControllerBase
         var duration = DateTime.UtcNow - session.StartTime;
         var energy = (decimal)(duration.TotalMinutes * 0.5); // Mock 0.5 kWh per minute
         if (energy < 0.1m) energy = 0.5m; // minimum
-        
+
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
         var station = allStations.FirstOrDefault(s => s.Id == session.StationId);
         var price = station?.PricePerKwh ?? 0.5m;
@@ -81,6 +86,40 @@ public class SessionsController : ControllerBase
 
         // Fetch updated
         var updatedSession = await _sessionRepo.GetSessionByIdAsync(id);
+
+        try
+        {
+            var bootstrapServers = _config.GetValue<string>("Kafka:BootstrapServers") ?? "kafka:9092";
+            var config = new Confluent.Kafka.ProducerConfig { BootstrapServers = bootstrapServers };
+            using var producer = new Confluent.Kafka.ProducerBuilder<string, string>(config).Build();
+
+            var eventPayload = new
+            {
+                EventId = Guid.NewGuid().ToString(),
+                SessionId = updatedSession.Id,
+                DriverId = updatedSession.DriverId,
+                CompanyId = updatedSession.CompanyId,
+                StationId = updatedSession.StationId,
+                ChargerId = updatedSession.ChargerId,
+                EnergyConsumedKwh = updatedSession.EnergyConsumedKwh,
+                FinalAmount = updatedSession.TotalCost,
+                PricePerKwh = price,
+                Currency = "USD",
+                CompletedAt = DateTime.UtcNow
+            };
+
+            var message = new Confluent.Kafka.Message<string, string>
+            {
+                Key = updatedSession.Id,
+                Value = System.Text.Json.JsonSerializer.Serialize(eventPayload)
+            };
+
+            await producer.ProduceAsync("charging-session-completed", message);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error publishing Kafka event: {ex.Message}");
+        }
 
         return Ok(new { success = true, data = updatedSession });
     }
@@ -108,7 +147,7 @@ public class SessionsController : ControllerBase
         if (string.IsNullOrEmpty(driverId)) return Unauthorized();
 
         var history = await _sessionRepo.GetSessionHistoryForDriverAsync(driverId);
-        
+
         // Let's enrich with station details
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
         var enrichedHistory = history.Select(h => {
@@ -127,4 +166,9 @@ public class SessionsController : ControllerBase
 public class StartSessionDto
 {
     public string ChargingCode { get; set; } = string.Empty;
+    public string CompanyId { get; set; } = string.Empty;
+    public string StationId { get; set; } = string.Empty;
+    public string ChargerId { get; set; } = string.Empty;
+    public decimal EstimatedCost { get; set; }
+    public string PaymentId { get; set; } = string.Empty;
 }
