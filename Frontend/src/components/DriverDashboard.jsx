@@ -45,7 +45,9 @@ import {
   addDriverVehicle,
   updateDriverVehicle,
   deleteDriverVehicle,
-  setDefaultDriverVehicle
+  setDefaultDriverVehicle,
+  getDriverWallet,
+  getWalletTransactions
 } from '../services/api';
 import MapDashboardPage from '../pages/driver/MapDashboardPage';
 import SessionHistoryPage from '../pages/driver/SessionHistoryPage';
@@ -121,9 +123,36 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   const [isSubmittingVehicle, setIsSubmittingVehicle] = useState(false);
   const [deletingVehicleId, setDeletingVehicleId] = useState(null);
 
+  // Wallet State
+  const [walletBalance, setWalletBalance] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [walletError, setWalletError] = useState(null);
+  const [recentWalletTx, setRecentWalletTx] = useState([]);
+  const [loadingWalletTx, setLoadingWalletTx] = useState(false);
+
+  const loadDashboardData = async () => {
+    setLoadingWallet(true);
+    try {
+      const wRes = await getDriverWallet(authUser?.accessToken);
+      if (wRes?.data) setWalletBalance(wRes.data.balance);
+    } catch (e) {
+      setWalletError('Failed to load wallet balance.');
+    } finally {
+      setLoadingWallet(false);
+    }
+
+    setLoadingWalletTx(true);
+    try {
+      const tRes = await getWalletTransactions(1, 3, authUser?.accessToken);
+      const rawTx = tRes?.data?.items ?? tRes?.data ?? tRes;
+      if (Array.isArray(rawTx)) setRecentWalletTx(rawTx);
+    } catch (e) { console.warn(e); } finally { setLoadingWalletTx(false); }
+  };
+
   useEffect(() => {
     handleVerifyProtectedApi();
     loadVehicles();
+    loadDashboardData();
   }, []);
 
   const loadVehicles = async () => {
@@ -592,7 +621,7 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
 
             <div style={{ opacity: 0.9, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <WalletIcon size={14} />
-              <span>Wallet: {effectiveCurrency} ${Number(effectiveBalance).toFixed(2)}</span>
+              <span>Wallet: {effectiveCurrency} ${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -743,7 +772,7 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
                 </div>
                 <div className="kpi-body">
                   <div className="kpi-label">EV Wallet Balance</div>
-                  <div className="kpi-value">${Number(effectiveBalance).toFixed(2)}</div>
+                  <div className="kpi-value">${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)}</div>
                   <div className="kpi-subtext">Currency: {effectiveCurrency} • Ready for charging</div>
                 </div>
               </div>
@@ -826,7 +855,7 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
                     <Zap size={18} color="#38bdf8" />
                   </div>
                   <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#38bdf8' }}>
-                    ${Number(effectiveBalance).toFixed(2)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>{effectiveCurrency}</span>
+                    ${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>{effectiveCurrency}</span>
                   </div>
                   <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.8rem', opacity: 0.85 }}>
                     <div>
@@ -836,6 +865,35 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
                     <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.25)', color: '#86efac' }}>
                       ● Active Balance
                     </span>
+                  </div>
+                  
+                  {/* Recent Wallet Activity */}
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#94a3b8', marginBottom: '1rem' }}>RECENT ACTIVITY</div>
+                    {loadingWalletTx ? (
+                      <div style={{ opacity: 0.7, fontSize: '0.85rem' }}>Loading activity...</div>
+                    ) : recentWalletTx.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                        {recentWalletTx.map(tx => (
+                          <div key={tx.id || tx.transactionId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <div style={{ width: 28, height: 28, borderRadius: '50%', background: tx.amount < 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)', color: tx.amount < 0 ? '#f87171' : '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {tx.amount < 0 ? <Zap size={14} /> : <CreditCard size={14} />}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>{tx.amount < 0 ? 'Charging Session' : 'Top Up'}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(tx.date || tx.createdAt).toLocaleDateString()}</div>
+                              </div>
+                            </div>
+                            <div style={{ fontWeight: 700, fontSize: '0.9rem', color: tx.amount < 0 ? '#f8fafc' : '#34d399' }}>
+                              {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>No recent wallet transactions.</div>
+                    )}
                   </div>
                 </div>
               </div>
