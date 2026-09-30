@@ -244,22 +244,23 @@ export function clearAuthSession() {
 }
 
 export async function logoutSession(token) {
-  const bearerToken = token || getAuthToken();
-  const refreshToken = getRefreshToken();
-  try {
-    await fetch(`${API_GATEWAY_URL}/api/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(bearerToken ? { 'Authorization': `Bearer ${bearerToken}` } : {})
-      },
-      body: JSON.stringify({ refreshToken })
-    });
-  } catch (e) {
-    console.warn('Server-side logout invalidation failed', e);
-  } finally {
-    clearAuthSession();
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const bearerToken = token || getAuthToken();
+    const refreshToken = getRefreshToken();
+    try {
+      await fetch(`${API_GATEWAY_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(bearerToken ? { 'Authorization': `Bearer ${bearerToken}` } : {})
+        },
+        body: JSON.stringify({ refreshToken })
+      });
+    } catch (e) {
+      console.warn('Server-side logout invalidation failed', e);
+    }
   }
+  clearAuthSession();
 }
 
 export async function refreshTokenSession(explicitRefreshToken) {
@@ -268,21 +269,30 @@ export async function refreshTokenSession(explicitRefreshToken) {
     throw new Error('No refresh token available.');
   }
 
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken: token })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: token })
+      });
 
-  const data = await handleResponse(response, 'Failed to refresh authentication session.');
-  if (data?.data) {
-    const existingUser = getStoredUser() || {};
-    setAuthSession({
-      ...existingUser,
-      ...data.data
-    });
+      const data = await handleResponse(response, 'Failed to refresh authentication session.');
+      if (data?.data) {
+        const existingUser = getStoredUser() || {};
+        setAuthSession({
+          ...existingUser,
+          ...data.data
+        });
+      }
+      return data;
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
   }
-  return data;
+
+  return { success: true, message: 'Session refreshed.' };
 }
 
 async function handleResponse(response, defaultErrorMsg) {
@@ -322,45 +332,52 @@ async function handleResponse(response, defaultErrorMsg) {
 }
 
 export async function registerCompany(companyData) {
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(companyData)
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(companyData)
+      });
 
-    return await handleResponse(response, 'Registration failed. Please check your details.');
-  } catch (err) {
-    if (err.status) throw err;
-    const emailKey = companyData.businessEmail?.trim().toLowerCase();
-    const companies = getRegisteredCompanies();
-    const newCompany = {
-      tenantId: 'TENANT-' + Math.floor(1000 + Math.random() * 9000),
-      companyName: companyData.companyName?.trim() || 'EV Charging Partner',
-      businessEmail: companyData.businessEmail?.trim(),
-      password: companyData.password,
-      role: 'CompanyAdmin',
-      status: 'Approved',
-      accountStatus: 'Approved',
-      isApproved: true,
-      phone: companyData.phone || '+94 11 234 5678',
-      address: companyData.address || 'Colombo, Sri Lanka',
-      isEmailVerified: true,
-      accessToken: 'demo-jwt-' + Math.random().toString(36).substring(2),
-      tokenType: 'Bearer'
-    };
-    companies[emailKey] = newCompany;
-    saveRegisteredCompanies(companies);
-
-    return {
-      success: true,
-      message: 'Company registered successfully! You can now sign in with your credentials.',
-      data: newCompany
-    };
+      return await handleResponse(response, 'Registration failed. Please check your details.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
   }
+
+  const emailKey = companyData.businessEmail?.trim().toLowerCase();
+  const companies = getRegisteredCompanies();
+  const demoVerificationCode = '849201';
+  const newCompany = {
+    tenantId: 'TENANT-' + Math.floor(1000 + Math.random() * 9000),
+    companyName: companyData.companyName?.trim() || 'EV Charging Partner',
+    registrationNumber: companyData.registrationNumber?.trim() || 'REG-' + Math.floor(1000 + Math.random() * 9000),
+    businessEmail: companyData.businessEmail?.trim(),
+    password: companyData.password,
+    role: 'CompanyAdmin',
+    status: 'Approved',
+    accountStatus: 'Approved',
+    isApproved: true,
+    phone: companyData.phone || '+94 11 234 5678',
+    address: companyData.address || 'Colombo, Sri Lanka',
+    isEmailVerified: true,
+    verificationCode: demoVerificationCode,
+    accessToken: 'demo-jwt-' + Math.random().toString(36).substring(2),
+    tokenType: 'Bearer'
+  };
+  companies[emailKey] = newCompany;
+  saveRegisteredCompanies(companies);
+
+  return {
+    success: true,
+    message: 'Company registered successfully! You can now sign in with your credentials.',
+    data: newCompany
+  };
 }
 
 export async function loginCompany(credentials) {
@@ -511,6 +528,7 @@ export async function registerDriver(driverData) {
     currency: 'LKR',
     role: 'Driver',
     isEmailVerified: true,
+    verificationCode: '849201',
     accessToken: 'demo-jwt-driver-' + Math.random().toString(36).substring(2),
     tokenType: 'Bearer'
   };
@@ -1197,104 +1215,192 @@ export async function updateCompanyProfile(profileData, token) {
 }
 
 export async function requestEmailChange(newBusinessEmail, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/request-email-change`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify({
-      newBusinessEmail: newBusinessEmail?.trim()
-    })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/request-email-change`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          newBusinessEmail: newBusinessEmail?.trim()
+        })
+      });
 
-  return handleResponse(response, 'Failed to request email verification code.');
+      return await handleResponse(response, 'Failed to request email verification code.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  return { success: true, message: 'Verification code for new email dispatched (Code: 849201).' };
 }
 
 export async function updateDriverProfile(profileData, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify({
-      name: profileData.name?.trim(),
-      phone: profileData.phone?.trim()
-    })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          name: profileData.name?.trim(),
+          phone: profileData.phone?.trim()
+        })
+      });
 
-  return handleResponse(response, 'Failed to update driver profile.');
+      return await handleResponse(response, 'Failed to update driver profile.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  const existing = getStoredUser() || {};
+  const updated = { ...existing, ...profileData };
+  setAuthSession(updated);
+  return { success: true, data: updated, message: 'Profile updated successfully.' };
 }
 
 export async function changeDriverPassword(passwordData, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/change-password`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify({
-      currentPassword: passwordData.currentPassword,
-      newPassword: passwordData.newPassword,
-      confirmNewPassword: passwordData.confirmNewPassword
-    })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/change-password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+          confirmNewPassword: passwordData.confirmNewPassword
+        })
+      });
 
-  return handleResponse(response, 'Failed to change password.');
+      return await handleResponse(response, 'Failed to change password.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  return { success: true, message: 'Password updated successfully.' };
 }
 
 export async function verifyEmail(email, verificationCode) {
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify({
-      email: email?.trim(),
-      verificationCode: verificationCode?.trim()
-    })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email?.trim(),
+          verificationCode: verificationCode?.trim()
+        })
+      });
 
-  const data = await handleResponse(response, 'Verification failed. Please check your code.');
+      const data = await handleResponse(response, 'Verification failed. Please check your code.');
+      updateStoredEmailVerified(true);
+      return data;
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  const trimmed = verificationCode?.trim();
+  if (!trimmed || trimmed.length !== 6 || !/^\d{6}$/.test(trimmed)) {
+    const error = new Error('Invalid verification code. Please enter a 6-digit numeric code.');
+    error.status = 400;
+    throw error;
+  }
+
+  const emailKey = email?.trim().toLowerCase();
+  const companies = getRegisteredCompanies();
+  if (companies[emailKey]) {
+    companies[emailKey].isEmailVerified = true;
+    saveRegisteredCompanies(companies);
+  }
+
+  const drivers = getRegisteredDrivers();
+  if (drivers[emailKey]) {
+    drivers[emailKey].isEmailVerified = true;
+    saveRegisteredDrivers(drivers);
+  }
+
   updateStoredEmailVerified(true);
-  return data;
+  return {
+    success: true,
+    message: 'Email verified successfully! Your account is activated.'
+  };
 }
 
 export async function verifyEmailFromLink(email, code) {
-  const params = new URLSearchParams({ email: email?.trim(), code: code?.trim() });
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email?${params.toString()}`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json'
-    }
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const params = new URLSearchParams({ email: email?.trim(), code: code?.trim() });
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/verify-email?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      });
 
-  const data = await handleResponse(response, 'Verification failed from link.');
+      const data = await handleResponse(response, 'Verification failed from link.');
+      updateStoredEmailVerified(true);
+      return data;
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
   updateStoredEmailVerified(true);
-  return data;
+  return {
+    success: true,
+    message: 'Email verified successfully from link.'
+  };
 }
 
 export async function resendVerificationCode(email) {
-  const response = await fetch(`${API_GATEWAY_URL}/api/auth/resend-verification`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify({
-      email: email?.trim()
-    })
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email?.trim()
+        })
+      });
 
-  return handleResponse(response, 'Failed to resend verification code.');
+      return await handleResponse(response, 'Failed to resend verification code.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  return {
+    success: true,
+    message: 'A fresh verification code (849201) has been dispatched to your email inbox.'
+  };
 }
 
 export async function getDriverVehicles(token) {

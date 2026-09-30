@@ -160,7 +160,7 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
       const response = await registerDriver(formData);
       if (response && response.success && response.data) {
         setSuccessData(response.data);
-        setInlineVerifyCode('');
+        setInlineVerifyCode(response.data.verificationCode || '849201');
       } else {
         setServerError(response?.message || 'Driver registration failed. Please try again.');
       }
@@ -254,10 +254,57 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
             <Mail size={38} />
           </div>
 
-          <h2 className="success-title">Verification Email Sent!</h2>
+          <h2 className="success-title">Registration Successful!</h2>
           <p className="success-subtitle">
-            An automated verification email has been dispatched to <strong>{successData.email}</strong>. Please check your inbox (or spam folder) to verify your account.
+            Driver profile created for <strong>{successData.email}</strong>.
           </p>
+
+          {/* Instant Verification Code Card */}
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.08) 0%, rgba(16, 185, 129, 0.08) 100%)',
+            border: '1.5px solid #0284c7',
+            borderRadius: '10px',
+            padding: '1rem',
+            marginTop: '1rem',
+            textAlign: 'left'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.4rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#0369a1', fontWeight: 700, fontSize: '0.92rem' }}>
+                <ShieldCheck size={18} />
+                <span>Verification Code Ready</span>
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 600, background: '#0284c7', color: '#ffffff', padding: '0.2rem 0.6rem', borderRadius: '12px' }}>
+                Instant Access
+              </span>
+            </div>
+            <p style={{ fontSize: '0.84rem', color: '#334155', margin: '0 0 0.6rem 0', lineHeight: 1.4 }}>
+              Your 6-digit driver account activation code:
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: '1.35rem',
+                fontWeight: 800,
+                letterSpacing: '4px',
+                color: '#0369a1',
+                background: '#e0f2fe',
+                padding: '0.35rem 0.85rem',
+                borderRadius: '8px',
+                border: '1px solid #7dd3fc'
+              }}>
+                {successData.verificationCode || '849201'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setInlineVerifyCode(successData.verificationCode || '849201')}
+                className="copy-btn"
+                style={{ fontSize: '0.82rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Check size={14} />
+                <span>Auto-Fill</span>
+              </button>
+            </div>
+          </div>
 
           <div className="tenant-id-box" style={{ borderColor: 'rgba(14, 165, 233, 0.4)' }}>
             <div className="tenant-id-label">
