@@ -10,8 +10,8 @@ const containerStyle = {
 };
 
 const defaultCenter = {
-  lat: 40.7128, // Default to NY
-  lng: -74.0060
+  lat: 6.9271, // Colombo, Sri Lanka
+  lng: 79.8612
 };
 
 // Replace with a real key or mock key if not provided
@@ -140,15 +140,24 @@ export default function MapDashboardPage() {
     }
   };
 
-  // Fetch stations when user location or radius changes
+  const [debouncedRadius, setDebouncedRadius] = useState(radius);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedRadius(radius);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [radius]);
+
+  // Fetch stations when user location or debounced radius changes
   useEffect(() => {
     fetchNearbyStations();
-  }, [userLocation.lat, userLocation.lng, radius]);
+  }, [userLocation.lat, userLocation.lng, debouncedRadius]);
 
   const fetchNearbyStations = async () => {
     setLoading(true);
     try {
-      const res = await getNearbyStations(userLocation.lat, userLocation.lng, radius);
+      const res = await getNearbyStations(userLocation.lat, userLocation.lng, debouncedRadius);
       setStations(res?.data || []);
     } catch (err) {
       setError(err.message || 'Failed to fetch nearby stations');

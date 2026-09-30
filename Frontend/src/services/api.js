@@ -1,10 +1,133 @@
 const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
 
+const isLocalhostHost = typeof window !== 'undefined' && 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+const hasExplicitRemoteGateway = Boolean(
+  import.meta.env.VITE_API_GATEWAY_URL && 
+  !import.meta.env.VITE_API_GATEWAY_URL.includes('localhost')
+);
+
+// If running in the cloud (Azure App Service) without an external gateway configured,
+// operate directly in seamless cloud evaluation mode without attempting unreachable localhost connections.
+export const isCloudDemoMode = !isLocalhostHost && !hasExplicitRemoteGateway;
+
+let _gatewayFailed = false;
+
+export function isGatewayAvailable() {
+  if (isCloudDemoMode) return false;
+  return !_gatewayFailed;
+}
+
+export function markGatewayUnavailable() {
+  _gatewayFailed = true;
+}
+
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';
 const USER_STORAGE_KEY = 'evnexus_auth_user';
 const REGISTERED_COMPANIES_KEY = 'evnexus_registered_companies';
 const REGISTERED_DRIVERS_KEY = 'evnexus_registered_drivers';
+const DRIVER_VEHICLES_KEY = 'evnexus_driver_vehicles';
+const ACTIVE_SESSION_KEY = 'evnexus_active_session';
+const SESSION_HISTORY_KEY = 'evnexus_session_history';
+
+function getStoredDriverVehicles() {
+  try {
+    const raw = localStorage.getItem(DRIVER_VEHICLES_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+
+  const initial = [
+    { vehicleId: 'VEH-01', make: 'Tesla', model: 'Model 3 Long Range', plateNumber: 'WP-CAD-1029', connectorType: 'CCS2', isDefault: true },
+    { vehicleId: 'VEH-02', make: 'Nissan', model: 'Leaf e+', plateNumber: 'WP-CBA-4512', connectorType: 'CHAdeMO', isDefault: false }
+  ];
+  try {
+    localStorage.setItem(DRIVER_VEHICLES_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+function saveStoredDriverVehicles(vehicles) {
+  try {
+    localStorage.setItem(DRIVER_VEHICLES_KEY, JSON.stringify(vehicles));
+  } catch {}
+}
+
+function getStoredActiveSession() {
+  try {
+    const raw = localStorage.getItem(ACTIVE_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredActiveSession(session) {
+  try {
+    if (session) {
+      localStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(ACTIVE_SESSION_KEY);
+    }
+  } catch {}
+}
+
+function getStoredSessionHistory() {
+  try {
+    const raw = localStorage.getItem(SESSION_HISTORY_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+
+  const initial = [
+    {
+      session: {
+        id: 'SESS-8921',
+        startTime: new Date(Date.now() - 3600000 * 5).toISOString(),
+        endTime: new Date(Date.now() - 3600000 * 4.2).toISOString(),
+        energyConsumedKwh: 42.5,
+        totalCost: 2762.50,
+        status: 'COMPLETED'
+      },
+      stationName: 'EVNexus Supercharger - Colombo Fort',
+      address: 'York Street, Colombo 01',
+      paymentId: 'PAY-4891b2c',
+      paymentMethod: 'Nexus Universal Wallet',
+      currency: 'LKR'
+    },
+    {
+      session: {
+        id: 'SESS-7410',
+        startTime: new Date(Date.now() - 3600000 * 28).toISOString(),
+        endTime: new Date(Date.now() - 3600000 * 27.4).toISOString(),
+        energyConsumedKwh: 28.0,
+        totalCost: 1624.00,
+        status: 'COMPLETED'
+      },
+      stationName: 'EVNexus Hub - Kollupitiya',
+      address: 'Galle Road, Kollupitiya',
+      paymentId: 'PAY-3184e9a',
+      paymentMethod: 'Nexus Universal Wallet',
+      currency: 'LKR'
+    }
+  ];
+  try {
+    localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+function saveStoredSessionHistory(history) {
+  try {
+    localStorage.setItem(SESSION_HISTORY_KEY, JSON.stringify(history));
+  } catch {}
+}
 
 function getRegisteredCompanies() {
   try {
@@ -241,464 +364,526 @@ export async function registerCompany(companyData) {
 }
 
 export async function loginCompany(credentials) {
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        businessEmail: credentials.businessEmail?.trim(),
-        password: credentials.password
-      })
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          businessEmail: credentials.businessEmail?.trim(),
+          password: credentials.password
+        })
+      });
 
-    return await handleResponse(response, 'Invalid email or password.');
-  } catch (err) {
-    if (err.status) throw err;
-
-    const email = credentials.businessEmail?.trim().toLowerCase();
-    const password = credentials.password;
-
-    const builtInCompanies = {
-      'company@evnexus.com': {
-        tenantId: 'TENANT-DEMO-001',
-        companyName: 'EVNexus Charging Partner Ltd',
-        businessEmail: 'company@evnexus.com',
-        password: 'Password123!',
-        role: 'CompanyAdmin',
-        status: 'Approved',
-        accountStatus: 'Approved',
-        isApproved: true,
-        isEmailVerified: true,
-        accessToken: 'demo-jwt-token-active-cloud-evaluation',
-        tokenType: 'Bearer'
-      },
-      'ashmal@evnexus.com': {
-        tenantId: 'TENANT-DEMO-002',
-        companyName: 'Ashmal Energy Solutions',
-        businessEmail: 'ashmal@evnexus.com',
-        password: 'Password123!',
-        role: 'CompanyAdmin',
-        status: 'Approved',
-        accountStatus: 'Approved',
-        isApproved: true,
-        isEmailVerified: true,
-        accessToken: 'demo-jwt-token-ashmal-company',
-        tokenType: 'Bearer'
-      }
-    };
-
-    const registered = getRegisteredCompanies();
-    const matched = builtInCompanies[email] || registered[email];
-
-    if (!matched) {
-      const error = new Error('Invalid email or password. No company account found with this email.');
-      error.status = 401;
-      throw error;
+      return await handleResponse(response, 'Invalid email or password.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
     }
-
-    if (matched.password !== password) {
-      const error = new Error('Invalid email or password. The password you entered is incorrect.');
-      error.status = 401;
-      throw error;
-    }
-
-    setAuthSession(matched);
-    return { success: true, data: matched, message: 'Logged in successfully.' };
   }
+
+  const email = credentials.businessEmail?.trim().toLowerCase();
+  const password = credentials.password;
+
+  const builtInCompanies = {
+    'company@evnexus.com': {
+      tenantId: 'TENANT-DEMO-001',
+      companyName: 'EVNexus Charging Partner Ltd',
+      businessEmail: 'company@evnexus.com',
+      password: 'Password123!',
+      role: 'CompanyAdmin',
+      status: 'Approved',
+      accountStatus: 'Approved',
+      isApproved: true,
+      isEmailVerified: true,
+      accessToken: 'demo-jwt-token-active-cloud-evaluation',
+      tokenType: 'Bearer'
+    },
+    'ashmal@evnexus.com': {
+      tenantId: 'TENANT-DEMO-002',
+      companyName: 'Ashmal Energy Solutions',
+      businessEmail: 'ashmal@evnexus.com',
+      password: 'Password123!',
+      role: 'CompanyAdmin',
+      status: 'Approved',
+      accountStatus: 'Approved',
+      isApproved: true,
+      isEmailVerified: true,
+      accessToken: 'demo-jwt-token-ashmal-company',
+      tokenType: 'Bearer'
+    }
+  };
+
+  const registered = getRegisteredCompanies();
+  const matched = builtInCompanies[email] || registered[email];
+
+  if (!matched) {
+    const error = new Error('Invalid email or password. No company account found with this email.');
+    error.status = 401;
+    throw error;
+  }
+
+  if (matched.password !== password) {
+    const error = new Error('Invalid email or password. The password you entered is incorrect.');
+    error.status = 401;
+    throw error;
+  }
+
+  setAuthSession(matched);
+  return { success: true, data: matched, message: 'Logged in successfully.' };
 }
 
 export async function getCompanyProfile(token) {
-  const authToken = token || getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/profile`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-    return await handleResponse(response, 'Failed to retrieve company profile.');
-  } catch (err) {
-    if (err.status) throw err;
-    const user = getStoredUser();
-    return {
-      success: true,
-      data: {
-        tenantId: user?.tenantId || 'TENANT-DEMO-001',
-        companyName: user?.companyName || 'EVNexus Charging Partner Ltd',
-        businessEmail: user?.businessEmail || 'company@evnexus.com',
-        phone: '+94 11 234 5678',
-        address: '100 Galle Road, Colombo 03, Sri Lanka',
-        role: 'CompanyAdmin',
-        status: user?.status || 'Approved',
-        accountStatus: user?.accountStatus || 'Approved',
-        isApproved: true,
-        isEmailVerified: true
-      }
-    };
+      return await handleResponse(response, 'Failed to retrieve company profile.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
   }
+
+  const user = getStoredUser();
+  return {
+    success: true,
+    data: {
+      tenantId: user?.tenantId || 'TENANT-DEMO-001',
+      companyName: user?.companyName || 'EVNexus Charging Partner Ltd',
+      businessEmail: user?.businessEmail || 'company@evnexus.com',
+      phone: '+94 11 234 5678',
+      address: '100 Galle Road, Colombo 03, Sri Lanka',
+      role: 'CompanyAdmin',
+      status: user?.status || 'Approved',
+      accountStatus: user?.accountStatus || 'Approved',
+      isApproved: true,
+      isEmailVerified: true
+    }
+  };
 }
 
 export async function registerDriver(driverData) {
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        name: driverData.name?.trim(),
-        email: driverData.email?.trim(),
-        phone: driverData.phone?.trim(),
-        password: driverData.password
-      })
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          name: driverData.name?.trim(),
+          email: driverData.email?.trim(),
+          phone: driverData.phone?.trim(),
+          password: driverData.password
+        })
+      });
 
-    return await handleResponse(response, 'Driver registration failed. Please check your details.');
-  } catch (err) {
-    if (err.status) throw err;
-    const emailKey = driverData.email?.trim().toLowerCase();
-    const drivers = getRegisteredDrivers();
-    const newDriver = {
-      driverId: 'DRV-' + Math.floor(1000 + Math.random() * 9000),
-      name: driverData.name?.trim() || 'EV Driver',
-      email: driverData.email?.trim(),
-      password: driverData.password,
-      phone: driverData.phone?.trim() || '+94 77 123 4567',
-      walletId: 'WAL-DRV-' + Math.floor(1000 + Math.random() * 9000),
+      return await handleResponse(response, 'Driver registration failed. Please check your details.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  const emailKey = driverData.email?.trim().toLowerCase();
+  const drivers = getRegisteredDrivers();
+  const newDriver = {
+    driverId: 'DRV-' + Math.floor(1000 + Math.random() * 9000),
+    name: driverData.name?.trim() || 'EV Driver',
+    email: driverData.email?.trim(),
+    password: driverData.password,
+    phone: driverData.phone?.trim() || '+94 77 123 4567',
+    walletId: 'WAL-DRV-' + Math.floor(1000 + Math.random() * 9000),
+    walletBalance: 8500.00,
+    currency: 'LKR',
+    role: 'Driver',
+    isEmailVerified: true,
+    accessToken: 'demo-jwt-driver-' + Math.random().toString(36).substring(2),
+    tokenType: 'Bearer'
+  };
+  drivers[emailKey] = newDriver;
+  saveRegisteredDrivers(drivers);
+
+  return {
+    success: true,
+    message: 'Driver registered successfully! You can now sign in with your credentials.',
+    data: newDriver
+  };
+}
+
+export async function loginDriver(credentials) {
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          email: credentials.email?.trim(),
+          password: credentials.password
+        })
+      });
+
+      return await handleResponse(response, 'Invalid email or password.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
+  }
+
+  const email = credentials.email?.trim().toLowerCase();
+  const password = credentials.password;
+
+  const builtInDrivers = {
+    'driver@evnexus.com': {
+      driverId: 'DRV-1001',
+      name: 'Ashmal (EV Driver)',
+      email: 'driver@evnexus.com',
+      password: 'Password123!',
+      phone: '+94 77 123 4567',
+      walletId: 'WAL-DRV-1001',
       walletBalance: 8500.00,
       currency: 'LKR',
       role: 'Driver',
       isEmailVerified: true,
-      accessToken: 'demo-jwt-driver-' + Math.random().toString(36).substring(2),
+      accessToken: 'demo-jwt-token-driver-cloud-evaluation',
       tokenType: 'Bearer'
-    };
-    drivers[emailKey] = newDriver;
-    saveRegisteredDrivers(drivers);
-
-    return {
-      success: true,
-      message: 'Driver registered successfully! You can now sign in with your credentials.',
-      data: newDriver
-    };
-  }
-}
-
-export async function loginDriver(credentials) {
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        email: credentials.email?.trim(),
-        password: credentials.password
-      })
-    });
-
-    return await handleResponse(response, 'Invalid email or password.');
-  } catch (err) {
-    if (err.status) throw err;
-
-    const email = credentials.email?.trim().toLowerCase();
-    const password = credentials.password;
-
-    const builtInDrivers = {
-      'driver@evnexus.com': {
-        driverId: 'DRV-1001',
-        name: 'Ashmal (EV Driver)',
-        email: 'driver@evnexus.com',
-        password: 'Password123!',
-        phone: '+94 77 123 4567',
-        walletId: 'WAL-DRV-1001',
-        walletBalance: 8500.00,
-        currency: 'LKR',
-        role: 'Driver',
-        isEmailVerified: true,
-        accessToken: 'demo-jwt-token-driver-cloud-evaluation',
-        tokenType: 'Bearer'
-      },
-      'ashmal.driver@evnexus.com': {
-        driverId: 'DRV-1002',
-        name: 'Mohamed Ashmal',
-        email: 'ashmal.driver@evnexus.com',
-        password: 'Password123!',
-        phone: '+94 77 987 6543',
-        walletId: 'WAL-DRV-1002',
-        walletBalance: 12000.00,
-        currency: 'LKR',
-        role: 'Driver',
-        isEmailVerified: true,
-        accessToken: 'demo-jwt-token-ashmal-driver',
-        tokenType: 'Bearer'
-      }
-    };
-
-    const registered = getRegisteredDrivers();
-    const matched = builtInDrivers[email] || registered[email];
-
-    if (!matched) {
-      const error = new Error('Invalid email or password. No driver account found with this email.');
-      error.status = 401;
-      throw error;
+    },
+    'ashmal.driver@evnexus.com': {
+      driverId: 'DRV-1002',
+      name: 'Mohamed Ashmal',
+      email: 'ashmal.driver@evnexus.com',
+      password: 'Password123!',
+      phone: '+94 77 987 6543',
+      walletId: 'WAL-DRV-1002',
+      walletBalance: 12000.00,
+      currency: 'LKR',
+      role: 'Driver',
+      isEmailVerified: true,
+      accessToken: 'demo-jwt-token-ashmal-driver',
+      tokenType: 'Bearer'
     }
+  };
 
-    if (matched.password !== password) {
-      const error = new Error('Invalid email or password. The password you entered is incorrect.');
-      error.status = 401;
-      throw error;
-    }
+  const registered = getRegisteredDrivers();
+  const matched = builtInDrivers[email] || registered[email];
 
-    setAuthSession(matched);
-    return { success: true, data: matched, message: 'Driver authenticated successfully.' };
+  if (!matched) {
+    const error = new Error('Invalid email or password. No driver account found with this email.');
+    error.status = 401;
+    throw error;
   }
+
+  if (matched.password !== password) {
+    const error = new Error('Invalid email or password. The password you entered is incorrect.');
+    error.status = 401;
+    throw error;
+  }
+
+  setAuthSession(matched);
+  return { success: true, data: matched, message: 'Driver authenticated successfully.' };
 }
 
 export async function getDriverProfile(token) {
-  const authToken = token || getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/auth/driver/profile`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-    return await handleResponse(response, 'Failed to retrieve driver profile.');
-  } catch (err) {
-    if (err.status) throw err;
-    const user = getStoredUser();
-    return {
-      success: true,
-      data: {
-        driverId: user?.driverId || 'DRV-1001',
-        name: user?.name || 'Ashmal (EV Driver)',
-        email: user?.email || 'driver@evnexus.com',
-        phone: user?.phone || '+94 77 123 4567',
-        walletId: user?.walletId || 'WAL-DRV-1001',
-        walletBalance: user?.walletBalance || 8500.00,
-        currency: 'LKR',
-        role: 'Driver',
-        isEmailVerified: true,
-        vehicles: [
-          { vehicleId: 'VEH-01', make: 'Tesla', model: 'Model 3 Long Range', plateNumber: 'WP-CAD-1029', connectorType: 'CCS2', isDefault: true },
-          { vehicleId: 'VEH-02', make: 'Nissan', model: 'Leaf e+', plateNumber: 'WP-CBA-4512', connectorType: 'CHAdeMO', isDefault: false }
-        ]
-      }
-    };
+      return await handleResponse(response, 'Failed to retrieve driver profile.');
+    } catch (err) {
+      if (err.status) throw err;
+      markGatewayUnavailable();
+    }
   }
+
+  const user = getStoredUser();
+  return {
+    success: true,
+    data: {
+      driverId: user?.driverId || 'DRV-1001',
+      name: user?.name || 'Ashmal (EV Driver)',
+      email: user?.email || 'driver@evnexus.com',
+      phone: user?.phone || '+94 77 123 4567',
+      walletId: user?.walletId || 'WAL-DRV-1001',
+      walletBalance: user?.walletBalance || 8500.00,
+      currency: 'LKR',
+      role: 'Driver',
+      isEmailVerified: true,
+      vehicles: getStoredDriverVehicles()
+    }
+  };
+}
+
+function calculateDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return Math.round((R * c) * 10) / 10;
 }
 
 export async function getNearbyStations(lat, lng, radiusKm = 50) {
-  const authToken = getAuthToken();
-  const url = `${API_GATEWAY_URL}/api/driver/stations/nearby?latitude=${lat}&longitude=${lng}&radiusKm=${radiusKm}`;
-  
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
-    return await handleResponse(response, 'Failed to fetch nearby stations.');
-  } catch (err) {
-    if (err.status) throw err;
-    const baseLat = typeof lat === 'number' && !isNaN(lat) ? lat : 40.7128;
-    const baseLng = typeof lng === 'number' && !isNaN(lng) ? lng : -74.0060;
-    return {
-      success: true,
-      data: [
-        {
-          station: {
-            id: 'STN-101',
-            name: 'EVNexus Supercharger - Metro Central',
-            address: '100 Metro Avenue, Central Square',
-            latitude: baseLat + 0.0075,
-            longitude: baseLng + 0.0082,
-            connectorType: 'CCS2',
-            capacityKw: 150,
-            pricePerKwh: 65.00,
-            chargingCode: 'EV-NEXUS-101',
-            isActive: true,
-            totalPorts: 8,
-            availablePorts: 6
-          },
-          distanceKm: 1.2
-        },
-        {
-          station: {
-            id: 'STN-102',
-            name: 'EVNexus Fast Charge Hub - Coastal Point',
-            address: '42 Coastal Boulevard',
-            latitude: baseLat - 0.0090,
-            longitude: baseLng - 0.0065,
-            connectorType: 'CHAdeMO / CCS2',
-            capacityKw: 120,
-            pricePerKwh: 58.00,
-            chargingCode: 'EV-NEXUS-102',
-            isActive: true,
-            totalPorts: 4,
-            availablePorts: 3
-          },
-          distanceKm: 1.9
-        },
-        {
-          station: {
-            id: 'STN-103',
-            name: 'EVNexus Express Plaza',
-            address: '77 Commerce Parkway',
-            latitude: baseLat + 0.0150,
-            longitude: baseLng - 0.0120,
-            connectorType: 'Type 2 / CCS2',
-            capacityKw: 60,
-            pricePerKwh: 52.00,
-            chargingCode: 'EV-NEXUS-103',
-            isActive: true,
-            totalPorts: 6,
-            availablePorts: 5
-          },
-          distanceKm: 3.4
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = getAuthToken();
+    const url = `${API_GATEWAY_URL}/api/driver/stations/nearby?latitude=${lat}&longitude=${lng}&radiusKm=${radiusKm}`;
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
         }
-      ]
-    };
+      });
+      return await handleResponse(response, 'Failed to fetch nearby stations.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  const userLat = typeof lat === 'number' && !isNaN(lat) ? lat : 6.9271;
+  const userLng = typeof lng === 'number' && !isNaN(lng) ? lng : 79.8612;
+  const maxRadius = typeof radiusKm === 'number' ? radiusKm : parseFloat(radiusKm) || 50;
+
+  const companyStations = getStoredCompanyStations();
+  const stationResults = [];
+
+  companyStations.filter(s => s.isActive !== false).forEach(s => {
+    const sLat = Number(s.latitude) || userLat;
+    const sLng = Number(s.longitude) || userLng;
+    const dist = calculateDistanceKm(userLat, userLng, sLat, sLng);
+    stationResults.push({
+      station: {
+        id: s.id,
+        name: s.name,
+        address: s.address || s.location,
+        latitude: sLat,
+        longitude: sLng,
+        connectorType: s.connectorType || 'CCS2',
+        capacityKw: Number(s.capacityKw) || 120,
+        pricePerKwh: Number(s.pricePerKwh) || 60.00,
+        chargingCode: s.chargingCode || ('NEXUS-' + s.id),
+        isActive: true,
+        totalPorts: Number(s.totalPorts) || 4,
+        availablePorts: Number(s.activePorts || s.totalPorts) || 3
+      },
+      distanceKm: dist
+    });
+  });
+
+  if (stationResults.length < 3) {
+    const localOffsets = [
+      { name: 'EVNexus Supercharger - Central Hub', latOffset: 0.0075, lngOffset: 0.0082, code: 'NEX-101', type: 'CCS2', kw: 150, price: 65.00 },
+      { name: 'EVNexus Fast Charge Hub - Coastal Express', latOffset: -0.0090, lngOffset: -0.0065, code: 'NEX-102', type: 'CHAdeMO / CCS2', kw: 120, price: 58.00 },
+      { name: 'EVNexus Eco Charge Plaza', latOffset: 0.0150, lngOffset: -0.0120, code: 'NEX-103', type: 'Type 2 / CCS2', kw: 60, price: 52.00 }
+    ];
+    localOffsets.forEach((off, idx) => {
+      const sLat = userLat + off.latOffset;
+      const sLng = userLng + off.lngOffset;
+      stationResults.push({
+        station: {
+          id: 'STN-LOC-' + (idx + 1),
+          name: off.name,
+          address: 'Main Road Plaza, Near Station',
+          latitude: sLat,
+          longitude: sLng,
+          connectorType: off.type,
+          capacityKw: off.kw,
+          pricePerKwh: off.price,
+          chargingCode: off.code,
+          isActive: true,
+          totalPorts: 6,
+          availablePorts: 4
+        },
+        distanceKm: calculateDistanceKm(userLat, userLng, sLat, sLng)
+      });
+    });
+  }
+
+  const filtered = stationResults
+    .filter(item => item.distanceKm <= maxRadius)
+    .sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return {
+    success: true,
+    data: filtered.length > 0 ? filtered : stationResults.slice(0, 3)
+  };
 }
 
 export async function startChargingSession(chargingCode) {
-  const authToken = getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/start`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      },
-      body: JSON.stringify({ chargingCode })
-    });
-    return await handleResponse(response, 'Failed to start charging session.');
-  } catch (err) {
-    if (err.status) throw err;
-    return {
-      success: true,
-      message: 'Charging session started successfully (Cloud Mode)!',
-      data: {
-        sessionId: 'SESS-' + Math.floor(1000 + Math.random() * 9000),
-        stationName: 'EVNexus Supercharger - Colombo Fort',
-        connectorType: 'CCS2',
-        startTime: new Date().toISOString(),
-        status: 'Charging',
-        energyDeliveredKwh: 0.1,
-        currentPowerKw: 48.5
-      }
-    };
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ chargingCode })
+      });
+      return await handleResponse(response, 'Failed to start charging session.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  const allStations = getStoredCompanyStations();
+  const matchedStation = allStations.find(s => 
+    s.chargingCode?.toUpperCase() === chargingCode?.trim().toUpperCase()
+  ) || allStations[0];
+
+  const newSession = {
+    id: 'SESS-' + Math.floor(1000 + Math.random() * 9000),
+    stationId: matchedStation?.id || 'STN-101',
+    stationName: matchedStation?.name || 'EVNexus Supercharger Hub',
+    chargingCode: chargingCode?.toUpperCase(),
+    connectorType: matchedStation?.connectorType || 'CCS2',
+    startTime: new Date().toISOString(),
+    status: 'Active',
+    energyDeliveredKwh: 0.1,
+    currentPowerKw: matchedStation?.capacityKw || 120,
+    pricePerKwh: matchedStation?.pricePerKwh || 60.00
+  };
+
+  saveStoredActiveSession(newSession);
+
+  return {
+    success: true,
+    message: 'Charging session started successfully!',
+    data: newSession,
+    station: matchedStation
+  };
 }
 
 export async function stopChargingSession(sessionId) {
-  const authToken = getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/${sessionId}/stop`, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
-    return await handleResponse(response, 'Failed to stop charging session.');
-  } catch (err) {
-    if (err.status) throw err;
-    return {
-      success: true,
-      message: 'Charging session stopped successfully.',
-      data: {
-        sessionId,
-        status: 'Completed',
-        endTime: new Date().toISOString(),
-        totalKwh: 34.2,
-        totalCostLkr: 2223.00
-      }
-    };
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/${sessionId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      return await handleResponse(response, 'Failed to stop charging session.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  const active = getStoredActiveSession();
+  const startTime = active?.startTime ? new Date(active.startTime) : new Date(Date.now() - 3600000);
+  const endTime = new Date();
+  const durationMinutes = Math.max(1, Math.round((endTime - startTime) / 60000));
+  const totalKwh = Math.round((durationMinutes * 0.75) * 10) / 10;
+  const price = active?.pricePerKwh || 60.00;
+  const totalCost = Math.round(totalKwh * price * 100) / 100;
+
+  const receipt = {
+    session: {
+      id: sessionId || active?.id || ('SESS-' + Math.floor(1000 + Math.random() * 9000)),
+      startTime: startTime.toISOString(),
+      endTime: endTime.toISOString(),
+      energyConsumedKwh: totalKwh,
+      totalCost: totalCost,
+      status: 'COMPLETED'
+    },
+    stationName: active?.stationName || 'EVNexus Supercharger',
+    address: 'Colombo, Sri Lanka',
+    paymentId: 'PAY-' + Math.random().toString(36).substring(2, 9),
+    paymentMethod: 'Nexus Universal Wallet',
+    currency: 'LKR'
+  };
+
+  const history = getStoredSessionHistory();
+  history.unshift(receipt);
+  saveStoredSessionHistory(history);
+  saveStoredActiveSession(null);
+
+  return {
+    success: true,
+    message: 'Charging session stopped successfully.',
+    data: {
+      sessionId,
+      status: 'Completed',
+      endTime: endTime.toISOString(),
+      totalKwh,
+      totalCostLkr: totalCost
+    }
+  };
 }
 
 export async function getActiveSession() {
-  const authToken = getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/active`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
-    return await handleResponse(response, 'Failed to retrieve active session.');
-  } catch (err) {
-    if (err.status) throw err;
-    return { success: true, data: null };
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/active`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
+      return await handleResponse(response, 'Failed to retrieve active session.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  const active = getStoredActiveSession();
+  return { success: true, data: active };
 }
 
 export async function getSessionHistory() {
-  const authToken = getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/history`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
-    return await handleResponse(response, 'Failed to retrieve session history.');
-  } catch (err) {
-    if (err.status) throw err;
-    return {
-      success: true,
-      data: [
-        {
-          session: {
-            id: 'SESS-8921',
-            startTime: new Date(Date.now() - 3600000 * 5).toISOString(),
-            endTime: new Date(Date.now() - 3600000 * 4.2).toISOString(),
-            energyConsumedKwh: 42.5,
-            totalCost: 2762.50,
-            status: 'COMPLETED'
-          },
-          stationName: 'EVNexus Supercharger - Colombo Fort',
-          address: 'York Street, Colombo 01',
-          paymentId: 'PAY-4891b2c',
-          paymentMethod: 'Nexus Universal Wallet',
-          currency: 'LKR'
-        },
-        {
-          session: {
-            id: 'SESS-7410',
-            startTime: new Date(Date.now() - 3600000 * 28).toISOString(),
-            endTime: new Date(Date.now() - 3600000 * 27.4).toISOString(),
-            energyConsumedKwh: 28.0,
-            totalCost: 1624.00,
-            status: 'COMPLETED'
-          },
-          stationName: 'EVNexus Hub - Kollupitiya',
-          address: 'Galle Road, Kollupitiya',
-          paymentId: 'PAY-3184e9a',
-          paymentMethod: 'Nexus Universal Wallet',
-          currency: 'LKR'
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/history`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
         }
-      ]
-    };
+      });
+      return await handleResponse(response, 'Failed to retrieve session history.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  return {
+    success: true,
+    data: getStoredSessionHistory()
+  };
 }
 
 // -----------------------------------------
@@ -919,31 +1104,34 @@ export async function testCrossTenantAccess(targetTenantId, token) {
 }
 
 export async function getDriverWallet(token) {
-  const authToken = token || getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-    return await handleResponse(response, 'Failed to retrieve driver wallet.');
-  } catch (err) {
-    if (err.status) throw err;
-    const user = getStoredUser();
-    return {
-      success: true,
-      data: {
-        walletId: user?.walletId || 'WAL-DRV-1001',
-        balance: user?.walletBalance || 8500.00,
-        currency: user?.currency || 'LKR',
-        lastUpdated: new Date().toISOString()
-      }
-    };
+      return await handleResponse(response, 'Failed to retrieve driver wallet.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  const user = getStoredUser();
+  return {
+    success: true,
+    data: {
+      walletId: user?.walletId || 'WAL-DRV-1001',
+      balance: user?.walletBalance || 8500.00,
+      currency: user?.currency || 'LKR',
+      lastUpdated: new Date().toISOString()
+    }
+  };
 }
 
 export async function testDriverAccessToCompanyEndpoint(token) {
@@ -1110,86 +1298,143 @@ export async function resendVerificationCode(email) {
 }
 
 export async function getDriverVehicles(token) {
-  const authToken = token || getAuthToken();
-  try {
-    const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${authToken}`
-      }
-    });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-    return await handleResponse(response, 'Failed to retrieve driver vehicles.');
-  } catch (err) {
-    if (err.status) throw err;
-    return {
-      success: true,
-      data: [
-        { vehicleId: 'VEH-01', make: 'Tesla', model: 'Model 3 Long Range', plateNumber: 'WP-CAD-1029', connectorType: 'CCS2', isDefault: true },
-        { vehicleId: 'VEH-02', make: 'Nissan', model: 'Leaf e+', plateNumber: 'WP-CBA-4512', connectorType: 'CHAdeMO', isDefault: false }
-      ]
-    };
+      return await handleResponse(response, 'Failed to retrieve driver vehicles.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
   }
+
+  return {
+    success: true,
+    data: getStoredDriverVehicles()
+  };
 }
 
 export async function addDriverVehicle(vehicleData, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(vehicleData)
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(vehicleData)
+      });
 
-  return handleResponse(response, 'Failed to add vehicle.');
+      return await handleResponse(response, 'Failed to add vehicle.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
+  }
+
+  const vehicles = getStoredDriverVehicles();
+  const newVehicle = {
+    vehicleId: 'VEH-' + Math.floor(10 + Math.random() * 90),
+    make: vehicleData.make || 'EV',
+    model: vehicleData.model || 'Standard Model',
+    plateNumber: vehicleData.plateNumber || 'WP-ABC-1234',
+    connectorType: vehicleData.connectorType || 'CCS2',
+    isDefault: vehicles.length === 0
+  };
+  vehicles.push(newVehicle);
+  saveStoredDriverVehicles(vehicles);
+
+  return { success: true, message: 'Vehicle added successfully!', data: newVehicle };
 }
 
 export async function updateDriverVehicle(vehicleId, vehicleData, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(vehicleData)
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify(vehicleData)
+      });
 
-  return handleResponse(response, 'Failed to update vehicle.');
+      return await handleResponse(response, 'Failed to update vehicle.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
+  }
+
+  const vehicles = getStoredDriverVehicles();
+  const idx = vehicles.findIndex(v => v.vehicleId === vehicleId);
+  if (idx !== -1) {
+    vehicles[idx] = { ...vehicles[idx], ...vehicleData };
+    saveStoredDriverVehicles(vehicles);
+  }
+  return { success: true, message: 'Vehicle updated successfully!' };
 }
 
 export async function deleteDriverVehicle(vehicleId, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    }
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-  return handleResponse(response, 'Failed to delete vehicle.');
+      return await handleResponse(response, 'Failed to delete vehicle.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
+  }
+
+  const vehicles = getStoredDriverVehicles().filter(v => v.vehicleId !== vehicleId);
+  saveStoredDriverVehicles(vehicles);
+  return { success: true, message: 'Vehicle removed from your garage.' };
 }
 
 export async function setDefaultDriverVehicle(vehicleId, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}/default`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    }
-  });
+  if (!isCloudDemoMode && isGatewayAvailable()) {
+    const authToken = token || getAuthToken();
+    try {
+      const response = await fetch(`${API_GATEWAY_URL}/api/driver/vehicles/${encodeURIComponent(vehicleId)}/default`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        }
+      });
 
-  return handleResponse(response, 'Failed to set default vehicle.');
+      return await handleResponse(response, 'Failed to set default vehicle.');
+    } catch (err) {
+      markGatewayUnavailable();
+    }
+  }
+
+  const vehicles = getStoredDriverVehicles().map(v => ({
+    ...v,
+    isDefault: v.vehicleId === vehicleId
+  }));
+  saveStoredDriverVehicles(vehicles);
+  return { success: true, message: 'Primary vehicle updated.' };
 }
 
 export async function getCompanyStaff(token) {
