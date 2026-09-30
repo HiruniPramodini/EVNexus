@@ -1,6 +1,12 @@
 name: Deploy Azure Event Hubs (Kafka Broker)
 
 on:
+  push:
+    branches:
+      - feature/map-cicd-pipeline
+    paths:
+      - 'Infrastructure/azure/**'
+      - '.github/workflows/deploy-eventhubs-kafka.yml'
   workflow_dispatch:
     inputs:
       resource_group:
