@@ -32,7 +32,7 @@ export default function WalletPage({ authUser }) {
         getWalletTransactions(1, 20, authUser?.accessToken)
       ]);
       setWallet(walletRes?.data || walletRes || { balance: 0, currency: 'USD' });
-      const rawTxData = txRes?.data ?? txRes;
+      const rawTxData = txRes?.data ?? txRes?.Data ?? txRes;
       setTransactions(Array.isArray(rawTxData) ? rawTxData : []);
     } catch (err) {
       setError(err.message || 'Unable to load wallet data.');
@@ -109,11 +109,11 @@ export default function WalletPage({ authUser }) {
       // Step 2: Top-up succeeded, refresh from backend for authoritative balance and transaction list
       try {
         const [walletRes, txRes] = await Promise.all([
-          getDriverWallet(authUser?.accessToken),
-          getWalletTransactions(1, 20, authUser?.accessToken)
+          getDriverWallet(),
+          getWalletTransactions(1, 20)
         ]);
         setWallet(walletRes.data);
-        const rawTxData = txRes?.data ?? txRes;
+        const rawTxData = txRes?.data ?? txRes?.Data ?? txRes;
         setTransactions(Array.isArray(rawTxData) ? rawTxData : []);
         setTopUpStep(4); // Success state
       } catch (refreshErr) {
@@ -276,7 +276,7 @@ export default function WalletPage({ authUser }) {
                       fontWeight: 'var(--weight-bold)', fontSize: '1.1rem',
                       color: tx.type === 'TOP_UP' || tx.type === 'REFUND' ? 'var(--color-success-dark)' : 'var(--color-text)' 
                     }}>
-                      {tx.type === 'TOP_UP' || tx.type === 'REFUND' ? '+' : '-'}${amountVal.toFixed(2)}
+                      {tx.type === 'TOP_UP' || tx.type === 'REFUND' ? '+' : '-'}${Math.abs(amountVal).toFixed(2)}
                     </div>
                   </div>
                 );
