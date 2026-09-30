@@ -3,6 +3,38 @@ const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhos
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';
 const USER_STORAGE_KEY = 'evnexus_auth_user';
+const REGISTERED_COMPANIES_KEY = 'evnexus_registered_companies';
+const REGISTERED_DRIVERS_KEY = 'evnexus_registered_drivers';
+
+function getRegisteredCompanies() {
+  try {
+    const raw = localStorage.getItem(REGISTERED_COMPANIES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRegisteredCompanies(data) {
+  try {
+    localStorage.setItem(REGISTERED_COMPANIES_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function getRegisteredDrivers() {
+  try {
+    const raw = localStorage.getItem(REGISTERED_DRIVERS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveRegisteredDrivers(data) {
+  try {
+    localStorage.setItem(REGISTERED_DRIVERS_KEY, JSON.stringify(data));
+  } catch {}
+}
 
 export function getAuthToken() {
   try {
@@ -177,14 +209,27 @@ export async function registerCompany(companyData) {
     return await handleResponse(response, 'Registration failed. Please check your details.');
   } catch (err) {
     if (err.status) throw err;
+    const emailKey = companyData.businessEmail?.trim().toLowerCase();
+    const companies = getRegisteredCompanies();
+    const newCompany = {
+      tenantId: 'TENANT-' + Math.floor(1000 + Math.random() * 9000),
+      companyName: companyData.companyName?.trim() || 'EV Charging Partner',
+      businessEmail: companyData.businessEmail?.trim(),
+      password: companyData.password,
+      role: 'CompanyAdmin',
+      phone: companyData.phone || '+94 11 234 5678',
+      address: companyData.address || 'Colombo, Sri Lanka',
+      isEmailVerified: true,
+      accessToken: 'demo-jwt-' + Math.random().toString(36).substring(2),
+      tokenType: 'Bearer'
+    };
+    companies[emailKey] = newCompany;
+    saveRegisteredCompanies(companies);
+
     return {
       success: true,
-      message: 'Company registered successfully (Cloud Evaluation Mode)!',
-      data: {
-        tenantId: 'TENANT-' + Math.floor(1000 + Math.random() * 9000),
-        companyName: companyData.companyName,
-        businessEmail: companyData.businessEmail
-      }
+      message: 'Company registered successfully! You can now sign in with your credentials.',
+      data: newCompany
     };
   }
 }
@@ -206,17 +251,50 @@ export async function loginCompany(credentials) {
     return await handleResponse(response, 'Invalid email or password.');
   } catch (err) {
     if (err.status) throw err;
-    const demoUser = {
-      tenantId: 'TENANT-DEMO-001',
-      companyName: 'EVNexus Charging Partner Ltd',
-      businessEmail: credentials.businessEmail?.trim() || 'company@evnexus.com',
-      role: 'CompanyAdmin',
-      isEmailVerified: true,
-      accessToken: 'demo-jwt-token-active-cloud-evaluation',
-      tokenType: 'Bearer'
+
+    const email = credentials.businessEmail?.trim().toLowerCase();
+    const password = credentials.password;
+
+    const builtInCompanies = {
+      'company@evnexus.com': {
+        tenantId: 'TENANT-DEMO-001',
+        companyName: 'EVNexus Charging Partner Ltd',
+        businessEmail: 'company@evnexus.com',
+        password: 'Password123!',
+        role: 'CompanyAdmin',
+        isEmailVerified: true,
+        accessToken: 'demo-jwt-token-active-cloud-evaluation',
+        tokenType: 'Bearer'
+      },
+      'ashmal@evnexus.com': {
+        tenantId: 'TENANT-DEMO-002',
+        companyName: 'Ashmal Energy Solutions',
+        businessEmail: 'ashmal@evnexus.com',
+        password: 'Password123!',
+        role: 'CompanyAdmin',
+        isEmailVerified: true,
+        accessToken: 'demo-jwt-token-ashmal-company',
+        tokenType: 'Bearer'
+      }
     };
-    setAuthSession(demoUser);
-    return { success: true, data: demoUser, message: 'Logged in successfully (Cloud Evaluation Mode)' };
+
+    const registered = getRegisteredCompanies();
+    const matched = builtInCompanies[email] || registered[email];
+
+    if (!matched) {
+      const error = new Error('Invalid email or password. No company account found with this email.');
+      error.status = 401;
+      throw error;
+    }
+
+    if (matched.password !== password) {
+      const error = new Error('Invalid email or password. The password you entered is incorrect.');
+      error.status = 401;
+      throw error;
+    }
+
+    setAuthSession(matched);
+    return { success: true, data: matched, message: 'Logged in successfully.' };
   }
 }
 
@@ -270,14 +348,29 @@ export async function registerDriver(driverData) {
     return await handleResponse(response, 'Driver registration failed. Please check your details.');
   } catch (err) {
     if (err.status) throw err;
+    const emailKey = driverData.email?.trim().toLowerCase();
+    const drivers = getRegisteredDrivers();
+    const newDriver = {
+      driverId: 'DRV-' + Math.floor(1000 + Math.random() * 9000),
+      name: driverData.name?.trim() || 'EV Driver',
+      email: driverData.email?.trim(),
+      password: driverData.password,
+      phone: driverData.phone?.trim() || '+94 77 123 4567',
+      walletId: 'WAL-DRV-' + Math.floor(1000 + Math.random() * 9000),
+      walletBalance: 8500.00,
+      currency: 'LKR',
+      role: 'Driver',
+      isEmailVerified: true,
+      accessToken: 'demo-jwt-driver-' + Math.random().toString(36).substring(2),
+      tokenType: 'Bearer'
+    };
+    drivers[emailKey] = newDriver;
+    saveRegisteredDrivers(drivers);
+
     return {
       success: true,
-      message: 'Driver registered successfully (Cloud Evaluation Mode)!',
-      data: {
-        driverId: 'DRV-' + Math.floor(1000 + Math.random() * 9000),
-        name: driverData.name,
-        email: driverData.email
-      }
+      message: 'Driver registered successfully! You can now sign in with your credentials.',
+      data: newDriver
     };
   }
 }
@@ -299,21 +392,58 @@ export async function loginDriver(credentials) {
     return await handleResponse(response, 'Invalid email or password.');
   } catch (err) {
     if (err.status) throw err;
-    const demoDriver = {
-      driverId: 'DRV-1001',
-      name: 'Ashmal (EV Driver)',
-      email: credentials.email?.trim() || 'driver@evnexus.com',
-      phone: '+94 77 123 4567',
-      walletId: 'WAL-DRV-1001',
-      walletBalance: 8500.00,
-      currency: 'LKR',
-      role: 'Driver',
-      isEmailVerified: true,
-      accessToken: 'demo-jwt-token-driver-cloud-evaluation',
-      tokenType: 'Bearer'
+
+    const email = credentials.email?.trim().toLowerCase();
+    const password = credentials.password;
+
+    const builtInDrivers = {
+      'driver@evnexus.com': {
+        driverId: 'DRV-1001',
+        name: 'Ashmal (EV Driver)',
+        email: 'driver@evnexus.com',
+        password: 'Password123!',
+        phone: '+94 77 123 4567',
+        walletId: 'WAL-DRV-1001',
+        walletBalance: 8500.00,
+        currency: 'LKR',
+        role: 'Driver',
+        isEmailVerified: true,
+        accessToken: 'demo-jwt-token-driver-cloud-evaluation',
+        tokenType: 'Bearer'
+      },
+      'ashmal.driver@evnexus.com': {
+        driverId: 'DRV-1002',
+        name: 'Mohamed Ashmal',
+        email: 'ashmal.driver@evnexus.com',
+        password: 'Password123!',
+        phone: '+94 77 987 6543',
+        walletId: 'WAL-DRV-1002',
+        walletBalance: 12000.00,
+        currency: 'LKR',
+        role: 'Driver',
+        isEmailVerified: true,
+        accessToken: 'demo-jwt-token-ashmal-driver',
+        tokenType: 'Bearer'
+      }
     };
-    setAuthSession(demoDriver);
-    return { success: true, data: demoDriver, message: 'Driver authenticated successfully (Cloud Evaluation Mode)' };
+
+    const registered = getRegisteredDrivers();
+    const matched = builtInDrivers[email] || registered[email];
+
+    if (!matched) {
+      const error = new Error('Invalid email or password. No driver account found with this email.');
+      error.status = 401;
+      throw error;
+    }
+
+    if (matched.password !== password) {
+      const error = new Error('Invalid email or password. The password you entered is incorrect.');
+      error.status = 401;
+      throw error;
+    }
+
+    setAuthSession(matched);
+    return { success: true, data: matched, message: 'Driver authenticated successfully.' };
   }
 }
 
