@@ -37,15 +37,30 @@ public class DatabaseInitializer : IDatabaseInitializer
                 INDEX idx_tenant_id (TenantId)
             );
 
-            CREATE TABLE IF NOT EXISTS charging_sessions (
+            CREATE TABLE IF NOT EXISTS chargers (
                 Id VARCHAR(36) PRIMARY KEY,
                 StationId VARCHAR(36) NOT NULL,
+                Type VARCHAR(50) NOT NULL,
+                PowerKw DECIMAL(10, 2) NOT NULL,
+                PricePerKwh DECIMAL(10, 2) NOT NULL,
+                Status VARCHAR(50) NOT NULL DEFAULT 'Available',
+                CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                FOREIGN KEY (StationId) REFERENCES stations(Id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS charging_sessions (
+                Id VARCHAR(36) PRIMARY KEY,
+                CompanyId VARCHAR(36) NOT NULL,
+                StationId VARCHAR(36) NOT NULL,
+                ChargerId VARCHAR(36) NOT NULL,
                 DriverId VARCHAR(36) NOT NULL,
                 StartTime DATETIME DEFAULT CURRENT_TIMESTAMP,
                 EndTime DATETIME NULL,
                 Status VARCHAR(50) NOT NULL DEFAULT 'Active',
                 EnergyConsumedKwh DECIMAL(10, 4) DEFAULT 0,
                 TotalCost DECIMAL(10, 2) DEFAULT 0,
+                EstimatedCost DECIMAL(10, 2) DEFAULT 0,
                 FOREIGN KEY (StationId) REFERENCES stations(Id)
             );
         ";
