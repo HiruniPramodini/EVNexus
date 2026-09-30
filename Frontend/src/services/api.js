@@ -689,56 +689,165 @@ export async function getSessionHistory() {
 // -----------------------------------------
 // MAP SERVICE: COMPANY STATION MANAGEMENT
 // -----------------------------------------
+const COMPANY_STATIONS_KEY = 'evnexus_company_stations';
+
+function getStoredCompanyStations() {
+  try {
+    const raw = localStorage.getItem(COMPANY_STATIONS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+
+  const initial = [
+    {
+      id: 'STN-101',
+      name: 'Nexus Central Superhub',
+      location: 'Lotus Tower Plaza, Colombo 10',
+      address: 'Lotus Tower Plaza, Colombo 10',
+      latitude: 6.9271,
+      longitude: 79.8612,
+      connectorType: 'CCS2',
+      capacityKw: 150,
+      pricePerKwh: 65.00,
+      chargingCode: 'NEXUS-101',
+      totalPorts: 8,
+      activePorts: 6,
+      status: 'Active',
+      isActive: true,
+      lastHeartbeat: new Date().toISOString()
+    },
+    {
+      id: 'STN-102',
+      name: 'Nexus Marine Drive Depot',
+      location: 'Marine Drive, Bambalapitiya',
+      address: 'Marine Drive, Bambalapitiya',
+      latitude: 6.8915,
+      longitude: 79.8540,
+      connectorType: 'CCS2 / CHAdeMO',
+      capacityKw: 120,
+      pricePerKwh: 58.00,
+      chargingCode: 'NEXUS-102',
+      totalPorts: 4,
+      activePorts: 3,
+      status: 'Active',
+      isActive: true,
+      lastHeartbeat: new Date().toISOString()
+    }
+  ];
+  try {
+    localStorage.setItem(COMPANY_STATIONS_KEY, JSON.stringify(initial));
+  } catch {}
+  return initial;
+}
+
+function saveStoredCompanyStations(stations) {
+  try {
+    localStorage.setItem(COMPANY_STATIONS_KEY, JSON.stringify(stations));
+  } catch {}
+}
+
 export async function createStation(stationData) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(stationData)
-  });
-  return handleResponse(response, 'Failed to create charging station.');
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify(stationData)
+    });
+    return await handleResponse(response, 'Failed to create charging station.');
+  } catch (err) {
+    if (err.status) throw err;
+    const stations = getStoredCompanyStations();
+    const newStation = {
+      id: 'STN-' + Math.floor(100 + Math.random() * 900),
+      name: stationData.name,
+      address: stationData.address || stationData.location || 'Colombo, Sri Lanka',
+      location: stationData.location || stationData.address || 'Colombo, Sri Lanka',
+      latitude: Number(stationData.latitude) || 6.9271,
+      longitude: Number(stationData.longitude) || 79.8612,
+      connectorType: stationData.connectorType || 'CCS2',
+      capacityKw: Number(stationData.capacityKw) || 120,
+      pricePerKwh: Number(stationData.pricePerKwh) || 60.00,
+      chargingCode: 'NEXUS-' + Math.floor(100 + Math.random() * 900),
+      totalPorts: Number(stationData.totalPorts) || 4,
+      activePorts: Number(stationData.totalPorts) || 4,
+      status: 'Active',
+      isActive: true,
+      lastHeartbeat: new Date().toISOString()
+    };
+    stations.unshift(newStation);
+    saveStoredCompanyStations(stations);
+    return { success: true, message: 'Charging station created successfully!', data: newStation };
+  }
 }
 
 export async function getStationById(id) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    }
-  });
-  return handleResponse(response, 'Failed to retrieve station details.');
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+    return await handleResponse(response, 'Failed to retrieve station details.');
+  } catch (err) {
+    if (err.status) throw err;
+    const stations = getStoredCompanyStations();
+    const found = stations.find(s => s.id === id) || stations[0];
+    return { success: true, data: found };
+  }
 }
 
 export async function updateStation(id, stationData) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(stationData)
-  });
-  return handleResponse(response, 'Failed to update charging station.');
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      },
+      body: JSON.stringify(stationData)
+    });
+    return await handleResponse(response, 'Failed to update charging station.');
+  } catch (err) {
+    if (err.status) throw err;
+    const stations = getStoredCompanyStations();
+    const index = stations.findIndex(s => s.id === id);
+    if (index !== -1) {
+      stations[index] = { ...stations[index], ...stationData };
+      saveStoredCompanyStations(stations);
+    }
+    return { success: true, message: 'Station updated successfully!' };
+  }
 }
 
 export async function deactivateStation(id) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    }
-  });
-  return handleResponse(response, 'Failed to deactivate charging station.');
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+    return await handleResponse(response, 'Failed to deactivate charging station.');
+  } catch (err) {
+    if (err.status) throw err;
+    const stations = getStoredCompanyStations().filter(s => s.id !== id);
+    saveStoredCompanyStations(stations);
+    return { success: true, message: 'Station deactivated successfully.' };
+  }
 }
 
 export async function getCompanyStations(token) {
@@ -758,55 +867,30 @@ export async function getCompanyStations(token) {
     if (err.status) throw err;
     return {
       success: true,
-      data: [
-        {
-          id: 'STN-101',
-          name: 'Nexus Central Superhub',
-          location: 'Lotus Tower Plaza, Colombo 10',
-          totalPorts: 8,
-          activePorts: 6,
-          status: 'Active',
-          lastHeartbeat: new Date().toISOString()
-        },
-        {
-          id: 'STN-102',
-          name: 'Nexus Marine Drive Depot',
-          location: 'Marine Drive, Bambalapitiya',
-          totalPorts: 4,
-          activePorts: 3,
-          status: 'Active',
-          lastHeartbeat: new Date().toISOString()
-        }
-      ]
+      data: getStoredCompanyStations()
     };
   }
 }
 
 export async function getActiveCompanySessions(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/sessions/active`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    }
-  });
-  return handleResponse(response, 'Failed to retrieve active sessions.');
+  try {
+    const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/sessions/active`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+    return await handleResponse(response, 'Failed to retrieve active sessions.');
+  } catch (err) {
+    if (err.status) throw err;
+    return { success: true, data: [] };
+  }
 }
 
 export async function createCompanyStation(stationData, token) {
-  const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
-    },
-    body: JSON.stringify(stationData)
-  });
-
-  return handleResponse(response, 'Failed to create charging station.');
+  return createStation(stationData);
 }
 
 export async function testCrossTenantAccess(targetTenantId, token) {

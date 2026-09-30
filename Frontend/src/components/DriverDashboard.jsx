@@ -545,10 +545,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
                 <Key size={15} />
                 <span>Security</span>
               </button>
-              <button type="button" className="hero-btn" onClick={handleLogoutClick}>
-                <LogOut size={15} />
-                <span>Sign Out</span>
-              </button>
             </div>
           </div>
 

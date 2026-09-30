@@ -619,11 +619,6 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
                   <span>Edit Profile</span>
                 </button>
               )}
-
-              <button type="button" className="hero-btn" onClick={handleLogoutClick}>
-                <LogOut size={15} />
-                <span>Sign Out</span>
-              </button>
             </div>
           </div>
 
