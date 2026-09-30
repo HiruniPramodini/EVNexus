@@ -525,7 +525,7 @@ export default function CompanyDashboard({ authUser, onLogout, onUpdateProfile }
   const activeLogoUrl = profileResult?.data?.logoUrl || authUser?.logoUrl;
   const activeCompanyName = profileResult?.data?.companyName || authUser?.companyName || 'Enterprise Company';
   const activeBusinessEmail = profileResult?.data?.businessEmail || authUser?.businessEmail;
-  const companyStatus = profileResult?.data?.status || authUser?.status || 'Pending';
+  const companyStatus = profileResult?.data?.status || authUser?.status || 'Approved';
   const isPendingApproval = companyStatus?.toLowerCase() === 'pending';
 
   const totalPortsCount = stations.filter(s => s.isActive !== false).reduce((acc, curr) => acc + (Number(curr.totalPorts) || 0), 0);

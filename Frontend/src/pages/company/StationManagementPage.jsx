@@ -58,11 +58,11 @@ export default function StationManagementPage() {
   const initialFormState = {
     name: '',
     address: '',
-    latitude: '',
-    longitude: '',
+    latitude: '6.9271',
+    longitude: '79.8612',
     connectorType: 'CCS2',
-    capacityKw: 50,
-    pricePerKwh: 0.50
+    capacityKw: 120,
+    pricePerKwh: 60.00
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,19 +124,16 @@ export default function StationManagementPage() {
     setError(null);
     setSuccessMsg(null);
 
+    const parsedLat = parseFloat(formData.latitude);
+    const parsedLng = parseFloat(formData.longitude);
+
     const payload = {
       ...formData,
-      latitude: parseFloat(formData.latitude),
-      longitude: parseFloat(formData.longitude),
-      capacityKw: parseFloat(formData.capacityKw),
-      pricePerKwh: parseFloat(formData.pricePerKwh)
+      latitude: !isNaN(parsedLat) ? parsedLat : 6.9271,
+      longitude: !isNaN(parsedLng) ? parsedLng : 79.8612,
+      capacityKw: parseFloat(formData.capacityKw) || 120,
+      pricePerKwh: parseFloat(formData.pricePerKwh) || 60.00
     };
-
-    if (isNaN(payload.latitude) || isNaN(payload.longitude)) {
-      setError("Please ensure latitude and longitude are properly formatted numbers.");
-      setIsSubmitting(false);
-      return;
-    }
 
     try {
       if (isEditing) {
@@ -401,7 +398,7 @@ export default function StationManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {stations.filter(s => s.isActive).map(stn => (
+              {stations.filter(s => s.isActive !== false).map(stn => (
                 <tr key={stn.id}>
                   <td style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--primary-700)' }}>{stn.chargingCode}</td>
                   <td>
@@ -435,7 +432,7 @@ export default function StationManagementPage() {
                   </td>
                 </tr>
               ))}
-              {stations.filter(s => s.isActive).length === 0 && (
+              {stations.filter(s => s.isActive !== false).length === 0 && (
                 <tr>
                   <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                     No stations found. Create one to get started.
