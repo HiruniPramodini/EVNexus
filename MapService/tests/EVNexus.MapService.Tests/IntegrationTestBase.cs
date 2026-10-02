@@ -4,7 +4,9 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
 namespace EVNexus.MapService.Tests;
@@ -19,7 +21,17 @@ public class IntegrationTestBase : IClassFixture<WebApplicationFactory<Program>>
 
     protected IntegrationTestBase(WebApplicationFactory<Program> factory)
     {
-        Client = factory.CreateClient();
+        Client = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Jwt:Key", JwtSecret);
+            builder.ConfigureAppConfiguration((context, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Jwt:Key"] = JwtSecret
+                });
+            });
+        }).CreateClient();
     }
 
     protected static string GenerateToken(string tenantId, string userId, string role)
