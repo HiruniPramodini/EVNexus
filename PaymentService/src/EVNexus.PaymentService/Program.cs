@@ -1,22 +1,51 @@
+using System.Diagnostics;
 using EVNexus.PaymentService.Data;
 using EVNexus.PaymentService.Kafka;
 using EVNexus.PaymentService.Forecasting;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi.Models;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Application Insights
+var aiConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (!string.IsNullOrEmpty(aiConnectionString))
+{
+    builder.Services.AddApplicationInsightsTelemetry(options =>
+    {
+        options.ConnectionString = aiConnectionString;
+        options.EnableAdaptiveSampling = true;
+        options.EnableQuickPulseMetricStream = true;
+    });
+}
+else
+{
+    builder.Services.AddApplicationInsightsTelemetry();
+}
+
+// Swagger / Controllers
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "EVNexus Payment & Wallet Service API",
+        Version = "v1",
+        Description = "EVNexus Payment and Wallet Service API."
+    });
+});
 builder.Services.AddControllers();
 
-// Add Authentication
+// Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_SECRET"];
 if (string.IsNullOrEmpty(jwtKey))
 {
-    throw new InvalidOperationException("JWT Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
+    throw new InvalidOperationException(
+        "JWT Key is missing from configuration. Configure 'Jwt:Key' or 'JWT_SECRET'.");
 }
 
-builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
@@ -33,7 +62,7 @@ builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer
     });
 builder.Services.AddAuthorization();
 
-// Add Database
+// Database and application services
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IWalletRepository, WalletRepository>();
@@ -42,67 +71,21 @@ builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
 builder.Services.AddScoped<ICompanyAnalyticsRepository, CompanyAnalyticsRepository>();
 builder.Services.AddScoped<IForecastService, ForecastService>();
 
-// Add Kafka
+// Kafka/background services
 builder.Services.AddSingleton<KafkaProducerService>();
 builder.Services.AddHostedService<ChargingSessionCompletedConsumer>();
 builder.Services.AddHostedService<OutboxPublisherService>();
 
-// Services removed or refactored
-
 var app = builder.Build();
 
-// Initialize DB
+// Initialize database
 using (var scope = app.Services.CreateScope())
 {
     var dbInitializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
     await dbInitializer.InitializeAsync();
 }
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-using System.Diagnostics;
-using System.Text.Json;
-using Microsoft.OpenApi.Models;
-using MySqlConnector;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// ---------------------------------------------------------
-// 1. Azure Application Insights Telemetry (Acceptance Criteria 2)
-// ---------------------------------------------------------
-var aiConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-if (!string.IsNullOrEmpty(aiConnectionString))
-{
-    builder.Services.AddApplicationInsightsTelemetry(options =>
-    {
-        options.ConnectionString = aiConnectionString;
-        options.EnableAdaptiveSampling = true;
-        options.EnableQuickPulseMetricStream = true; // Live Metrics
-    });
-}
-else
-{
-    // Fallback registration so ILogger and telemetry pipeline are active
-    builder.Services.AddApplicationInsightsTelemetry();
-}
-
-// ---------------------------------------------------------
-// 2. Swagger / OpenAPI Configuration
-// ---------------------------------------------------------
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "⚡ EVNexus Payment & Wallet Service API",
-        Version = "v1",
-        Description = "Microservice managing internal EV driver wallets, top-ups, transactions, and session payments with Azure Application Insights telemetry."
-    });
-});
-
-var app = builder.Build();
-
-// Enable Swagger in all environments (Development & Production) for Azure testing
+// Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -110,16 +93,13 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Root Redirect to Swagger for convenient browser verification
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// ---------------------------------------------------------
-// 3. Health Check Endpoint (Acceptance Criteria 4 & DoD)
-// ---------------------------------------------------------
+// Health check
 app.MapGet("/health", async (IConfiguration config, ILogger<Program> logger) =>
 {
     var sw = Stopwatch.StartNew();
-    var connStr = config.GetConnectionString("DefaultConnection") 
+    var connStr = config.GetConnectionString("DefaultConnection")
                ?? config["ConnectionStrings:DefaultConnection"]
                ?? config["ConnectionStrings__DefaultConnection"];
 
@@ -170,26 +150,25 @@ app.MapGet("/health", async (IConfiguration config, ILogger<Program> logger) =>
         }
     };
 
-    return isHealthy ? Results.Ok(response) : Results.Json(response, statusCode: 503);
+    return isHealthy
+        ? Results.Ok(response)
+        : Results.Json(response, statusCode: 503);
 })
 .WithName("HealthCheck")
 .WithOpenApi(operation => new(operation)
 {
     Summary = "Health Probe Endpoint",
-    Description = "Checks the operational status of the Payment Service and its Azure MySQL database connection."
+    Description = "Checks Payment Service and its Azure MySQL database connection."
 });
 
-// ---------------------------------------------------------
-// 4. Wallet & Payment Domain Endpoints (Sprint 3 Core APIs)
-// ---------------------------------------------------------
-
 // GET /api/wallets/{driverId}
-app.MapGet("/api/wallets/{driverId}", async (string driverId, IConfiguration config, ILogger<Program> logger) =>
+app.MapGet("/api/wallets/{driverId}",
+    async (string driverId, IConfiguration config, ILogger<Program> logger) =>
 {
     var connStr = config.GetConnectionString("DefaultConnection");
+
     if (string.IsNullOrEmpty(connStr))
     {
-        // Return simulated wallet if no DB configured
         return Results.Ok(new
         {
             walletId = $"WAL-{driverId}",
@@ -205,20 +184,18 @@ app.MapGet("/api/wallets/{driverId}", async (string driverId, IConfiguration con
         await using var conn = new MySqlConnection(connStr);
         await conn.OpenAsync();
 
-        var query = "SELECT id, driver_id, driver_name, wallet_balance, currency, status FROM sprint3_payment_test_wallets WHERE driver_id = @driverId LIMIT 1;";
+        const string query = """
+            SELECT id, driver_id, driver_name, wallet_balance, currency, status
+            FROM sprint3_payment_test_wallets
+            WHERE driver_id = @driverId
+            LIMIT 1;
+            """;
+
         await using var cmd = new MySqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@driverId", driverId);
 
-// app.UseHttpsRedirection();
-
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-
-app.Run();
-
-public partial class Program { }
         await using var reader = await cmd.ExecuteReaderAsync();
+
         if (await reader.ReadAsync())
         {
             return Results.Ok(new
@@ -244,13 +221,18 @@ public partial class Program { }
 .WithOpenApi(op => new(op) { Summary = "Get Driver Wallet Balance" });
 
 // POST /api/wallets/topup
-app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config, ILogger<Program> logger) =>
+app.MapPost("/api/wallets/topup",
+    async (TopUpRequest req, IConfiguration config, ILogger<Program> logger) =>
 {
-    if (req.Amount <= 0) return Results.BadRequest(new { message = "Top-up amount must be positive." });
+    if (req.Amount <= 0)
+        return Results.BadRequest(new { message = "Top-up amount must be positive." });
 
-    logger.LogInformation("Processing top-up of {Amount} LKR for driver {DriverId}", req.Amount, req.DriverId);
+    logger.LogInformation(
+        "Processing top-up of {Amount} LKR for driver {DriverId}",
+        req.Amount, req.DriverId);
 
     var connStr = config.GetConnectionString("DefaultConnection");
+
     if (string.IsNullOrEmpty(connStr))
     {
         return Results.Ok(new
@@ -269,11 +251,12 @@ app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config
         await using var conn = new MySqlConnection(connStr);
         await conn.OpenAsync();
 
-        var updateSql = @"
-            UPDATE sprint3_payment_test_wallets 
-            SET wallet_balance = wallet_balance + @amount, status = 'ACTIVE' 
+        const string updateSql = """
+            UPDATE sprint3_payment_test_wallets
+            SET wallet_balance = wallet_balance + @amount, status = 'ACTIVE'
             WHERE driver_id = @driverId;
-        ";
+            """;
+
         await using var cmd = new MySqlCommand(updateSql, conn);
         cmd.Parameters.AddWithValue("@amount", req.Amount);
         cmd.Parameters.AddWithValue("@driverId", req.DriverId);
@@ -281,11 +264,13 @@ app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config
 
         if (rows == 0)
         {
-            // Insert if not exists
-            var insertSql = @"
-                INSERT INTO sprint3_payment_test_wallets (id, driver_id, driver_name, wallet_balance, currency, status)
-                VALUES (@id, @driverId, @driverName, @amount, 'LKR', 'ACTIVE');
-            ";
+            const string insertSql = """
+                INSERT INTO sprint3_payment_test_wallets
+                    (id, driver_id, driver_name, wallet_balance, currency, status)
+                VALUES
+                    (@id, @driverId, @driverName, @amount, 'LKR', 'ACTIVE');
+                """;
+
             await using var insertCmd = new MySqlCommand(insertSql, conn);
             insertCmd.Parameters.AddWithValue("@id", $"WAL-{req.DriverId}");
             insertCmd.Parameters.AddWithValue("@driverId", req.DriverId);
@@ -313,13 +298,18 @@ app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config
 .WithOpenApi(op => new(op) { Summary = "Add Funds to Driver Wallet" });
 
 // POST /api/payments/charge
-app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfiguration config, ILogger<Program> logger) =>
+app.MapPost("/api/payments/charge",
+    async (PaymentChargeRequest req, IConfiguration config, ILogger<Program> logger) =>
 {
-    if (req.Amount <= 0) return Results.BadRequest(new { message = "Payment amount must be positive." });
+    if (req.Amount <= 0)
+        return Results.BadRequest(new { message = "Payment amount must be positive." });
 
-    logger.LogInformation("Processing charging session payment: Session={SessionId}, Amount={Amount} LKR", req.SessionId, req.Amount);
+    logger.LogInformation(
+        "Processing charging session payment: Session={SessionId}, Amount={Amount} LKR",
+        req.SessionId, req.Amount);
 
     var connStr = config.GetConnectionString("DefaultConnection");
+
     if (string.IsNullOrEmpty(connStr))
     {
         return Results.Ok(new
@@ -338,11 +328,12 @@ app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfigurat
         await using var conn = new MySqlConnection(connStr);
         await conn.OpenAsync();
 
-        var deductSql = @"
-            UPDATE sprint3_payment_test_wallets 
-            SET wallet_balance = wallet_balance - @amount 
+        const string deductSql = """
+            UPDATE sprint3_payment_test_wallets
+            SET wallet_balance = wallet_balance - @amount
             WHERE driver_id = @driverId AND wallet_balance >= @amount;
-        ";
+            """;
+
         await using var cmd = new MySqlCommand(deductSql, conn);
         cmd.Parameters.AddWithValue("@amount", req.Amount);
         cmd.Parameters.AddWithValue("@driverId", req.DriverId);
@@ -350,7 +341,10 @@ app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfigurat
 
         if (rows == 0)
         {
-            return Results.BadRequest(new { message = "Payment failed: Insufficient wallet balance or wallet not found." });
+            return Results.BadRequest(new
+            {
+                message = "Payment failed: Insufficient wallet balance or wallet not found."
+            });
         }
 
         return Results.Ok(new
@@ -372,8 +366,13 @@ app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfigurat
 .WithName("ProcessChargingPayment")
 .WithOpenApi(op => new(op) { Summary = "Pay for EV Charging Session" });
 
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
 app.Run();
 
-// DTO Records
+public partial class Program { }
+
 public record TopUpRequest(string DriverId, string? DriverName, decimal Amount);
 public record PaymentChargeRequest(string SessionId, string DriverId, string StationId, decimal Amount);
