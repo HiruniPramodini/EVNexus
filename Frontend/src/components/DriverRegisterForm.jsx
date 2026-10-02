@@ -11,12 +11,11 @@ import {
   Copy,
   Check,
   ArrowRight,
-  Loader2,
   Wallet,
   Sparkles,
   Clock,
   ShieldCheck,
-  RefreshCw
+  Building2
 } from 'lucide-react';
 import { registerDriver, verifyEmail, resendVerificationCode } from '../services/api';
 
@@ -43,7 +42,6 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
 
   const [copiedDriverId, setCopiedDriverId] = useState(false);
   const [copiedWalletId, setCopiedWalletId] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -54,16 +52,16 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
   const hasSpecial = /[^a-zA-Z0-9]/.test(formData.password);
 
   const getPasswordStrength = () => {
-    if (!formData.password) return { label: 'Empty', score: 0, color: '#94a3b8' };
+    if (!formData.password) return { label: 'Empty', score: 0, color: 'var(--color-text-muted)' };
     let score = 0;
     if (hasMinLength) score += 1;
     if (hasNumber) score += 1;
     if (hasLetter) score += 1;
     if (hasSpecial) score += 1;
 
-    if (score <= 2) return { label: 'Weak', score: 1, color: '#ef4444' };
-    if (score === 3) return { label: 'Medium', score: 2, color: '#f59e0b' };
-    return { label: 'Strong & Secure', score: 3, color: '#10b981' };
+    if (score <= 2) return { label: 'Weak', score: 1, color: 'var(--color-danger)' };
+    if (score === 3) return { label: 'Medium', score: 2, color: 'var(--color-warning)' };
+    return { label: 'Strong & Secure', score: 3, color: 'var(--color-success)' };
   };
 
   const strength = getPasswordStrength();
@@ -247,468 +245,331 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
 
   if (successData) {
     return (
-      <div className="register-card animate-fade-in" style={{ maxWidth: '640px' }}>
-        <div className="card-top-glow" />
-        <div className="success-state">
-          <div className="success-icon-badge" style={{ background: '#e0f2fe', color: '#0284c7' }}>
-            <Mail size={38} />
+      <div style={{ width: '100%', maxWidth: '540px', margin: '0 auto', padding: 'var(--space-6) 0' }}>
+        <div style={{ textAlign: 'center', marginBottom: 'var(--space-8)' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-success-light)', color: 'var(--color-success-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-4) auto' }}>
+            <Mail size={32} />
           </div>
-
-          <h2 className="success-title">Verification Email Sent!</h2>
-          <p className="success-subtitle">
+          <h2 className="text-h2" style={{ marginBottom: 'var(--space-2)' }}>Verification Email Sent!</h2>
+          <p className="text-body" style={{ color: 'var(--color-text-secondary)' }}>
             An automated verification email has been dispatched to <strong>{successData.email}</strong>. Please check your inbox (or spam folder) to verify your account.
           </p>
+        </div>
 
-          <div className="tenant-id-box" style={{ borderColor: 'rgba(14, 165, 233, 0.4)' }}>
-            <div className="tenant-id-label">
-              <User size={14} />
-              <span>Assigned Driver ID</span>
+        <div className="card" style={{ marginBottom: 'var(--space-6)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <User size={18} className="text-secondary" />
+              <span className="text-secondary" style={{ fontWeight: 'var(--weight-semibold)' }}>Assigned Driver ID</span>
             </div>
-            <div className="tenant-id-value-row">
-              <span className="tenant-id-text">{successData.driverId}</span>
-              <button
-                type="button"
-                className="copy-btn"
-                onClick={() => copyToClipboard(successData.driverId, 'driver')}
-                title="Copy Driver ID"
-              >
-                {copiedDriverId ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
-                <span>{copiedDriverId ? 'Copied!' : 'Copy'}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <span style={{ fontFamily: 'monospace', fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>{successData.driverId}</span>
+              <button onClick={() => copyToClipboard(successData.driverId, 'driver')} className="btn btn-ghost" style={{ padding: '4px', height: 'auto' }}>
+                {copiedDriverId ? <Check size={16} color="var(--color-success)" /> : <Copy size={16} />}
               </button>
             </div>
           </div>
-
-          <div className="tenant-id-box" style={{ marginTop: '1rem', borderColor: 'rgba(16, 185, 129, 0.4)', background: 'rgba(16, 185, 129, 0.05)' }}>
-            <div className="tenant-id-label" style={{ color: '#059669' }}>
-              <Wallet size={14} />
-              <span>Auto-Created Charging Wallet</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--color-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <Wallet size={18} className="text-secondary" />
+              <span className="text-secondary" style={{ fontWeight: 'var(--weight-semibold)' }}>Wallet Setup</span>
             </div>
-            <div className="tenant-id-value-row">
-              <div>
-                <span className="tenant-id-text" style={{ fontSize: '1.05rem', color: '#047857' }}>
-                  {successData.walletId}
-                </span>
-                <div style={{ fontSize: '0.85rem', color: '#059669', marginTop: '0.25rem', fontWeight: '600' }}>
-                  Initial Balance: ${Number(successData.walletBalance).toFixed(2)} {successData.currency || 'USD'}
-                </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontFamily: 'monospace', fontWeight: 'var(--weight-bold)' }}>{successData.walletId}</div>
+                <div className="text-caption" style={{ color: 'var(--color-success)' }}>Balance: $0.00</div>
               </div>
-              <button
-                type="button"
-                className="copy-btn"
-                onClick={() => copyToClipboard(successData.walletId, 'wallet')}
-                title="Copy Wallet ID"
-              >
-                {copiedWalletId ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
-                <span>{copiedWalletId ? 'Copied!' : 'Copy'}</span>
+              <button onClick={() => copyToClipboard(successData.walletId, 'wallet')} className="btn btn-ghost" style={{ padding: '4px', height: 'auto' }}>
+                {copiedWalletId ? <Check size={16} color="var(--color-success)" /> : <Copy size={16} />}
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Email Verification Box */}
-          <div
-            className="tenant-id-box"
-            style={{
-              marginTop: '1rem',
-              borderColor: verificationSuccess ? 'rgba(16, 185, 129, 0.4)' : 'rgba(2, 132, 199, 0.4)',
-              background: verificationSuccess ? 'rgba(16, 185, 129, 0.05)' : 'rgba(240, 249, 255, 0.7)'
-            }}
-          >
-            <div className="tenant-id-label" style={{ color: verificationSuccess ? '#059669' : '#0369a1', display: 'flex', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Clock size={14} />
-                <span>Email Verification (Valid for 24 Hours)</span>
-              </div>
-              <span style={{ fontSize: '0.75rem', fontWeight: 600, background: 'rgba(2, 132, 199, 0.15)', padding: '0.15rem 0.5rem', borderRadius: '4px', color: '#0369a1' }}>
-                Expires in 24h
-              </span>
+        {/* Email Verification Box */}
+        <div className="card" style={{ marginBottom: 'var(--space-6)', borderColor: verificationSuccess ? 'var(--color-success)' : 'var(--color-info)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: verificationSuccess ? 'var(--color-success)' : 'var(--color-info-dark)', fontWeight: 'var(--weight-semibold)' }}>
+              <Clock size={16} />
+              <span>Email Verification</span>
             </div>
-
-            {/* Instant Verification Form */}
-            {!verificationSuccess ? (
-              <div style={{ marginTop: '0.75rem' }}>
-                <p style={{ fontSize: '0.85rem', color: '#334155', marginBottom: '0.75rem', lineHeight: 1.4 }}>
-                  Enter the <strong>6-digit verification code</strong> from your email inbox below, or click the direct activation link inside the email:
-                </p>
-
-                {resendStatusMsg && (
-                  <div className="alert alert-info" style={{ margin: '0 0 0.75rem 0', padding: '0.5rem 0.75rem', fontSize: '0.82rem' }}>
-                    <CheckCircle2 size={15} />
-                    <span>{resendStatusMsg}</span>
-                  </div>
-                )}
-
-                {verificationError && (
-                  <div className="alert alert-danger" style={{ margin: '0 0 0.75rem 0', padding: '0.5rem 0.75rem', fontSize: '0.82rem' }}>
-                    <AlertCircle size={15} />
-                    <span>{verificationError}</span>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    maxLength={6}
-                    value={inlineVerifyCode}
-                    onChange={(e) => setInlineVerifyCode(e.target.value)}
-                    style={{
-                      flex: 1,
-                      minWidth: '150px',
-                      padding: '0.55rem 0.75rem',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-subtle)',
-                      background: '#ffffff',
-                      fontFamily: 'monospace',
-                      fontSize: '1.1rem',
-                      letterSpacing: '3px',
-                      textAlign: 'center',
-                      fontWeight: 700
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleInlineVerify}
-                    disabled={isVerifying || !inlineVerifyCode.trim()}
-                    className="submit-btn"
-                    style={{
-                      width: 'auto',
-                      margin: 0,
-                      padding: '0.55rem 1.2rem',
-                      fontSize: '0.85rem'
-                    }}
-                  >
-                    {isVerifying ? <Loader2 size={15} className="spinner" /> : <ShieldCheck size={15} />}
-                    <span>Verify Code</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleResend}
-                    disabled={isResending}
-                    className="btn-secondary"
-                    style={{ padding: '0.55rem 0.9rem', fontSize: '0.85rem' }}
-                  >
-                    {isResending ? <RefreshCw size={14} className="spinner" /> : <Mail size={14} />}
-                    <span>Resend Email</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#059669', fontSize: '0.9rem', fontWeight: 600 }}>
-                <CheckCircle2 size={18} />
-                <span>Email verified successfully! Full charging access is unlocked.</span>
-              </div>
+            {!verificationSuccess && (
+              <span className="badge badge-info">Expires in 24h</span>
             )}
           </div>
 
-          <div className="registration-details-card" style={{ marginTop: '1.25rem' }}>
-            <div className="detail-row">
-              <span className="detail-label">Driver Name:</span>
-              <span className="detail-value">{successData.name}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Email:</span>
-              <span className="detail-value">{successData.email}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Phone:</span>
-              <span className="detail-value">{successData.phone}</span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Status:</span>
-              <span className="detail-value" style={{ color: verificationSuccess ? '#059669' : '#d97706', fontWeight: 600 }}>
-                {verificationSuccess ? 'Verified (Full Access)' : 'Pending Email Verification'}
-              </span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Created At:</span>
-              <span className="detail-value">{new Date(successData.createdAt).toLocaleString()}</span>
-            </div>
-          </div>
+          {!verificationSuccess ? (
+            <div>
+              <p className="text-caption" style={{ marginBottom: 'var(--space-4)' }}>
+                Enter the <strong>6-digit verification code</strong> from your email inbox below, or click the direct activation link inside the email.
+              </p>
 
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1.5rem' }}>
-            {onSwitchToLogin && (
-              <button
-                type="button"
-                className="submit-btn"
-                onClick={onSwitchToLogin}
-                style={{
-                  margin: 0,
-                  background: 'var(--primary-600)',
-                  flex: '1 1 200px'
-                }}
-              >
-                <span>Sign In to Driver Account</span>
-                <ArrowRight size={18} />
-              </button>
-            )}
-            <button
-              type="button"
-              className="submit-btn"
-              onClick={handleReset}
-              style={{
-                margin: 0,
-                background: onSwitchToLogin ? 'var(--bg-page)' : 'var(--primary-600)',
-                color: onSwitchToLogin ? 'var(--text-main)' : '#fff',
-                border: '1px solid var(--border-subtle)',
-                flex: '1 1 200px'
-              }}
-            >
-              <span>Register Another Driver</span>
+              {resendStatusMsg && (
+                <div className="alert alert-info" style={{ padding: 'var(--space-2) var(--space-3)' }}>
+                  <CheckCircle2 size={16} />
+                  <span>{resendStatusMsg}</span>
+                </div>
+              )}
+
+              {verificationError && (
+                <div className="alert alert-danger" style={{ padding: 'var(--space-2) var(--space-3)' }}>
+                  <AlertCircle size={16} />
+                  <span>{verificationError}</span>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+                <input
+                  type="text"
+                  placeholder="000000"
+                  maxLength={6}
+                  value={inlineVerifyCode}
+                  onChange={(e) => setInlineVerifyCode(e.target.value)}
+                  className="form-input"
+                  style={{ flex: 1, fontFamily: 'monospace', fontSize: '1.25rem', letterSpacing: '4px', textAlign: 'center', fontWeight: 'var(--weight-bold)' }}
+                />
+                <button
+                  type="button"
+                  onClick={handleInlineVerify}
+                  disabled={isVerifying || !inlineVerifyCode.trim()}
+                  className="btn btn-primary"
+                >
+                  {isVerifying ? <div className="spinner" style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%' }}></div> : <ShieldCheck size={16} />}
+                  Verify
+                </button>
+              </div>
+              <div style={{ textAlign: 'center', marginTop: 'var(--space-4)' }}>
+                <button type="button" onClick={handleResend} disabled={isResending} className="btn btn-ghost" style={{ fontSize: 'var(--text-caption)' }}>
+                  Didn't receive it? Resend Email
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', color: 'var(--color-success)', fontWeight: 'var(--weight-semibold)' }}>
+              <CheckCircle2 size={20} />
+              <span>Email verified successfully! Full charging access unlocked.</span>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+          {onSwitchToLogin && (
+            <button type="button" className="btn btn-primary" onClick={onSwitchToLogin} style={{ flex: 1 }}>
+              Sign In to Dashboard <ArrowRight size={18} />
             </button>
-            {onSwitchToCompany && (
-              <button
-                type="button"
-                className="submit-btn"
-                onClick={onSwitchToCompany}
-                style={{
-                  margin: 0,
-                  background: 'var(--bg-page)',
-                  color: 'var(--text-main)',
-                  border: '1px solid var(--border-subtle)',
-                  flex: '1 1 200px'
-                }}
-              >
-                <span>Go to Company Portal</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="register-card">
-      <div className="card-top-glow" />
-
-      <div className="card-header">
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'var(--primary-50)', color: 'var(--primary-700)', padding: '0.3rem 0.75rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: '600', marginBottom: '0.75rem' }}>
+    <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto', padding: 'var(--space-6) 0' }}>
+      <div style={{ marginBottom: 'var(--space-8)' }}>
+        <div className="badge badge-info" style={{ marginBottom: 'var(--space-4)' }}>
           <Sparkles size={14} /> EV Driver Onboarding
         </div>
-        <h1 className="card-title">Driver Sign Up</h1>
-        <p className="card-subtitle">
-          Create your EV driver account. A digital charging wallet with $0.00 initial balance will be automatically set up for you.
+        <h1 className="text-h2" style={{ marginBottom: 'var(--space-2)' }}>Create your account</h1>
+        <p className="text-secondary">
+          Join EVNexus to get access to thousands of fast-charging stations globally.
         </p>
       </div>
 
       {serverError && (
-        <div className="alert alert-danger" role="alert">
+        <div className="alert alert-danger">
           <AlertCircle size={20} />
           <div>
-            <strong>Registration Error:</strong> {serverError}
+            <strong>Registration Error</strong>
+            <p style={{ marginTop: 'var(--space-1)' }}>{serverError}</p>
           </div>
         </div>
       )}
 
       <form onSubmit={handleSubmit} noValidate>
-        <div className="form-grid">
-          {/* Driver Name */}
-          <div className="form-group full-width">
-            <label className="form-label" htmlFor="driverName">
-              <span>Driver Full Name</span>
-              <span className="required-star">*</span>
-            </label>
-            <div className="input-wrapper">
-              <span className="input-icon"><User size={18} /></span>
-              <input
-                id="driverName"
-                name="name"
-                type="text"
-                className={`form-input ${touched.name && errors.name ? 'has-error' : ''}`}
-                placeholder="e.g. Alex Morgan"
-                value={formData.name}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                autoComplete="name"
-              />
+        {/* Driver Name */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="driverName">
+            Full Name <span style={{ color: 'var(--color-danger)' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <User size={18} />
             </div>
-            {touched.name && errors.name && (
-              <div className="field-error-message">
-                <AlertCircle size={14} /> {errors.name}
-              </div>
-            )}
+            <input
+              id="driverName"
+              name="name"
+              type="text"
+              className={`form-input ${touched.name && errors.name ? 'form-error' : ''}`}
+              placeholder="e.g. Alex Morgan"
+              value={formData.name}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              autoComplete="name"
+              style={{ paddingLeft: 'var(--space-10)' }}
+            />
+          </div>
+          {touched.name && errors.name && (
+            <div className="form-error-msg">{errors.name}</div>
+          )}
+        </div>
+
+        {/* Email */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="driverEmail">
+            Email Address <span style={{ color: 'var(--color-danger)' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Mail size={18} />
+            </div>
+            <input
+              id="driverEmail"
+              name="email"
+              type="email"
+              className={`form-input ${touched.email && errors.email ? 'form-error' : ''}`}
+              placeholder="alex.driver@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              autoComplete="email"
+              style={{ paddingLeft: 'var(--space-10)' }}
+            />
+          </div>
+          {touched.email && errors.email && (
+            <div className="form-error-msg">{errors.email}</div>
+          )}
+        </div>
+
+        {/* Phone */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="driverPhone">
+            Phone Number <span style={{ color: 'var(--color-danger)' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Phone size={18} />
+            </div>
+            <input
+              id="driverPhone"
+              name="phone"
+              type="tel"
+              className={`form-input ${touched.phone && errors.phone ? 'form-error' : ''}`}
+              placeholder="+1 (555) 345-6789"
+              value={formData.phone}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              autoComplete="tel"
+              style={{ paddingLeft: 'var(--space-10)' }}
+            />
+          </div>
+          {touched.phone && errors.phone && (
+            <div className="form-error-msg">{errors.phone}</div>
+          )}
+        </div>
+
+        {/* Password */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="driverPassword">
+            Password <span style={{ color: 'var(--color-danger)' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Lock size={18} />
+            </div>
+            <input
+              id="driverPassword"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              className={`form-input ${touched.password && errors.password ? 'form-error' : ''}`}
+              placeholder="Min 8 chars, 1 number"
+              value={formData.password}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              autoComplete="new-password"
+              style={{ paddingLeft: 'var(--space-10)', paddingRight: 'var(--space-10)' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
+              aria-label="Toggle password visibility"
+              style={{ position: 'absolute', right: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+            >
+              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
 
-          {/* Email */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="driverEmail">
-              <span>Email Address</span>
-              <span className="required-star">*</span>
-            </label>
-            <div className="input-wrapper">
-              <span className="input-icon"><Mail size={18} /></span>
-              <input
-                id="driverEmail"
-                name="email"
-                type="email"
-                className={`form-input ${touched.email && errors.email ? 'has-error' : ''}`}
-                placeholder="alex.driver@example.com"
-                value={formData.email}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                autoComplete="email"
-              />
-            </div>
-            {touched.email && errors.email && (
-              <div className="field-error-message">
-                <AlertCircle size={14} /> {errors.email}
+          {/* Password Strength Indicator */}
+          {formData.password && (
+            <div style={{ marginTop: 'var(--space-2)' }}>
+              <div style={{ height: 4, background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden', display: 'flex' }}>
+                <div style={{ height: '100%', width: `${(strength.score / 3) * 100}%`, backgroundColor: strength.color, transition: 'all 0.3s ease' }}></div>
               </div>
-            )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--text-caption)', marginTop: 'var(--space-1)', color: strength.color }}>
+                <span>Strength: {strength.label}</span>
+              </div>
+            </div>
+          )}
+
+          {touched.password && errors.password && (
+            <div className="form-error-msg">{errors.password}</div>
+          )}
+        </div>
+
+        {/* Confirm Password */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="driverConfirmPassword">
+            Confirm Password <span style={{ color: 'var(--color-danger)' }}>*</span>
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Lock size={18} />
+            </div>
+            <input
+              id="driverConfirmPassword"
+              name="confirmPassword"
+              type={showConfirmPassword ? 'text' : 'password'}
+              className={`form-input ${touched.confirmPassword && errors.confirmPassword ? 'form-error' : ''}`}
+              placeholder="Re-enter password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              autoComplete="new-password"
+              style={{ paddingLeft: 'var(--space-10)', paddingRight: 'var(--space-10)' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              tabIndex={-1}
+              aria-label="Toggle confirm password visibility"
+              style={{ position: 'absolute', right: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+            >
+              {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
           </div>
-
-          {/* Phone */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="driverPhone">
-              <span>Phone Number</span>
-              <span className="required-star">*</span>
-            </label>
-            <div className="input-wrapper">
-              <span className="input-icon"><Phone size={18} /></span>
-              <input
-                id="driverPhone"
-                name="phone"
-                type="tel"
-                className={`form-input ${touched.phone && errors.phone ? 'has-error' : ''}`}
-                placeholder="+1 (555) 345-6789"
-                value={formData.phone}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                autoComplete="tel"
-              />
-            </div>
-            {touched.phone && errors.phone && (
-              <div className="field-error-message">
-                <AlertCircle size={14} /> {errors.phone}
-              </div>
-            )}
-          </div>
-
-          {/* Password */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="driverPassword">
-              <span>Password</span>
-              <span className="required-star">*</span>
-            </label>
-            <div className="input-wrapper">
-              <span className="input-icon"><Lock size={18} /></span>
-              <input
-                id="driverPassword"
-                name="password"
-                type={showPassword ? 'text' : 'password'}
-                className={`form-input ${touched.password && errors.password ? 'has-error' : ''}`}
-                placeholder="Min 8 chars, 1 number"
-                value={formData.password}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                className="toggle-password-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
-                aria-label="Toggle password visibility"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-
-            {/* Password Strength Indicator */}
-            {formData.password && (
-              <div className="password-strength-container">
-                <div className="strength-bar-track">
-                  <div
-                    className="strength-bar-fill"
-                    style={{
-                      width: `${(strength.score / 3) * 100}%`,
-                      backgroundColor: strength.color
-                    }}
-                  />
-                </div>
-                <div className="strength-text" style={{ color: strength.color }}>
-                  <span>Strength</span>
-                  <span>{strength.label}</span>
-                </div>
-              </div>
-            )}
-
-            {/* Live Password Requirements Checklist */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.5rem', fontSize: '0.8rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: hasMinLength ? '#10b981' : '#64748b' }}>
-                <CheckCircle2 size={13} color={hasMinLength ? '#10b981' : '#cbd5e1'} />
-                <span>At least 8 characters long</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: hasNumber ? '#10b981' : '#64748b' }}>
-                <CheckCircle2 size={13} color={hasNumber ? '#10b981' : '#cbd5e1'} />
-                <span>Contains at least 1 number (0-9)</span>
-              </div>
-            </div>
-
-            {touched.password && errors.password && (
-              <div className="field-error-message">
-                <AlertCircle size={14} /> {errors.password}
-              </div>
-            )}
-          </div>
-
-          {/* Confirm Password */}
-          <div className="form-group">
-            <label className="form-label" htmlFor="driverConfirmPassword">
-              <span>Confirm Password</span>
-              <span className="required-star">*</span>
-            </label>
-            <div className="input-wrapper">
-              <span className="input-icon"><Lock size={18} /></span>
-              <input
-                id="driverConfirmPassword"
-                name="confirmPassword"
-                type={showConfirmPassword ? 'text' : 'password'}
-                className={`form-input ${touched.confirmPassword && errors.confirmPassword ? 'has-error' : ''}`}
-                placeholder="Re-enter password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                className="toggle-password-btn"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                tabIndex={-1}
-                aria-label="Toggle confirm password visibility"
-              >
-                {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-            {touched.confirmPassword && errors.confirmPassword && (
-              <div className="field-error-message">
-                <AlertCircle size={14} /> {errors.confirmPassword}
-              </div>
-            )}
-          </div>
+          {touched.confirmPassword && errors.confirmPassword && (
+            <div className="form-error-msg">{errors.confirmPassword}</div>
+          )}
         </div>
 
         <button
           type="submit"
-          className="submit-btn"
+          className="btn btn-primary"
           disabled={isSubmitting}
+          style={{ width: '100%', marginTop: 'var(--space-4)' }}
         >
           {isSubmitting ? (
-            <>
-              <Loader2 size={18} className="spinner" />
-              <span>Creating Driver Account & Wallet...</span>
-            </>
+            <div className="spinner" style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%' }}></div>
           ) : (
             <>
-              <span>Complete Driver Sign Up</span>
-              <ArrowRight size={18} />
+              Sign Up <ArrowRight size={18} />
             </>
           )}
         </button>
 
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div style={{ textAlign: 'center', marginTop: 'var(--space-8)', paddingTop: 'var(--space-6)', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
           {onSwitchToLogin && (
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0 }}>
+            <div className="text-secondary">
               Already have an EV driver account?{' '}
               <button
                 type="button"
@@ -716,20 +577,19 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'var(--primary-600)',
-                  fontWeight: '600',
+                  color: 'var(--color-primary)',
+                  fontWeight: 'var(--weight-semibold)',
                   cursor: 'pointer',
-                  textDecoration: 'underline',
-                  padding: '0 0.2rem'
+                  textDecoration: 'underline'
                 }}
               >
                 Sign In
               </button>
-            </p>
+            </div>
           )}
 
           {onSwitchToCompany && (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            <div className="text-secondary">
               Are you an EV Enterprise or Station Operator?{' '}
               <button
                 type="button"
@@ -737,15 +597,18 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: 'var(--primary-700)',
-                  fontWeight: '600',
+                  color: 'var(--color-text)',
+                  fontWeight: 'var(--weight-semibold)',
                   cursor: 'pointer',
-                  padding: '0 0.2rem'
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)'
                 }}
               >
+                <Building2 size={16} />
                 Switch to Company Portal
               </button>
-            </p>
+            </div>
           )}
         </div>
       </form>

@@ -71,38 +71,38 @@ export default function DriverLoginForm({ onLoginSuccess, onSwitchToRegister, on
   };
 
   return (
-    <div className="register-card" style={{ maxWidth: '520px', margin: '0 auto' }}>
-      <div className="card-header">
-        <div className="badge-wrapper">
-          <span className="badge" style={{ backgroundColor: 'rgba(14, 165, 233, 0.1)', color: 'var(--primary-600)', borderColor: 'var(--primary-200)' }}>
-            <Zap size={14} className="badge-icon" />
-            EV Driver Network
-          </span>
+    <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
+      <div style={{ marginBottom: 'var(--space-8)' }}>
+        <div className="badge badge-info" style={{ marginBottom: 'var(--space-4)' }}>
+          <Zap size={14} />
+          EV Driver Network
         </div>
-        <h1 className="card-title">Driver Sign In</h1>
-        <p className="card-subtitle">
-          Access your digital charging wallet, locate stations, and track fast charging sessions.
+        <h1 className="text-h2" style={{ marginBottom: 'var(--space-2)' }}>Welcome Back</h1>
+        <p className="text-secondary">
+          Sign in to access your digital charging wallet, locate stations, and track fast charging sessions.
         </p>
       </div>
 
       {serverError && (
-        <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }}>
-          <AlertCircle size={20} className="alert-icon" />
-          <div className="alert-body">
+        <div className="alert alert-danger">
+          <AlertCircle size={20} />
+          <div>
             <strong>Authentication Failed</strong>
-            <p style={{ marginTop: '0.2rem', fontSize: '0.875rem' }}>{serverError}</p>
+            <p style={{ marginTop: 'var(--space-1)' }}>{serverError}</p>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="register-form" noValidate>
+      <form onSubmit={handleSubmit} noValidate>
         {/* Driver Email */}
         <div className="form-group">
           <label htmlFor="email" className="form-label">
-            Email Address <span className="required">*</span>
+            Email Address
           </label>
-          <div className={`input-wrapper ${errors.email ? 'has-error' : ''}`}>
-            <Mail size={18} className="input-icon" />
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Mail size={18} />
+            </div>
             <input
               id="email"
               type="email"
@@ -110,24 +110,25 @@ export default function DriverLoginForm({ onLoginSuccess, onSwitchToRegister, on
               placeholder="e.g. alex.driver@example.com"
               value={formData.email}
               onChange={handleChange}
-              className="form-input"
+              className={`form-input ${errors.email ? 'form-error' : ''}`}
               autoComplete="username"
+              style={{ paddingLeft: 'var(--space-10)' }}
             />
           </div>
           {errors.email && (
-            <span className="field-error">{errors.email}</span>
+            <div className="form-error-msg">{errors.email}</div>
           )}
         </div>
 
         {/* Password */}
         <div className="form-group">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <label htmlFor="password" className="form-label" style={{ marginBottom: 0 }}>
-              Password <span className="required">*</span>
-            </label>
-          </div>
-          <div className={`input-wrapper ${errors.password ? 'has-error' : ''}`}>
-            <Lock size={18} className="input-icon" />
+          <label htmlFor="password" className="form-label">
+            Password
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Lock size={18} />
+            </div>
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
@@ -135,43 +136,43 @@ export default function DriverLoginForm({ onLoginSuccess, onSwitchToRegister, on
               placeholder="Enter your driver account password"
               value={formData.password}
               onChange={handleChange}
-              className="form-input"
+              className={`form-input ${errors.password ? 'form-error' : ''}`}
               autoComplete="current-password"
+              style={{ paddingLeft: 'var(--space-10)', paddingRight: 'var(--space-10)' }}
             />
             <button
               type="button"
-              className="password-toggle-btn"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
+              style={{ position: 'absolute', right: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
           {errors.password && (
-            <span className="field-error">{errors.password}</span>
+            <div className="form-error-msg">{errors.password}</div>
           )}
         </div>
 
         {/* Submit Button */}
         <button
           type="submit"
-          className="submit-btn"
+          className="btn btn-primary"
           disabled={isLoading}
-          style={{ marginTop: '1rem' }}
+          style={{ width: '100%', marginTop: 'var(--space-4)' }}
         >
           {isLoading ? (
-            <div className="btn-spinner"></div>
+            <div className="spinner" style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%' }}></div>
           ) : (
             <>
-              <span>Sign In to Driver Portal</span>
-              <LogIn size={18} />
+              Sign In <LogIn size={18} />
             </>
           )}
         </button>
 
         {/* Switch to Register or Company Portal */}
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)', margin: 0 }}>
+        <div style={{ textAlign: 'center', marginTop: 'var(--space-8)', paddingTop: 'var(--space-6)', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div className="text-secondary">
             Don't have a driver account yet?{' '}
             <button
               type="button"
@@ -179,37 +180,36 @@ export default function DriverLoginForm({ onLoginSuccess, onSwitchToRegister, on
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--primary-600)',
-                fontWeight: '600',
+                color: 'var(--color-primary)',
+                fontWeight: 'var(--weight-semibold)',
                 cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: '0 0.2rem'
+                textDecoration: 'underline'
               }}
             >
               Sign Up as Driver
             </button>
-          </p>
+          </div>
 
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-            Fleet or Station Operator?{' '}
+          <div className="text-secondary">
+            Are you a charging company?{' '}
             <button
               type="button"
               onClick={onSwitchToCompany}
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--primary-700)',
-                fontWeight: '600',
+                color: 'var(--color-text)',
+                fontWeight: 'var(--weight-semibold)',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.25rem'
+                gap: 'var(--space-1)'
               }}
             >
-              <Building2 size={13} />
-              <span>Company Portal</span>
+              <Building2 size={16} />
+              Sign in as Company
             </button>
-          </p>
+          </div>
         </div>
       </form>
     </div>
