@@ -248,30 +248,25 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
       const estimatedKwh = Math.min(powerKw * 1.0, 50);
       const estimatedAmount = Math.round(pricePerKwh * estimatedKwh * 100) / 100;
 
-      // 1. Start Session FIRST
-      const sessionPayload = {
-        chargingCode: validatedData.chargingCode,
-        companyId: validatedData.companyId,
-        stationId: validatedData.stationId,
-        chargerId: validatedData.chargerId,
-        estimatedCost: estimatedAmount
-      };
-      const res = await startChargingSession(sessionPayload, authUser?.accessToken);
-
-      const sessionId = res?.data?.id;
-      if (!sessionId) {
-        throw new Error('Failed to create session. Backend did not return a valid session ID.');
-      }
-
-      // 2. Authorize Payment SECOND
+      // 1. Authorize Payment
       const paymentPayload = {
-        sessionId: sessionId,
+        sessionId: "SESSION-" + Date.now(),
         companyId: validatedData.companyId,
         stationId: validatedData.stationId,
         chargerId: validatedData.chargerId,
         estimatedAmount
       };
-      await authorizePayment(paymentPayload, authUser?.accessToken);
+      const paymentRes = await authorizePayment(paymentPayload, authUser?.accessToken);
+
+      // 2. Start Session
+      const sessionPayload = {
+        companyId: validatedData.companyId,
+        stationId: validatedData.stationId,
+        chargerId: validatedData.chargerId,
+        estimatedCost: estimatedAmount,
+        paymentId: paymentRes.data.paymentId
+      };
+      const res = await startChargingSession(sessionPayload, authUser?.accessToken);
 
       setActiveSession(res.data);
       setActiveStationInfo(res.station);
