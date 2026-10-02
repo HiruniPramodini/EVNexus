@@ -562,7 +562,7 @@ export async function deleteCharger(stationId, chargerId) {
 
 export async function getDashboardAnalytics(companyId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -574,7 +574,7 @@ export async function getDashboardAnalytics(companyId) {
 
 export async function getCompanyTransactions(companyId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}/transactions`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/transactions`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -586,7 +586,7 @@ export async function getCompanyTransactions(companyId) {
 
 export async function getCompanyRevenueTrend(companyId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}/revenue-trend`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/revenue-trend`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -598,7 +598,7 @@ export async function getCompanyRevenueTrend(companyId) {
 
 export async function getCompanyForecast(companyId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}/forecast`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/forecast`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
