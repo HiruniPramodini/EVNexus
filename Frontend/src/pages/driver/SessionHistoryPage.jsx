@@ -74,13 +74,10 @@ export default function SessionHistoryPage({ authUser }) {
               </thead>
               <tbody>
                 {history.map((item) => {
-                  const s = item.session || item;
-                  const startTimeRaw = s.startTime || s.StartTime;
-                  const endTimeRaw = s.endTime || s.EndTime;
-                  
-                  const start = startTimeRaw ? new Date(startTimeRaw.endsWith('Z') ? startTimeRaw : startTimeRaw + 'Z') : new Date();
-                  const end = endTimeRaw ? new Date(endTimeRaw.endsWith('Z') ? endTimeRaw : endTimeRaw + 'Z') : null;
-                  const durationMs = end ? end - start : 0;
+                  const s = item.session;
+                  const start = new Date(s.startTime.endsWith('Z') ? s.startTime : s.startTime + 'Z');
+                  const end = new Date(s.endTime.endsWith('Z') ? s.endTime : s.endTime + 'Z');
+                  const durationMs = end - start;
                   const mins = Math.floor(durationMs / 60000);
                   const hrs = Math.floor(mins / 60);
                   const remMins = mins % 60;
