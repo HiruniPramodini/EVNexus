@@ -1,5 +1,6 @@
 using EVNexus.PaymentService.Data;
 using EVNexus.PaymentService.Kafka;
+using EVNexus.PaymentService.Forecasting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -9,10 +10,10 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 
 // Add Authentication
-var jwtKey = builder.Configuration["Jwt:Key"];
+var jwtKey = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_SECRET"];
 if (string.IsNullOrEmpty(jwtKey))
 {
-    throw new InvalidOperationException("JWT Key is missing from configuration.");
+    throw new InvalidOperationException("JWT Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
 }
 
 builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
@@ -38,6 +39,8 @@ builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IWalletRepository, WalletRepository>();
 builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
 builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+builder.Services.AddScoped<ICompanyAnalyticsRepository, CompanyAnalyticsRepository>();
+builder.Services.AddScoped<IForecastService, ForecastService>();
 
 // Add Kafka
 builder.Services.AddSingleton<KafkaProducerService>();
