@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, LogIn, AlertCircle, ShieldCheck, Zap } from 'lucide-react';
 import { loginCompany, setAuthSession } from '../services/api';
 
-export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister }) {
+export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister, onSwitchToDriver }) {
   const [formData, setFormData] = useState({
     businessEmail: '',
     password: ''
@@ -71,38 +71,38 @@ export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister })
   };
 
   return (
-    <div className="register-card" style={{ maxWidth: '520px', margin: '0 auto' }}>
-      <div className="card-header">
-        <div className="badge-wrapper">
-          <span className="badge">
-            <ShieldCheck size={14} className="badge-icon" />
-            EVNexus Enterprise Portal
-          </span>
+    <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto' }}>
+      <div style={{ marginBottom: 'var(--space-8)' }}>
+        <div className="badge" style={{ backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)', marginBottom: 'var(--space-4)' }}>
+          <ShieldCheck size={14} className="text-secondary" />
+          EVNexus Enterprise
         </div>
-        <h1 className="card-title">Company Sign In</h1>
-        <p className="card-subtitle">
-          Authenticate your organization to access EV station network analytics, fleet management, and billing dashboards.
+        <h1 className="text-h2" style={{ marginBottom: 'var(--space-2)' }}>Company Administrator</h1>
+        <p className="text-secondary">
+          Sign in to access your charging network analytics, fleet management, and billing dashboards.
         </p>
       </div>
 
       {serverError && (
-        <div className="alert alert-danger" style={{ marginBottom: '1.5rem' }}>
-          <AlertCircle size={20} className="alert-icon" />
-          <div className="alert-body">
+        <div className="alert alert-danger">
+          <AlertCircle size={20} />
+          <div>
             <strong>Authentication Failed</strong>
-            <p style={{ marginTop: '0.2rem', fontSize: '0.875rem' }}>{serverError}</p>
+            <p style={{ marginTop: 'var(--space-1)' }}>{serverError}</p>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="register-form" noValidate>
+      <form onSubmit={handleSubmit} noValidate>
         {/* Business Email */}
         <div className="form-group">
           <label htmlFor="businessEmail" className="form-label">
-            Business Email <span className="required">*</span>
+            Business Email
           </label>
-          <div className={`input-wrapper ${errors.businessEmail ? 'has-error' : ''}`}>
-            <Mail size={18} className="input-icon" />
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Mail size={18} />
+            </div>
             <input
               id="businessEmail"
               type="email"
@@ -110,24 +110,25 @@ export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister })
               placeholder="e.g. admin@voltstream.com"
               value={formData.businessEmail}
               onChange={handleChange}
-              className="form-input"
+              className={`form-input ${errors.businessEmail ? 'form-error' : ''}`}
               autoComplete="username"
+              style={{ paddingLeft: 'var(--space-10)' }}
             />
           </div>
           {errors.businessEmail && (
-            <span className="field-error">{errors.businessEmail}</span>
+            <div className="form-error-msg">{errors.businessEmail}</div>
           )}
         </div>
 
         {/* Password */}
         <div className="form-group">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <label htmlFor="password" className="form-label" style={{ marginBottom: 0 }}>
-              Password <span className="required">*</span>
-            </label>
-          </div>
-          <div className={`input-wrapper ${errors.password ? 'has-error' : ''}`}>
-            <Lock size={18} className="input-icon" />
+          <label htmlFor="password" className="form-label">
+            Password
+          </label>
+          <div style={{ position: 'relative' }}>
+            <div style={{ position: 'absolute', left: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>
+              <Lock size={18} />
+            </div>
             <input
               id="password"
               type={showPassword ? 'text' : 'password'}
@@ -135,43 +136,43 @@ export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister })
               placeholder="Enter your enterprise password"
               value={formData.password}
               onChange={handleChange}
-              className="form-input"
+              className={`form-input ${errors.password ? 'form-error' : ''}`}
               autoComplete="current-password"
+              style={{ paddingLeft: 'var(--space-10)', paddingRight: 'var(--space-10)' }}
             />
             <button
               type="button"
-              className="password-toggle-btn"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
+              style={{ position: 'absolute', right: 'var(--space-3)', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
           {errors.password && (
-            <span className="field-error">{errors.password}</span>
+            <div className="form-error-msg">{errors.password}</div>
           )}
         </div>
 
         {/* Submit Button */}
         <button
           type="submit"
-          className="submit-btn"
+          className="btn"
           disabled={isLoading}
-          style={{ marginTop: '1rem' }}
+          style={{ width: '100%', marginTop: 'var(--space-4)', backgroundColor: 'var(--color-text)', color: 'white' }}
         >
           {isLoading ? (
-            <div className="btn-spinner"></div>
+            <div className="spinner" style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%' }}></div>
           ) : (
             <>
-              <span>Sign In to Company Portal</span>
-              <LogIn size={18} />
+              Sign In as Administrator <LogIn size={18} />
             </>
           )}
         </button>
 
         {/* Switch to Register */}
-        <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-subtle)' }}>
-          <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', marginTop: 'var(--space-8)', paddingTop: 'var(--space-6)', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+          <div className="text-secondary">
             Don't have a registered company account yet?{' '}
             <button
               type="button"
@@ -179,16 +180,38 @@ export default function CompanyLoginForm({ onLoginSuccess, onSwitchToRegister })
               style={{
                 background: 'none',
                 border: 'none',
-                color: 'var(--primary-600)',
-                fontWeight: '600',
+                color: 'var(--color-text)',
+                fontWeight: 'var(--weight-semibold)',
                 cursor: 'pointer',
-                textDecoration: 'underline',
-                padding: '0 0.2rem'
+                textDecoration: 'underline'
               }}
             >
               Register Company
             </button>
-          </p>
+          </div>
+          
+          {onSwitchToDriver && (
+            <div className="text-secondary">
+              Are you an EV driver?{' '}
+              <button
+                type="button"
+                onClick={onSwitchToDriver}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  fontWeight: 'var(--weight-semibold)',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 'var(--space-1)'
+                }}
+              >
+                <Zap size={16} />
+                Sign in as Driver
+              </button>
+            </div>
+          )}
         </div>
       </form>
     </div>
