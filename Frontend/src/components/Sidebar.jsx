@@ -1,11 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, CreditCard, FileText, Settings, LogOut, Zap } from 'lucide-react';
+import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity } from 'lucide-react';
 
 export default function Sidebar({ userRole, currentView, onViewChange, onLogout }) {
   const isCompany = userRole === 'CompanyAdmin' || userRole === 'Company';
 
   const driverLinks = [
     { id: 'driver-dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'map', label: 'Find Chargers', icon: Zap },
     { id: 'wallet', label: 'My Wallet', icon: CreditCard },
     { id: 'history', label: 'Session History', icon: FileText },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -13,6 +14,9 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout 
 
   const companyLinks = [
     { id: 'dashboard', label: 'Analytics', icon: LayoutDashboard },
+    { id: 'stations', label: 'Station Management', icon: Zap },
+    { id: 'live', label: 'Live Sessions', icon: Activity },
+    { id: 'finance', label: 'Revenue', icon: CreditCard },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
