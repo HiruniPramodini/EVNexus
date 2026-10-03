@@ -1,6 +1,8 @@
-Get-ChildItem -Recurse -Include docker-compose.yml,docker-compose.yaml,package.json,*.csproj,appsettings.json# .NET
+# .NET
 **/bin/
 **/obj/
+appsettings.Local.json
+appsettings.Secrets.json
 
 # Visual Studio
 .vs/
@@ -17,6 +19,8 @@ yarn-error.log*
 # Environment / secrets
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 
 # Logs

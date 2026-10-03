@@ -148,11 +148,7 @@ export default function Navbar({
               <span>Sign Out</span>
             </button>
           </div>
-        ) : (
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Microservices Gateway: <code style={{ color: 'var(--primary-700)', fontWeight: '600' }}>:5000</code>
-          </div>
-        )}
+        ) : null}
       </div>
     </header>
   );

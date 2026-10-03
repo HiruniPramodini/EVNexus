@@ -20,7 +20,7 @@ public class SessionIntegrationTests : IntegrationTestBase
         Client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
     }
 
-    private async Task<string> CreateActiveStationAndGetChargingCodeAsync()
+    private async Task<(string chargingCode, string companyId, string stationId, string chargerId)> CreateActiveStationAndGetChargingCodeAsync()
     {
         var tenantId = Guid.NewGuid().ToString();
         AuthorizeAs(tenantId, userId: Guid.NewGuid().ToString(), role: "CompanyAdmin");
@@ -38,17 +38,25 @@ public class SessionIntegrationTests : IntegrationTestBase
 
         var createResponse = await Client.PostAsJsonAsync("/api/map/company/stations", newStation);
         var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        return created.GetProperty("code").GetString()!;
+        var stationId = created.GetProperty("id").GetString()!;
+        var chargingCode = created.GetProperty("code").GetString()!;
+
+        var newCharger = new { Type = "CCS2", PowerKw = 50m, PricePerKwh = 0.45m };
+        var chargerCreateResponse = await Client.PostAsJsonAsync($"/api/map/company/stations/{stationId}/chargers", newCharger);
+        var chargerCreated = await chargerCreateResponse.Content.ReadFromJsonAsync<JsonElement>();
+        var chargerId = chargerCreated.GetProperty("id").GetString()!;
+
+        return (chargingCode, tenantId, stationId, chargerId);
     }
 
     [Fact]
     public async Task StartSession_WithValidChargingCode_ReturnsOk()
     {
-        var chargingCode = await CreateActiveStationAndGetChargingCodeAsync();
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
 
         AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
 
-        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = chargingCode });
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = data.chargingCode, CompanyId = data.companyId, StationId = data.stationId, ChargerId = data.chargerId });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
@@ -68,10 +76,10 @@ public class SessionIntegrationTests : IntegrationTestBase
     [Fact]
     public async Task StartThenStopSession_FullFlow_ReturnsCompletedSession()
     {
-        var chargingCode = await CreateActiveStationAndGetChargingCodeAsync();
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
         AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
 
-        var startResponse = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = chargingCode });
+        var startResponse = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = data.chargingCode, CompanyId = data.companyId, StationId = data.stationId, ChargerId = data.chargerId });
         var started = await startResponse.Content.ReadFromJsonAsync<JsonElement>();
         var sessionId = started.GetProperty("data").GetProperty("id").GetString();
 
@@ -86,17 +94,86 @@ public class SessionIntegrationTests : IntegrationTestBase
     [Fact]
     public async Task StartSession_WhenDriverAlreadyHasActiveSession_ReturnsBadRequest()
     {
-        var firstChargingCode = await CreateActiveStationAndGetChargingCodeAsync();
-        var secondChargingCode = await CreateActiveStationAndGetChargingCodeAsync();
+        var data1 = await CreateActiveStationAndGetChargingCodeAsync();
+        var data2 = await CreateActiveStationAndGetChargingCodeAsync();
 
         var driverUserId = Guid.NewGuid().ToString();
         AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: driverUserId, role: "Driver");
-        await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = firstChargingCode });
+        await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = data1.chargingCode, CompanyId = data1.companyId, StationId = data1.stationId, ChargerId = data1.chargerId });
 
         AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: driverUserId, role: "Driver");
 
-        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = secondChargingCode });
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { ChargingCode = data2.chargingCode, CompanyId = data2.companyId, StationId = data2.stationId, ChargerId = data2.chargerId });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StartSession_WithNonexistentCharger_ReturnsNotFound()
+    {
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
+        AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
+
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { 
+            ChargingCode = data.chargingCode, 
+            CompanyId = data.companyId, 
+            StationId = data.stationId, 
+            ChargerId = Guid.NewGuid().ToString() 
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StartSession_WithChargerFromAnotherStation_ReturnsNotFound()
+    {
+        var data1 = await CreateActiveStationAndGetChargingCodeAsync();
+        var data2 = await CreateActiveStationAndGetChargingCodeAsync();
+        AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
+
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { 
+            ChargingCode = data1.chargingCode, 
+            CompanyId = data1.companyId, 
+            StationId = data1.stationId, 
+            ChargerId = data2.chargerId 
+        });
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StartSession_WithAnotherCompany_ReturnsBadRequest()
+    {
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
+        AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
+
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { 
+            ChargingCode = data.chargingCode, 
+            CompanyId = "WrongCompanyId", 
+            StationId = data.stationId, 
+            ChargerId = data.chargerId 
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task StartSession_WithStationIdAndChargerId_WithoutChargingCode_ReturnsOk()
+    {
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
+        AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
+
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { 
+            CompanyId = data.companyId, 
+            StationId = data.stationId, 
+            ChargerId = data.chargerId,
+            EstimatedCost = 15.00m
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("success").GetBoolean());
+        Assert.True(body.TryGetProperty("charger", out var chargerEl));
+        Assert.Equal(data.chargerId, chargerEl.GetProperty("id").GetString());
     }
 }
