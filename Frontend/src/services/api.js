@@ -268,8 +268,40 @@ export async function getNearbyStations(lat, lng, radiusKm = 50) {
   return handleResponse(response, 'Failed to fetch nearby stations.');
 }
 
-export async function startChargingSession(chargingCode) {
-  const authToken = getAuthToken();
+export async function validateQrCode(qrPayloadRaw, token) {
+  const authToken = token || getAuthToken();
+
+  // qrPayloadRaw may be a raw JSON string (from jsqr) or an already-parsed object.
+  let parsed;
+  if (typeof qrPayloadRaw === 'string') {
+    try {
+      parsed = JSON.parse(qrPayloadRaw);
+    } catch {
+      throw new Error('Invalid QR code. Could not read the QR data.');
+    }
+  } else {
+    parsed = qrPayloadRaw;
+  }
+
+  // Validate system field before sending network request
+  if (!parsed || parsed.system !== 'EVNEXUS') {
+    throw new Error('This QR code is not an EVNexus charger QR code.');
+  }
+
+  const response = await fetch(`${API_GATEWAY_URL}/api/driver/stations/qr/validate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(parsed)
+  });
+  return handleResponse(response, 'Failed to validate QR code.');
+}
+
+export async function startChargingSession(sessionPayload, token) {
+  const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/start`, {
     method: 'POST',
     headers: {
@@ -277,13 +309,53 @@ export async function startChargingSession(chargingCode) {
       'Accept': 'application/json',
       'Authorization': `Bearer ${authToken}`
     },
-    body: JSON.stringify({ chargingCode })
+    body: JSON.stringify(sessionPayload) // { CompanyId, StationId, ChargerId, EstimatedCost }
   });
   return handleResponse(response, 'Failed to start charging session.');
 }
 
-export async function stopChargingSession(sessionId) {
+export async function authorizePayment(paymentPayload, token) {
+  const authToken = token || getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/authorize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(paymentPayload)
+  });
+  return handleResponse(response, 'Failed to authorize payment.');
+}
+
+export async function getPaymentStatus(sessionId) {
   const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/session/${sessionId}/status`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to fetch payment status.');
+}
+
+export async function completePaymentBySession(sessionId, finalAmount) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/complete-by-session/${sessionId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify({ finalAmount })
+  });
+  return handleResponse(response, 'Failed to complete payment.');
+}
+
+export async function stopChargingSession(sessionId, token) {
+  const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/${sessionId}/stop`, {
     method: 'POST',
     headers: {
@@ -294,8 +366,8 @@ export async function stopChargingSession(sessionId) {
   return handleResponse(response, 'Failed to stop charging session.');
 }
 
-export async function getActiveSession() {
-  const authToken = getAuthToken();
+export async function getActiveSession(token) {
+  const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/active`, {
     method: 'GET',
     headers: {
@@ -306,8 +378,20 @@ export async function getActiveSession() {
   return handleResponse(response, 'Failed to retrieve active session.');
 }
 
-export async function getSessionHistory() {
+export async function getSessionMeter(sessionId) {
   const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/${sessionId}/meter`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to retrieve meter reading.');
+}
+
+export async function getSessionHistory(token) {
+  const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/map/driver/sessions/history`, {
     method: 'GET',
     headers: {
@@ -389,7 +473,7 @@ export async function getCompanyStations(token) {
 
 export async function getActiveCompanySessions(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/sessions/active`, {
+  const response = await fetch(`${API_GATEWAY_URL}/api/company/sessions/active`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -414,6 +498,116 @@ export async function createCompanyStation(stationData, token) {
   return handleResponse(response, 'Failed to create charging station.');
 }
 
+export async function addChargerToStation(stationId, chargerData) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(chargerData)
+  });
+  return handleResponse(response, 'Failed to add charger.');
+}
+
+export async function getStationChargers(stationId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to fetch chargers.');
+}
+
+export async function getChargerQr(stationId, chargerId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers/${chargerId}/qr`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get QR for charger.');
+}
+
+export async function updateCharger(stationId, chargerId, chargerData) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers/${chargerId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(chargerData)
+  });
+  return handleResponse(response, 'Failed to update charger.');
+}
+
+export async function deleteCharger(stationId, chargerId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers/${chargerId}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to delete charger.');
+}
+
+export async function getDashboardAnalytics(companyId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get dashboard analytics.');
+}
+
+export async function getCompanyTransactions(companyId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/transactions`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get dashboard transactions.');
+}
+
+export async function getCompanyRevenueTrend(companyId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/revenue-trend`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get dashboard revenue trend.');
+}
+
+export async function getCompanyForecast(companyId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/forecast`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get forecast data.');
+}
+
 export async function testCrossTenantAccess(targetTenantId, token) {
   const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/company/tenants/${encodeURIComponent(targetTenantId)}/stations`, {
@@ -430,7 +624,8 @@ export async function testCrossTenantAccess(targetTenantId, token) {
 
 export async function getDriverWallet(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+  // Wallet is owned by Payment Service — route via /api/payment/wallet
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -440,6 +635,42 @@ export async function getDriverWallet(token) {
   });
 
   return handleResponse(response, 'Failed to retrieve driver wallet.');
+}
+
+export async function topUpWallet(amount, idempotencyKey = null, token = null) {
+  const authToken = token || getAuthToken();
+  const body = { amount };
+  if (idempotencyKey) {
+    body.idempotencyKey = idempotencyKey;
+  }
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet/topup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: JSON.stringify(body)
+  });
+
+  return handleResponse(response, 'Failed to top up wallet.');
+}
+
+export async function getWalletTransactions(page = 1, pageSize = 20, token) {
+  const authToken = token || getAuthToken();
+  const url = new URL(`${API_GATEWAY_URL}/api/payment/wallet/transactions`);
+  url.searchParams.append('page', page);
+  url.searchParams.append('pageSize', pageSize);
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  return handleResponse(response, 'Failed to retrieve wallet transactions.');
 }
 
 export async function testDriverAccessToCompanyEndpoint(token) {
@@ -458,7 +689,9 @@ export async function testDriverAccessToCompanyEndpoint(token) {
 
 export async function testCompanyAccessToDriverEndpoint(token) {
   const authToken = token || getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/driver/wallet`, {
+  // This test helper intentionally calls the payment wallet endpoint to verify
+  // that a CompanyAdmin JWT is rejected with 403 by the Payment Service.
+  const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet`, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',

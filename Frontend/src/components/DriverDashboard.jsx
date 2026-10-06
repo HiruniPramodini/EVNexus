@@ -31,7 +31,9 @@ import {
   Settings,
   Shield,
   Activity,
-  Server
+  Server,
+  MapPin,
+  Battery
 } from 'lucide-react';
 import {
   getDriverProfile,
@@ -45,13 +47,36 @@ import {
   addDriverVehicle,
   updateDriverVehicle,
   deleteDriverVehicle,
-  setDefaultDriverVehicle
+  setDefaultDriverVehicle,
+  getDriverWallet,
+  getActiveSession,
+  getSessionHistory,
+  getWalletTransactions
 } from '../services/api';
 import MapDashboardPage from '../pages/driver/MapDashboardPage';
 import SessionHistoryPage from '../pages/driver/SessionHistoryPage';
 
-export default function DriverDashboard({ authUser, onLogout, onUpdateProfile }) {
+export default function DriverDashboard({ authUser, activeView, onLogout, onUpdateProfile, onViewChange }) {
   const [activeTab, setActiveTab] = useState('overview');
+  
+  const [walletBalance, setWalletBalance] = useState(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [walletError, setWalletError] = useState(null);
+
+  const [activeSession, setActiveSession] = useState(null);
+  const [loadingActiveSession, setLoadingActiveSession] = useState(false);
+  
+  const [recentSessions, setRecentSessions] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  const [recentWalletTx, setRecentWalletTx] = useState([]);
+  const [loadingWalletTx, setLoadingWalletTx] = useState(false);
+
+  useEffect(() => {
+    if (activeView === 'driver-dashboard') setActiveTab('overview');
+    else if (activeView === 'wallet') setActiveTab('overview');
+    else setActiveTab(activeView);
+  }, [activeView]);
 
   const [copiedDriverId, setCopiedDriverId] = useState(false);
   const [copiedWalletId, setCopiedWalletId] = useState(false);
@@ -121,9 +146,40 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
   const [isSubmittingVehicle, setIsSubmittingVehicle] = useState(false);
   const [deletingVehicleId, setDeletingVehicleId] = useState(null);
 
+  const loadDashboardData = async () => {
+    setLoadingWallet(true);
+    try {
+      const wRes = await getDriverWallet(authUser?.accessToken);
+      if (wRes?.data) setWalletBalance(wRes.data.balance);
+    } catch (e) {
+      setWalletError('Failed to load wallet balance.');
+    } finally {
+      setLoadingWallet(false);
+    }
+
+    setLoadingActiveSession(true);
+    try {
+      const sRes = await getActiveSession(authUser?.accessToken);
+      if (sRes?.data) setActiveSession(sRes.data);
+    } catch (e) { console.warn(e); } finally { setLoadingActiveSession(false); }
+
+    setLoadingHistory(true);
+    try {
+      const hRes = await getSessionHistory(authUser?.accessToken);
+      if (hRes?.data) setRecentSessions(hRes.data.slice(0, 3));
+    } catch (e) { console.warn(e); } finally { setLoadingHistory(false); }
+
+    setLoadingWalletTx(true);
+    try {
+      const tRes = await getWalletTransactions(1, 3, authUser?.accessToken);
+      if (tRes?.data?.items) setRecentWalletTx(tRes.data.items);
+    } catch (e) { console.warn(e); } finally { setLoadingWalletTx(false); }
+  };
+
   useEffect(() => {
     handleVerifyProtectedApi();
     loadVehicles();
+    loadDashboardData();
   }, []);
 
   const loadVehicles = async () => {
@@ -493,111 +549,6 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
     <div className="dashboard-page">
       <div className="dashboard-container">
         {/* ========================================================================= */}
-        {/* Hero Header Banner */}
-        {/* ========================================================================= */}
-        <div className="dash-hero-banner">
-          <div className="dash-hero-content">
-            <div className="dash-hero-profile">
-              <div className="dash-avatar">
-                <User size={34} color="#0284c7" />
-              </div>
-
-              <div className="dash-hero-meta">
-                <div className="dash-badge-row">
-                  <span className="badge" style={{ background: 'rgba(255, 255, 255, 0.2)', color: '#ffffff' }}>
-                    <Zap size={13} />
-                    EV Driver Account
-                  </span>
-                  <span className="badge" style={{ background: '#10b981', color: '#ffffff' }}>
-                    ● Active
-                  </span>
-                  <span
-                    className="badge"
-                    style={{
-                      background: isEmailVerified ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)',
-                      color: '#ffffff',
-                      border: isEmailVerified ? '1px solid #10b981' : '1px solid #f59e0b'
-                    }}
-                  >
-                    {isEmailVerified ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
-                    {isEmailVerified ? 'Email Verified' : 'Unverified Email'}
-                  </span>
-                </div>
-
-                <h1 className="dash-title">{effectiveName}</h1>
-                <p className="dash-subtitle">
-                  <Mail size={15} /> {effectiveEmail}
-                  {effectivePhone && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', marginLeft: '0.75rem' }}>
-                      <Phone size={14} /> {effectivePhone}
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="dash-hero-actions">
-              <button type="button" className="hero-btn" onClick={handleOpenEditProfile}>
-                <Edit3 size={15} />
-                <span>Edit Profile</span>
-              </button>
-              <button type="button" className="hero-btn" onClick={handleOpenChangePassword}>
-                <Key size={15} />
-                <span>Security</span>
-              </button>
-              <button type="button" className="hero-btn" onClick={handleLogoutClick}>
-                <LogOut size={15} />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Driver ID & Wallet Strip */}
-          <div className="hero-id-strip">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-              <span style={{ opacity: 0.85 }}>Driver ID:</span>
-              <code
-                style={{
-                  background: 'rgba(0, 0, 0, 0.3)',
-                  padding: '0.2rem 0.6rem',
-                  borderRadius: '6px',
-                  fontFamily: 'monospace',
-                  fontWeight: 700,
-                  color: '#e0f2fe'
-                }}
-              >
-                {effectiveDriverId}
-              </code>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(effectiveDriverId, 'driver')}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '0.25rem 0.55rem',
-                  borderRadius: '4px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                {copiedDriverId ? <Check size={12} color="#86efac" /> : <Copy size={12} />}
-                {copiedDriverId ? 'Copied' : 'Copy ID'}
-              </button>
-            </div>
-
-            <div style={{ opacity: 0.9, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <WalletIcon size={14} />
-              <span>Wallet: {effectiveCurrency} ${Number(effectiveBalance).toFixed(2)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
         {/* Email Verification Alert Banner */}
         {/* ========================================================================= */}
         {!isEmailVerified && (
@@ -676,212 +627,223 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         )}
 
         {/* ========================================================================= */}
-        {/* Navigation Tabs Bar */}
-        {/* ========================================================================= */}
-        <nav className="dash-tabs-bar" aria-label="Driver navigation">
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'overview' ? 'active' : ''}`}
-            onClick={() => setActiveTab('overview')}
-          >
-            <BarChart3 size={16} />
-            <span>Overview & Wallet</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'vehicles' ? 'active' : ''}`}
-            onClick={() => setActiveTab('vehicles')}
-          >
-            <Car size={16} />
-            <span>My EV Vehicles</span>
-            <span className="dash-tab-badge">{vehicles.length}</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'map' ? 'active' : ''}`}
-            onClick={() => setActiveTab('map')}
-          >
-            <Zap size={16} />
-            <span>Driver Map</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
-          >
-            <History size={16} />
-            <span>History & Receipts</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'security' ? 'active' : ''}`}
-            onClick={() => setActiveTab('security')}
-          >
-            <Shield size={16} />
-            <span>Security Sandbox</span>
-          </button>
-          <button
-            type="button"
-            className={`dash-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
-            onClick={() => setActiveTab('settings')}
-          >
-            <Settings size={16} />
-            <span>Account Settings</span>
-          </button>
-        </nav>
-
-        {/* ========================================================================= */}
         {/* TAB 1: OVERVIEW & WALLET */}
         {/* ========================================================================= */}
         {activeTab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            {/* KPI Cards */}
-            <div className="kpi-grid">
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-green">
-                  <WalletIcon size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">EV Wallet Balance</div>
-                  <div className="kpi-value">${Number(effectiveBalance).toFixed(2)}</div>
-                  <div className="kpi-subtext">Currency: {effectiveCurrency} • Ready for charging</div>
-                </div>
-              </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+            {/* Header / Welcome Area */}
+            <div style={{ marginBottom: 'var(--space-4)' }}>
+              <h1 className="text-h1">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {effectiveName.split(' ')[0]}</h1>
+              <p className="text-secondary" style={{ fontSize: '1.25rem' }}>
+                {activeSession ? 'Your vehicle is currently charging.' : 'Ready for your next charge?'}
+              </p>
+            </div>
 
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-blue">
-                  <Car size={26} />
+            {/* Station Discovery CTA */}
+            <div className="card card-elevated" style={{ background: 'linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 100%)', color: 'white' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
+                <div>
+                  <h2 className="text-h2" style={{ color: 'white', marginBottom: 'var(--space-2)' }}>Find your next charging station</h2>
+                  <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>Explore available EV charging stations and choose the charger that fits your needs.</p>
                 </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Registered EVs</div>
-                  <div className="kpi-value">{vehicles.length}</div>
-                  <div className="kpi-subtext">
-                    {vehicles.find((v) => v.isDefault)?.make || 'No default EV set'}
-                  </div>
-                </div>
-              </div>
-
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-purple">
-                  <Zap size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Charging Pass</div>
-                  <div className="kpi-value" style={{ fontSize: '1.3rem' }}>Nexus Pass</div>
-                  <div className="kpi-subtext">All universal connector protocols</div>
-                </div>
-              </div>
-
-              <div className="kpi-card">
-                <div className="kpi-icon-box kpi-icon-amber">
-                  <ShieldCheck size={26} />
-                </div>
-                <div className="kpi-body">
-                  <div className="kpi-label">Account Health</div>
-                  <div className="kpi-value" style={{ fontSize: '1.3rem' }}>
-                    {isEmailVerified ? '100% Verified' : 'Action Required'}
-                  </div>
-                  <div className="kpi-subtext">
-                    {isEmailVerified ? 'Full Access Unlocked' : 'Verify Email Address'}
-                  </div>
-                </div>
+                <button 
+                  className="btn" 
+                  style={{ backgroundColor: 'white', color: 'var(--color-primary-dark)', fontWeight: 'var(--weight-bold)' }}
+                  onClick={() => onViewChange && onViewChange('map')}
+                >
+                  Find a Station <Zap size={18} />
+                </button>
               </div>
             </div>
 
-            {/* Wallet Showcase & Driver Profile Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
-              {/* Wallet Card */}
-              <div className="dash-card">
-                <div className="dash-card-header">
-                  <div>
-                    <h3 className="dash-card-title">
-                      <CreditCard size={18} color="var(--primary-600)" />
-                      Driver Digital Wallet
-                    </h3>
-                    <p className="dash-card-subtitle">Automated station payment ledger</p>
+            {/* Quick Actions */}
+            <div className="grid grid-cols-4">
+              <div className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-4)' }} onClick={() => onViewChange && onViewChange('map')}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-primary-light)', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-3) auto' }}>
+                  <MapPin size={24} />
+                </div>
+                <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: '0.9rem' }}>Find Station</div>
+              </div>
+              <div className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-4)' }} onClick={() => onViewChange && onViewChange('map')}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-success-light)', color: 'var(--color-success-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-3) auto' }}>
+                  <Zap size={24} />
+                </div>
+                <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: '0.9rem' }}>Start Charging</div>
+              </div>
+              <div className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-4)' }} onClick={() => onViewChange && onViewChange('wallet')}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-info-light)', color: 'var(--color-info-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-3) auto' }}>
+                  <WalletIcon size={24} />
+                </div>
+                <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: '0.9rem' }}>My Wallet</div>
+              </div>
+              <div className="card card-interactive" style={{ textAlign: 'center', padding: 'var(--space-4)' }} onClick={() => onViewChange && onViewChange('history')}>
+                <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--color-warning-light)', color: 'var(--color-warning-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto var(--space-3) auto' }}>
+                  <History size={24} />
+                </div>
+                <div style={{ fontWeight: 'var(--weight-semibold)', fontSize: '0.9rem' }}>Charging History</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2" style={{ alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+                {/* Active Charging Session */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">Active Session</h3>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(effectiveWalletId, 'wallet')}
-                    className="btn-secondary"
-                    style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem' }}
-                  >
-                    {copiedWalletId ? <Check size={12} color="#15803d" /> : <Copy size={12} />}
-                    <span>{copiedWalletId ? 'Copied' : 'Copy Wallet ID'}</span>
-                  </button>
+                  {loadingActiveSession ? (
+                    <div>
+                      <div className="skeleton skeleton-title"></div>
+                      <div className="skeleton skeleton-text"></div>
+                    </div>
+                  ) : activeSession ? (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--color-info-light)', color: 'var(--color-info-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Zap size={20} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 'var(--weight-semibold)' }}>{activeSession.stationName || 'Charging Station'}</div>
+                            <div className="text-caption">Charger {activeSession.chargerId}</div>
+                          </div>
+                        </div>
+                        <span className="badge badge-info">Charging</span>
+                      </div>
+                      <div className="grid grid-cols-2" style={{ gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+                        <div style={{ background: 'var(--color-background)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
+                          <div className="text-caption">Energy Delivered</div>
+                          <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.25rem' }}>{activeSession.kwhTransferred?.toFixed(2) || '0.00'} kWh</div>
+                        </div>
+                        <div style={{ background: 'var(--color-background)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
+                          <div className="text-caption">Est. Cost</div>
+                          <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.25rem' }}>${activeSession.estimatedCost?.toFixed(2) || '0.00'}</div>
+                        </div>
+                      </div>
+                      <button className="btn btn-outline" style={{ width: '100%' }} onClick={() => onViewChange && onViewChange('live')}>
+                        View Charging Session
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="empty-state" style={{ padding: 'var(--space-6) var(--space-4)' }}>
+                      <Battery size={48} className="empty-state-icon" />
+                      <h4 className="empty-state-title" style={{ fontSize: '1.1rem' }}>You're not charging right now.</h4>
+                      <button className="btn btn-primary" style={{ marginTop: 'var(--space-4)' }} onClick={() => onViewChange && onViewChange('map')}>
+                        Find a Charging Station
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div
-                  style={{
-                    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-                    borderRadius: '12px',
-                    padding: '1.5rem',
-                    color: '#ffffff',
-                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15)',
-                    marginBottom: '1rem'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.8, fontSize: '0.8rem', marginBottom: '1rem' }}>
-                    <span>EVNEXUS UNIVERSAL CHARGING WALLET</span>
-                    <Zap size={18} color="#38bdf8" />
+                {/* Driver Profile Summary */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">Driver Profile</h3>
                   </div>
-                  <div style={{ fontSize: '2rem', fontWeight: 700, fontFamily: 'var(--font-heading)', color: '#38bdf8' }}>
-                    ${Number(effectiveBalance).toFixed(2)} <span style={{ fontSize: '1rem', color: '#94a3b8' }}>{effectiveCurrency}</span>
-                  </div>
-                  <div style={{ marginTop: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', fontSize: '0.8rem', opacity: 0.85 }}>
-                    <div>
-                      <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>WALLET IDENTIFIER</div>
-                      <div style={{ fontFamily: 'monospace', fontWeight: 600 }}>{effectiveWalletId}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
+                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-primary-light)', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'var(--weight-bold)' }}>
+                      {effectiveName.charAt(0)}
                     </div>
-                    <span className="badge badge-success" style={{ background: 'rgba(16, 185, 129, 0.25)', color: '#86efac' }}>
-                      ● Active Balance
-                    </span>
+                    <div>
+                      <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>{effectiveName}</div>
+                      <div className="text-secondary">{effectiveEmail}</div>
+                      <div className="text-caption" style={{ marginTop: 'var(--space-1)' }}>
+                        {isEmailVerified ? <span style={{ color: 'var(--color-success-dark)', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle2 size={12} /> Verified Driver</span> : <span style={{ color: 'var(--color-warning-dark)' }}>Unverified</span>}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Driver Details Card */}
-              <div className="dash-card">
-                <div className="dash-card-header">
-                  <div>
-                    <h3 className="dash-card-title">
-                      <User size={18} color="var(--primary-600)" />
-                      Driver Profile Snapshot
-                    </h3>
-                    <p className="dash-card-subtitle">Personal account credentials</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
+                {/* Wallet Summary */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">My Wallet</h3>
+                    <button className="btn btn-ghost" style={{ padding: 'var(--space-1)' }} onClick={() => onViewChange && onViewChange('wallet')}>View</button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleOpenEditProfile}
-                    className="btn-secondary"
-                    style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-                  >
-                    <Edit3 size={13} />
-                    <span>Edit</span>
-                  </button>
+                  {loadingWallet ? (
+                    <div>
+                      <div className="skeleton skeleton-title"></div>
+                      <div className="skeleton skeleton-text"></div>
+                    </div>
+                  ) : walletError ? (
+                    <div style={{ textAlign: 'center', padding: 'var(--space-4)' }}>
+                      <p className="text-secondary" style={{ marginBottom: 'var(--space-3)' }}>{walletError}</p>
+                      <button className="btn btn-outline" onClick={loadDashboardData}>Retry</button>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', color: 'white', marginBottom: 'var(--space-4)' }}>
+                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 'var(--space-2)' }}>CURRENT BALANCE</div>
+                        <div style={{ fontSize: '2.5rem', fontWeight: 'var(--weight-bold)', lineHeight: 1 }}>
+                          ${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      {/* Recent Wallet Activity */}
+                      {loadingWalletTx ? (
+                        <div className="skeleton skeleton-text"></div>
+                      ) : recentWalletTx.length > 0 ? (
+                        <div>
+                          <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-3)', fontSize: '0.9rem' }}>Recent Activity</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                            {recentWalletTx.map(tx => (
+                              <div key={tx.id || tx.transactionId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: tx.amount < 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)', color: tx.amount < 0 ? 'var(--color-danger-dark)' : 'var(--color-success-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {tx.amount < 0 ? <Zap size={14} /> : <CreditCard size={14} />}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-medium)' }}>{tx.amount < 0 ? 'Charging Session' : 'Top Up'}</div>
+                                    <div className="text-caption">{new Date(tx.date || tx.createdAt).toLocaleDateString()}</div>
+                                  </div>
+                                </div>
+                                <div style={{ fontWeight: 'var(--weight-bold)', color: tx.amount < 0 ? 'var(--color-text)' : 'var(--color-success)' }}>
+                                  {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-secondary" style={{ fontSize: '0.9rem', textAlign: 'center', padding: 'var(--space-2)' }}>
+                          No wallet transactions yet.
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.875rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Full Name:</span>
-                    <strong style={{ color: 'var(--text-main)' }}>{effectiveName}</strong>
+                {/* Recent Charging Activity */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">Recent Charging</h3>
+                    <button className="btn btn-ghost" style={{ padding: 'var(--space-1)' }} onClick={() => onViewChange && onViewChange('history')}>View All</button>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Email:</span>
-                    <span>{effectiveEmail}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Phone:</span>
-                    <span>{effectivePhone || 'Not provided'}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ color: 'var(--text-muted)' }}>Default Vehicle:</span>
-                    <span style={{ fontWeight: 600, color: 'var(--primary-700)' }}>
-                      {vehicles.find((v) => v.isDefault)?.make
-                        ? `${vehicles.find((v) => v.isDefault).make} ${vehicles.find((v) => v.isDefault).model}`
-                        : `${vehicles.length} EVs connected`}
-                    </span>
-                  </div>
+                  {loadingHistory ? (
+                    <div className="skeleton skeleton-text"></div>
+                  ) : recentSessions.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                      {recentSessions.map(session => (
+                        <div key={session.id || session.sessionId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--color-border)' }}>
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'var(--weight-medium)' }}>{session.stationName || 'Charging Station'}</div>
+                            <div className="text-caption">{new Date(session.startTime || session.createdAt).toLocaleDateString()} • {session.kwhTransferred?.toFixed(2) || '0.00'} kWh</div>
+                          </div>
+                          <span className={`badge ${session.status === 'Completed' ? 'badge-success' : session.status === 'Charging' ? 'badge-info' : 'badge-neutral'}`}>
+                            {session.status || 'Completed'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-state" style={{ padding: 'var(--space-4)' }}>
+                      <div className="text-secondary" style={{ fontSize: '0.9rem', textAlign: 'center' }}>
+                        No recent charging sessions.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1037,14 +999,14 @@ export default function DriverDashboard({ authUser, onLogout, onUpdateProfile })
         {/* TAB 3: CHARGING & ACTIVITY */}
         {/* ========================================================================= */}
         {activeTab === 'map' && (
-          <MapDashboardPage />
+          <MapDashboardPage authUser={authUser} onViewChange={setActiveTab} />
         )}
 
         {/* ========================================================================= */}
         {/* TAB 3.5: HISTORY & RECEIPTS */}
         {/* ========================================================================= */}
         {activeTab === 'history' && (
-          <SessionHistoryPage />
+          <SessionHistoryPage authUser={authUser} />
         )}
 
         {/* ========================================================================= */}
