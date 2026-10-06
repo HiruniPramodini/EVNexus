@@ -1,75 +1,16 @@
-using EVNexus.PaymentService.Data;
-using EVNexus.PaymentService.Kafka;
-using EVNexus.PaymentService.Forecasting;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddControllers();
-
-// Add Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_SECRET"];
-if (string.IsNullOrEmpty(jwtKey))
-{
-    throw new InvalidOperationException("JWT Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
-}
-
-builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "EVNexus.AuthService",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "EVNexus.Microservices",
-            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes(jwtKey))
-        };
-    });
-builder.Services.AddAuthorization();
-
-// Add Database
-builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
-builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
-builder.Services.AddScoped<IWalletRepository, WalletRepository>();
-builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
-builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
-builder.Services.AddScoped<ICompanyAnalyticsRepository, CompanyAnalyticsRepository>();
-builder.Services.AddScoped<IForecastService, ForecastService>();
-
-// Add Kafka
-builder.Services.AddSingleton<KafkaProducerService>();
-builder.Services.AddHostedService<ChargingSessionCompletedConsumer>();
-builder.Services.AddHostedService<OutboxPublisherService>();
-
-// Services removed or refactored
-
-var app = builder.Build();
-
-// Initialize DB
-using (var scope = app.Services.CreateScope())
-{
-    var dbInitializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
-    await dbInitializer.InitializeAsync();
-}
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
 using System.Diagnostics;
-using System.Text.Json;
+using System.Text;
+using EVNexus.PaymentService.Data;
+using EVNexus.PaymentService.Forecasting;
+using EVNexus.PaymentService.Kafka;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------------------------------------------------------
-// 1. Azure Application Insights Telemetry (Acceptance Criteria 2)
-// ---------------------------------------------------------
+// Application Insights
 var aiConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
 if (!string.IsNullOrEmpty(aiConnectionString))
 {
@@ -86,9 +27,7 @@ else
     builder.Services.AddApplicationInsightsTelemetry();
 }
 
-// ---------------------------------------------------------
-// 2. Swagger / OpenAPI Configuration
-// ---------------------------------------------------------
+// Swagger / OpenAPI Configuration
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -100,9 +39,58 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Controllers
+builder.Services.AddControllers();
+
+// JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"] ?? builder.Configuration["JWT_SECRET"];
+if (string.IsNullOrEmpty(jwtKey))
+{
+    throw new InvalidOperationException("JWT Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "EVNexus.AuthService",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "EVNexus.Microservices",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+// Authorization
+builder.Services.AddAuthorization();
+
+// Database services
+builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IWalletRepository, WalletRepository>();
+builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
+builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+builder.Services.AddScoped<ICompanyAnalyticsRepository, CompanyAnalyticsRepository>();
+builder.Services.AddScoped<IForecastService, ForecastService>();
+
+// Kafka services
+builder.Services.AddSingleton<KafkaProducerService>();
+builder.Services.AddHostedService<ChargingSessionCompletedConsumer>();
+builder.Services.AddHostedService<OutboxPublisherService>();
+
 var app = builder.Build();
 
-// Enable Swagger in all environments (Development & Production) for Azure testing
+// Database initialization
+using (var scope = app.Services.CreateScope())
+{
+    var dbInitializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
+    await dbInitializer.InitializeAsync();
+}
+
+// Middleware
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -110,16 +98,13 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Root Redirect to Swagger for convenient browser verification
 app.MapGet("/", () => Results.Redirect("/swagger"));
 
-// ---------------------------------------------------------
-// 3. Health Check Endpoint (Acceptance Criteria 4 & DoD)
-// ---------------------------------------------------------
+// Health endpoint
 app.MapGet("/health", async (IConfiguration config, ILogger<Program> logger) =>
 {
     var sw = Stopwatch.StartNew();
-    var connStr = config.GetConnectionString("DefaultConnection") 
+    var connStr = config.GetConnectionString("DefaultConnection")
                ?? config["ConnectionStrings:DefaultConnection"]
                ?? config["ConnectionStrings__DefaultConnection"];
 
@@ -179,10 +164,7 @@ app.MapGet("/health", async (IConfiguration config, ILogger<Program> logger) =>
     Description = "Checks the operational status of the Payment Service and its Azure MySQL database connection."
 });
 
-// ---------------------------------------------------------
-// 4. Wallet & Payment Domain Endpoints (Sprint 3 Core APIs)
-// ---------------------------------------------------------
-
+// Wallet endpoints
 // GET /api/wallets/{driverId}
 app.MapGet("/api/wallets/{driverId}", async (string driverId, IConfiguration config, ILogger<Program> logger) =>
 {
@@ -209,15 +191,6 @@ app.MapGet("/api/wallets/{driverId}", async (string driverId, IConfiguration con
         await using var cmd = new MySqlCommand(query, conn);
         cmd.Parameters.AddWithValue("@driverId", driverId);
 
-// app.UseHttpsRedirection();
-
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-
-app.Run();
-
-public partial class Program { }
         await using var reader = await cmd.ExecuteReaderAsync();
         if (await reader.ReadAsync())
         {
@@ -243,6 +216,7 @@ public partial class Program { }
 .WithName("GetWalletByDriver")
 .WithOpenApi(op => new(op) { Summary = "Get Driver Wallet Balance" });
 
+// Top-up endpoint
 // POST /api/wallets/topup
 app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config, ILogger<Program> logger) =>
 {
@@ -270,8 +244,8 @@ app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config
         await conn.OpenAsync();
 
         var updateSql = @"
-            UPDATE sprint3_payment_test_wallets 
-            SET wallet_balance = wallet_balance + @amount, status = 'ACTIVE' 
+            UPDATE sprint3_payment_test_wallets
+            SET wallet_balance = wallet_balance + @amount, status = 'ACTIVE'
             WHERE driver_id = @driverId;
         ";
         await using var cmd = new MySqlCommand(updateSql, conn);
@@ -312,6 +286,7 @@ app.MapPost("/api/wallets/topup", async (TopUpRequest req, IConfiguration config
 .WithName("TopUpWallet")
 .WithOpenApi(op => new(op) { Summary = "Add Funds to Driver Wallet" });
 
+// Charging payment endpoint
 // POST /api/payments/charge
 app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfiguration config, ILogger<Program> logger) =>
 {
@@ -339,8 +314,8 @@ app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfigurat
         await conn.OpenAsync();
 
         var deductSql = @"
-            UPDATE sprint3_payment_test_wallets 
-            SET wallet_balance = wallet_balance - @amount 
+            UPDATE sprint3_payment_test_wallets
+            SET wallet_balance = wallet_balance - @amount
             WHERE driver_id = @driverId AND wallet_balance >= @amount;
         ";
         await using var cmd = new MySqlCommand(deductSql, conn);
@@ -372,8 +347,19 @@ app.MapPost("/api/payments/charge", async (PaymentChargeRequest req, IConfigurat
 .WithName("ProcessChargingPayment")
 .WithOpenApi(op => new(op) { Summary = "Pay for EV Charging Session" });
 
+// Authentication middleware
+app.UseAuthentication();
+
+// Authorization middleware
+app.UseAuthorization();
+
+// MapControllers
+app.MapControllers();
+
 app.Run();
 
-// DTO Records
+public partial class Program { }
+
+// DTO records
 public record TopUpRequest(string DriverId, string? DriverName, decimal Amount);
 public record PaymentChargeRequest(string SessionId, string DriverId, string StationId, decimal Amount);

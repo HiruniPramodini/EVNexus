@@ -79,12 +79,23 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
-    if (activeView === 'dashboard') setActiveTab('overview');
-    else if (activeView === 'billing') setActiveTab('billing');
-    else if (activeView === 'analytics') setActiveTab('analytics');
-    else if (activeView === 'live') setActiveTab('live');
-    else if (activeView === 'staff') setActiveTab('staff');
-    else setActiveTab(activeView);
+    if (activeView === 'dashboard' || activeView === 'analytics' || activeView === 'finance' || activeView === 'overview') {
+      setActiveTab('overview');
+    } else if (activeView === 'billing') {
+      setActiveTab('billing');
+    } else if (activeView === 'live') {
+      setActiveTab('live');
+    } else if (activeView === 'staff') {
+      setActiveTab('staff');
+    } else if (activeView === 'stations') {
+      setActiveTab('stations');
+    } else if (activeView === 'security') {
+      setActiveTab('security');
+    } else if (activeView === 'settings') {
+      setActiveTab('settings');
+    } else {
+      setActiveTab('overview');
+    }
   }, [activeView]);
 
   const [copiedTenantId, setCopiedTenantId] = useState(false);
@@ -184,6 +195,58 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const [activeSessionsData, setActiveSessionsData] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState(null);
+  const [kpiError, setKpiError] = useState(null);
+  const [transactionsError, setTransactionsError] = useState(null);
+  const [trendError, setTrendError] = useState(null);
+  const [forecastError, setForecastError] = useState(null);
+
+  // Compute Revenue Today and Revenue This Month from real completed transactions
+  const revenueCalculations = React.useMemo(() => {
+    let today = 0;
+    let thisMonth = 0;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const thisMonthStr = now.toISOString().slice(0, 7);
+
+    if (Array.isArray(transactionsData)) {
+      transactionsData.forEach(tx => {
+        const statusUpper = (tx.status || '').toUpperCase();
+        if (statusUpper === 'COMPLETED' || statusUpper === 'SUCCESS') {
+          const amt = Number(tx.amount) || 0;
+          try {
+            if (tx.timestamp) {
+              const d = new Date(tx.timestamp).toISOString();
+              if (d.slice(0, 10) === todayStr) {
+                today += amt;
+              }
+              if (d.slice(0, 7) === thisMonthStr) {
+                thisMonth += amt;
+              }
+            }
+          } catch (_) {}
+        }
+      });
+    }
+    return {
+      revenueToday: today,
+      revenueThisMonth: thisMonth
+    };
+  }, [transactionsData]);
+
+  const getEffectiveTenantId = () => {
+    if (authUser?.tenantId) return authUser.tenantId;
+    try {
+      const token = authUser?.accessToken || localStorage.getItem('evnexus_auth_token');
+      if (token) {
+        const parts = token.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          return payload.tenant_id || payload.sub;
+        }
+      }
+    } catch (_) {}
+    return null;
+  };
 
   useEffect(() => {
     handleVerifyProtectedApi();
@@ -195,7 +258,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'overview' || activeTab === 'analytics') {
+    if (activeTab === 'overview' || activeTab === 'analytics' || activeTab === 'finance') {
       loadAnalytics();
     }
   }, [activeTab]);
@@ -203,35 +266,96 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const loadAnalytics = async () => {
     setLoadingAnalytics(true);
     setAnalyticsError(null);
+    setKpiError(null);
+    setTransactionsError(null);
+    setTrendError(null);
+    setForecastError(null);
+
+    const companyId = getEffectiveTenantId();
+    if (!companyId) {
+      setKpiError('No company tenant ID found in session.');
+      setLoadingAnalytics(false);
+      return;
+    }
+
+    const pAnalytics = getDashboardAnalytics(companyId)
+      .then(res => {
+        if (res?.data) {
+          const raw = res.data;
+          setAnalyticsData({
+            totalRevenue: raw.totalRevenue ?? raw.TotalRevenue ?? 0,
+            completedTransactions: raw.completedTransactions ?? raw.CompletedTransactions ?? 0,
+            totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0
+          });
+        }
+      })
+      .catch(err => {
+        console.warn('KPI Analytics API error:', err);
+        setKpiError(err.message || 'Failed to load KPI metrics');
+      });
+
+    const pTx = getCompanyTransactions(companyId)
+      .then(res => {
+        if (res?.data && Array.isArray(res.data)) {
+          setTransactionsData(res.data);
+        } else if (res?.data) {
+          setTransactionsData([res.data]);
+        } else {
+          setTransactionsData([]);
+        }
+      })
+      .catch(err => {
+        console.warn('Transactions API error:', err);
+        setTransactionsError(err.message || 'Failed to load transactions');
+      });
+
+    const pTrend = getCompanyRevenueTrend(companyId)
+      .then(res => {
+        if (res?.data && Array.isArray(res.data)) {
+          const normalized = res.data.map(item => ({
+            date: item.date || item.Date || '',
+            revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0)
+          }));
+          setRevenueTrend(normalized);
+        } else {
+          setRevenueTrend([]);
+        }
+      })
+      .catch(err => {
+        console.warn('Trend API error:', err);
+        setTrendError(err.message || 'Failed to load revenue trend');
+      });
+
+    const pForecast = getCompanyForecast(companyId)
+      .then(res => {
+        if (res?.data) {
+          const arr = Array.isArray(res.data) ? res.data : (res.data.forecast || []);
+          setForecastData(arr);
+        } else {
+          setForecastData([]);
+        }
+      })
+      .catch(err => {
+        console.warn('Forecast API error:', err);
+        setForecastError(err.message || 'Failed to load forecast data');
+      });
+
+    const pSessions = getActiveCompanySessions(authUser?.accessToken)
+      .then(res => {
+        if (res?.data && Array.isArray(res.data)) {
+          setActiveSessionsData(res.data);
+        } else {
+          setActiveSessionsData([]);
+        }
+      })
+      .catch(err => {
+        console.warn('Active sessions API error:', err);
+      });
+
     try {
-      const companyId = authUser?.tenantId;
-      const [analyticsRes, txRes, trendRes, forecastRes] = await Promise.all([
-        getDashboardAnalytics(companyId).catch(() => ({ data: null })),
-        getCompanyTransactions(companyId).catch(() => ({ data: [] })),
-        getCompanyRevenueTrend(companyId).catch(() => ({ data: [] })),
-        getCompanyForecast(companyId).catch(() => ({ data: null }))
-      ]);
-
-      if (analyticsRes?.data) {
-        const raw = analyticsRes.data;
-        setAnalyticsData({
-          totalRevenue: raw.totalRevenue ?? raw.TotalRevenue ?? 0,
-          completedTransactions: raw.completedTransactions ?? raw.CompletedTransactions ?? 0,
-          totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0
-        });
-      }
-      if (txRes?.data) setTransactionsData(Array.isArray(txRes.data) ? txRes.data : []);
-      if (trendRes?.data && Array.isArray(trendRes.data)) {
-        const normalized = trendRes.data.map(item => ({
-          date: item.date || item.Date || '',
-          revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0)
-        }));
-        setRevenueTrend(normalized);
-      }
-      if (forecastRes?.data) setForecastData(Array.isArray(forecastRes.data) ? forecastRes.data : (forecastRes.data.forecast || []));
-
+      await Promise.allSettled([pAnalytics, pTx, pTrend, pForecast, pSessions]);
     } catch (err) {
-      setAnalyticsError(err.message || 'Failed to load analytics.');
+      setAnalyticsError(err.message || 'Failed to load some dashboard sections.');
     } finally {
       setLoadingAnalytics(false);
     }
@@ -598,8 +722,9 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const companyStatus = profileResult?.data?.status || authUser?.status || 'Pending';
   const isPendingApproval = companyStatus?.toLowerCase() === 'pending';
 
-  const totalPortsCount = stations.filter(s => s.isActive !== false).reduce((acc, curr) => acc + (Number(curr.totalPorts) || 0), 0);
-  const activeStations = stations.filter((s) => s.isActive !== false);
+  const safeStations = Array.isArray(stations) ? stations : [];
+  const activeStations = safeStations.filter((s) => s.isActive !== false);
+  const totalPortsCount = activeStations.reduce((acc, curr) => acc + (Number(curr.totalPorts) || 0), 0);
   const activeStationsCount = activeStations.length;
 
   return (
@@ -722,86 +847,154 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2.6: ANALYTICS */}
+        {/* TAB 2.6: ANALYTICS & REVENUE OVERVIEW */}
         {/* ========================================================================= */}
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Header */}
-            <div>
-              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
-                Welcome back, Company Administrator
-              </h2>
-              <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
-                {activeCompanyName} — Monitor your charging network and business performance.
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+              <div>
+                <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
+                  Welcome back, Company Administrator
+                </h2>
+                <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
+                  {activeCompanyName} — Monitor your charging network and business performance.
+                </div>
               </div>
+              <button
+                type="button"
+                className="submit-btn"
+                onClick={loadAnalytics}
+                disabled={loadingAnalytics}
+                style={{ width: 'auto', margin: 0, padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+              >
+                <RefreshCw size={14} className={loadingAnalytics ? 'spinner' : ''} />
+                <span>Refresh Data</span>
+              </button>
             </div>
 
-            {loadingAnalytics ? (
+            {kpiError && (
+              <div className="alert alert-warning animate-fade-in" style={{ margin: 0, padding: '0.75rem 1rem' }}>
+                <AlertTriangle size={18} />
+                <div style={{ flex: 1, fontSize: '0.9rem' }}>
+                  <strong>Dashboard Notice:</strong> {kpiError}
+                </div>
+                <button type="button" onClick={loadAnalytics} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }}>
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {loadingAnalytics && !analyticsData && transactionsData.length === 0 ? (
               <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
                 <RefreshCw size={32} className="spinner" style={{ color: 'var(--primary-600)' }} />
               </div>
             ) : (
               <>
                 {/* KPI Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem' }}>
+                  {/* Revenue Today */}
                   <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CreditCard size={16} /> Revenue Today
+                      <CreditCard size={16} color="var(--primary-600)" /> Revenue Today
                     </div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      ${revenueCalculations.revenueToday.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Today's settled revenue
+                    </div>
+                  </div>
+
+                  {/* Revenue This Month */}
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CreditCard size={16} color="#059669" /> Revenue This Month
+                    </div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      ${revenueCalculations.revenueThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Current month to date
+                    </div>
+                  </div>
+
+                  {/* Total Revenue */}
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CreditCard size={16} color="#0284c7" /> Total Revenue
+                    </div>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                       {analyticsData ? (
                         `$${(analyticsData.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                       ) : (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Unavailable</span>
                       )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      All-time settled revenue
                     </div>
                   </div>
 
+                  {/* Total Energy Delivered */}
                   <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Zap size={16} /> Energy Delivered
+                      <Zap size={16} color="#d97706" /> Total Energy
                     </div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                       {analyticsData ? (
                         `${(analyticsData.totalEnergyKwh || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kWh`
                       ) : (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Unavailable</span>
                       )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Total electricity delivered
                     </div>
                   </div>
 
+                  {/* Total Transactions */}
                   <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Activity size={16} /> Total Transactions
+                      <Activity size={16} color="#6366f1" /> Total Transactions
                     </div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                       {analyticsData ? (
                         (analyticsData.completedTransactions || 0).toLocaleString()
                       ) : (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
+                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Unavailable</span>
                       )}
                     </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Completed charging sessions
+                    </div>
                   </div>
 
+                  {/* Stations / Ports */}
                   <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <MapPin size={16} /> Stations / Chargers
+                      <MapPin size={16} color="#ec4899" /> Stations / Ports
                     </div>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
-                      {stations ? `${stations.length} / ${totalPortsCount}` : <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>}
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
+                      {safeStations.length} / {totalPortsCount}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Active network footprint
                     </div>
                   </div>
 
-                  {activeSessionsData && (
-                    <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Zap size={16} style={{ color: '#10b981' }} /> Active Charging Sessions
-                      </div>
-                      <div style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981', marginTop: '0.5rem' }}>
-                        {activeSessionsData.length}
-                      </div>
+                  {/* Active Charging Sessions */}
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Zap size={16} style={{ color: '#10b981' }} /> Active Sessions
                     </div>
-                  )}
+                    <div style={{ fontSize: '1.85rem', fontWeight: 700, color: '#10b981', marginTop: '0.5rem' }}>
+                      {activeSessionsData ? activeSessionsData.length : 0}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                      Currently active on chargers
+                    </div>
+                  </div>
                 </div>
 
                 {/* Charts Area */}
@@ -811,7 +1004,14 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                     <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <BarChart3 size={18} /> Revenue Trend
                     </h3>
-                    {revenueTrend && revenueTrend.length > 0 ? (
+                    {trendError ? (
+                      <div style={{ height: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
+                        <AlertCircle size={24} style={{ marginBottom: '0.5rem' }} />
+                        <div style={{ fontWeight: 600 }}>Failed to load revenue trend</div>
+                        <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem' }}>{trendError}</div>
+                        <button type="button" onClick={loadAnalytics} className="submit-btn" style={{ width: 'auto', marginTop: '0.75rem', padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
+                      </div>
+                    ) : revenueTrend && revenueTrend.length > 0 ? (
                       <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={revenueTrend}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
@@ -833,13 +1033,38 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                     <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <Sparkles size={18} color="#8b5cf6" /> 7-Day Revenue Forecast
                     </h3>
-                    {forecastData && forecastData.length > 0 ? (
+                    {forecastError ? (
+                      <div style={{ height: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
+                        <AlertCircle size={24} style={{ marginBottom: '0.5rem' }} />
+                        <div style={{ fontWeight: 600 }}>Failed to load revenue forecast</div>
+                        <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem' }}>{forecastError}</div>
+                        <button type="button" onClick={loadAnalytics} className="submit-btn" style={{ width: 'auto', marginTop: '0.75rem', padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
+                      </div>
+                    ) : forecastData && forecastData.length > 0 ? (
                       <ResponsiveContainer width="100%" height={250}>
                         <LineChart data={forecastData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12, fill: '#64748b' }} 
+                            axisLine={false} 
+                            tickLine={false} 
+                            tickFormatter={(val) => {
+                              if (!val) return '';
+                              const d = new Date(val);
+                              return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                            }} 
+                          />
                           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
-                          <RechartsTooltip cursor={{ stroke: '#cbd5e1' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} labelFormatter={(val) => new Date(val).toLocaleDateString()} />
+                          <RechartsTooltip 
+                            cursor={{ stroke: '#cbd5e1' }} 
+                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                            labelFormatter={(val) => {
+                              if (!val) return '';
+                              const d = new Date(val);
+                              return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString();
+                            }} 
+                          />
                           <Line type="monotone" dataKey="predictedRevenue" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} />
                         </LineChart>
                       </ResponsiveContainer>
@@ -857,7 +1082,14 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <Activity size={18} /> Recent Transactions
                   </h3>
-                  {transactionsData && transactionsData.length > 0 ? (
+                  {transactionsError ? (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px' }}>
+                      <AlertCircle size={24} style={{ margin: '0 auto 0.5rem' }} />
+                      <div style={{ fontWeight: 600 }}>Failed to load transactions</div>
+                      <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem' }}>{transactionsError}</div>
+                      <button type="button" onClick={loadAnalytics} className="submit-btn" style={{ width: 'auto', margin: '0.75rem auto 0', padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
+                    </div>
+                  ) : transactionsData && transactionsData.length > 0 ? (
                     <div className="dash-table-wrapper">
                       <table className="dash-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
                         <thead>
@@ -869,14 +1101,22 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                           </tr>
                         </thead>
                         <tbody>
-                          {transactionsData.slice(0, 5).map((tx) => (
-                            <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
-                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{new Date(tx.timestamp).toLocaleString()}</td>
-                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{tx.stationId || 'Unknown'}</td>
-                              <td style={{ padding: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>{tx.currency || '$'} {(tx.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          {transactionsData.slice(0, 5).map((tx, idx) => (
+                            <tr key={tx.id || tx.transactionId || idx} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                               <td style={{ padding: '1rem', fontSize: '0.9rem' }}>
-                                <span className={`badge ${tx.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
-                                  {tx.status}
+                                {(() => {
+                                  if (!tx.timestamp) return 'N/A';
+                                  const d = new Date(tx.timestamp);
+                                  return isNaN(d.getTime()) ? String(tx.timestamp) : d.toLocaleString();
+                                })()}
+                              </td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{tx.stationId || 'Unknown'}</td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>
+                                {tx.currency || '$'} {(Number(tx.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td style={{ padding: '1rem', fontSize: '0.9rem' }}>
+                                <span className={`badge ${(tx.status || '').toUpperCase() === 'COMPLETED' ? 'badge-success' : 'badge-warning'}`}>
+                                  {tx.status || 'Pending'}
                                 </span>
                               </td>
                             </tr>

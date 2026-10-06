@@ -156,4 +156,24 @@ public class SessionIntegrationTests : IntegrationTestBase
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    [Fact]
+    public async Task StartSession_WithStationIdAndChargerId_WithoutChargingCode_ReturnsOk()
+    {
+        var data = await CreateActiveStationAndGetChargingCodeAsync();
+        AuthorizeAs(tenantId: Guid.NewGuid().ToString(), userId: Guid.NewGuid().ToString(), role: "Driver");
+
+        var response = await Client.PostAsJsonAsync("/api/map/driver/sessions/start", new { 
+            CompanyId = data.companyId, 
+            StationId = data.stationId, 
+            ChargerId = data.chargerId,
+            EstimatedCost = 15.00m
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.True(body.GetProperty("success").GetBoolean());
+        Assert.True(body.TryGetProperty("charger", out var chargerEl));
+        Assert.Equal(data.chargerId, chargerEl.GetProperty("id").GetString());
+    }
 }

@@ -42,7 +42,7 @@ public class CompanyAnalyticsController : ControllerBase
     }
 
     [HttpGet("company/{companyId}")]
-    public async Task<IActionResult> GetDashboardAnalytics(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string stationId = null)
+    public async Task<IActionResult> GetDashboardAnalytics(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string? stationId = null)
     {
         var error = ValidateCompanyAccess(companyId);
         if (error != null) return Forbid();
@@ -52,7 +52,7 @@ public class CompanyAnalyticsController : ControllerBase
     }
 
     [HttpGet("company/{companyId}/transactions")]
-    public async Task<IActionResult> GetCompanyTransactions(string companyId, [FromQuery] int limit = 50, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string stationId = null)
+    public async Task<IActionResult> GetCompanyTransactions(string companyId, [FromQuery] int limit = 50, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string? stationId = null)
     {
         var error = ValidateCompanyAccess(companyId);
         if (error != null) return Forbid();
@@ -62,7 +62,7 @@ public class CompanyAnalyticsController : ControllerBase
     }
 
     [HttpGet("company/{companyId}/revenue-trend")]
-    public async Task<IActionResult> GetCompanyRevenueTrend(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string stationId = null)
+    public async Task<IActionResult> GetCompanyRevenueTrend(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string? stationId = null)
     {
         var error = ValidateCompanyAccess(companyId);
         if (error != null) return Forbid();
@@ -72,7 +72,7 @@ public class CompanyAnalyticsController : ControllerBase
     }
 
     [HttpGet("company/{companyId}/stations")]
-    public async Task<IActionResult> GetStationAnalytics(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string stationId = null)
+    public async Task<IActionResult> GetStationAnalytics(string companyId, [FromQuery] System.DateTime? startDate = null, [FromQuery] System.DateTime? endDate = null, [FromQuery] string? stationId = null)
     {
         var error = ValidateCompanyAccess(companyId);
         if (error != null) return Forbid();
