@@ -17,12 +17,21 @@ if (!string.IsNullOrEmpty(aiConnectionString))
     builder.Services.AddApplicationInsightsTelemetry();
 }
 
-// Configure JWT Settings & Authentication (using the same key as AuthService)
+// Configure JWT Settings & Authentication
+var jwtSecret = builder.Configuration["Jwt:Key"]
+    ?? builder.Configuration["JwtSettings:Secret"]
+    ?? builder.Configuration["JWT_SECRET"];
+
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException("JWT Secret Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
+}
+
 var jwtSettings = new JwtSettings
 {
-    Secret = "EVNexus_SuperSecret_JwtAuthentication_Key_2026_Enterprise_Secure!",
-    Issuer = "EVNexus.AuthService",
-    Audience = "EVNexus.Microservices"
+    Secret = jwtSecret,
+    Issuer = builder.Configuration["Jwt:Issuer"] ?? builder.Configuration["JwtSettings:Issuer"] ?? "EVNexus.AuthService",
+    Audience = builder.Configuration["Jwt:Audience"] ?? builder.Configuration["JwtSettings:Audience"] ?? "EVNexus.Microservices"
 };
 
 builder.Services.AddAuthentication(options =>

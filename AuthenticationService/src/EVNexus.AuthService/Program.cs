@@ -18,9 +18,14 @@ var jwtSection = builder.Configuration.GetSection(JwtSettings.SectionName);
 builder.Services.Configure<JwtSettings>(jwtSection);
 var jwtSettings = jwtSection.Get<JwtSettings>() ?? new JwtSettings();
 
-var jwtKey = string.IsNullOrWhiteSpace(jwtSettings.Key)
-    ? "EVNexus_SuperSecret_JwtAuthentication_Key_2026_Enterprise_Secure!"
-    : jwtSettings.Key;
+var jwtKey = !string.IsNullOrWhiteSpace(jwtSettings.Key)
+    ? jwtSettings.Key
+    : (builder.Configuration["JWT_SECRET"] ?? builder.Configuration["Jwt:Key"]);
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException("JWT Secret Key is missing from configuration. Please configure 'Jwt:Key' or the 'JWT_SECRET' environment variable.");
+}
 
 builder.Services.AddAuthentication(options =>
 {

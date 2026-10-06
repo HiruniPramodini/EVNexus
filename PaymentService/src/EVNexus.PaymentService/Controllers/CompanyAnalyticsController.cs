@@ -1,5 +1,10 @@
 using System.Threading.Tasks;
 using EVNexus.PaymentService.Data;
+using System;
+using System.Linq;
+using System.Threading.Tasks;
+using EVNexus.PaymentService.Data;
+using EVNexus.PaymentService.Forecasting;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +20,12 @@ public class CompanyAnalyticsController : ControllerBase
     public CompanyAnalyticsController(ICompanyAnalyticsRepository repository)
     {
         _repository = repository;
+    private readonly IForecastService _forecastService;
+
+    public CompanyAnalyticsController(ICompanyAnalyticsRepository repository, IForecastService forecastService)
+    {
+        _repository = repository;
+        _forecastService = forecastService;
     }
 
     private string? ValidateCompanyAccess(string companyId)
@@ -74,5 +85,31 @@ public class CompanyAnalyticsController : ControllerBase
 
         var data = await _repository.GetStationAnalyticsAsync(companyId, startDate, endDate, stationId);
         return Ok(data);
+    }
+
+    [HttpGet("company/{companyId}/forecast")]
+    public async Task<IActionResult> GetCompanyForecast(string companyId, [FromQuery] int historicalDays = 30)
+    {
+        var error = ValidateCompanyAccess(companyId);
+        if (error != null) return Forbid();
+
+        if (historicalDays < 1 || historicalDays > 365)
+        {
+            return BadRequest("historicalDays must be between 1 and 365.");
+        }
+
+        var endDate = DateTime.UtcNow;
+        var startDate = endDate.AddDays(-historicalDays);
+
+        var trendData = await _repository.GetCompanyRevenueTrendAsync(companyId, startDate, endDate, null);
+        
+        var revenueData = trendData.Select(t => new RevenueData
+        {
+            Date = DateTime.TryParse(t.Date, out var parsed) ? parsed : DateTime.MinValue,
+            Amount = (float)t.Revenue
+        }).Where(r => r.Date != DateTime.MinValue).OrderBy(r => r.Date).ToList();
+
+        var forecast = _forecastService.PredictNext7Days(revenueData);
+        return Ok(forecast);
     }
 }

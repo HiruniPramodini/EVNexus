@@ -19,6 +19,7 @@ public class CompanyAnalyticsRepository : ICompanyAnalyticsRepository
             SELECT 
                 COALESCE(SUM(FinalAmount), 0) AS TotalRevenue,
                 COALESCE(SUM(CASE WHEN DATE(CompletedAt) = CURDATE() THEN FinalAmount ELSE 0 END), 0) AS TotalRevenueToday,
+                COALESCE(SUM(CASE WHEN DATE(CompletedAt) = UTC_DATE() THEN FinalAmount ELSE 0 END), 0) AS TotalRevenueToday,
                 COALESCE(SUM(EnergyConsumedKwh), 0) AS TotalEnergyKwh,
                 COUNT(PaymentId) AS CompletedTransactions
             FROM payment_transactions 

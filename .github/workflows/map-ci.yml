@@ -3,17 +3,23 @@ name: Map Service CI
 on:
   pull_request:
     branches:
+      - main
       - develop
+      - feature/map-cicd-pipeline
     paths:
       - 'MapService/**'
       - '.github/workflows/map-ci.yml'
 
   push:
     branches:
+      - main
       - develop
+      - feature/map-cicd-pipeline
     paths:
       - 'MapService/**'
       - '.github/workflows/map-ci.yml'
+
+  workflow_dispatch:
 
 jobs:
   build-test:
@@ -60,7 +66,7 @@ jobs:
       - name: Build test project
         run: dotnet build MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-restore --configuration Release
 
-      - name: Run Map Service tests (unit + integration)
+      - name: Run Map Service tests
         run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test_results.trx" --results-directory ./TestResults
 
       - name: Publish test results

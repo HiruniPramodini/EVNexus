@@ -63,6 +63,7 @@ import {
   getCompanyRevenueTrend,
   getCompanyForecast,
   getStationAnalytics
+  getCompanyForecast
 } from '../services/api';
 
 import { 
@@ -245,6 +246,30 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
       
       const stationData = stationRes?.data ?? (Array.isArray(stationRes) ? stationRes : null);
       if (stationData) setStationAnalyticsData(Array.isArray(stationData) ? stationData : []);
+      const [analyticsRes, txRes, trendRes, forecastRes] = await Promise.all([
+        getDashboardAnalytics(companyId).catch(() => ({ data: null })),
+        getCompanyTransactions(companyId).catch(() => ({ data: [] })),
+        getCompanyRevenueTrend(companyId).catch(() => ({ data: [] })),
+        getCompanyForecast(companyId).catch(() => ({ data: null }))
+      ]);
+
+      if (analyticsRes?.data) {
+        const raw = analyticsRes.data;
+        setAnalyticsData({
+          totalRevenue: raw.totalRevenue ?? raw.TotalRevenue ?? 0,
+          completedTransactions: raw.completedTransactions ?? raw.CompletedTransactions ?? 0,
+          totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0
+        });
+      }
+      if (txRes?.data) setTransactionsData(Array.isArray(txRes.data) ? txRes.data : []);
+      if (trendRes?.data && Array.isArray(trendRes.data)) {
+        const normalized = trendRes.data.map(item => ({
+          date: item.date || item.Date || '',
+          revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0)
+        }));
+        setRevenueTrend(normalized);
+      }
+      if (forecastRes?.data) setForecastData(Array.isArray(forecastRes.data) ? forecastRes.data : (forecastRes.data.forecast || []));
 
     } catch (err) {
       setAnalyticsError(err.message || 'Failed to load analytics.');
@@ -784,6 +809,37 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <BarChart3 size={16} /> Total Revenue
+        {/* ========================================================================= */}
+        {activeTab === 'live' && (
+          <CompanySessionsPage />
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2.6: ANALYTICS */}
+        {/* ========================================================================= */}
+        {activeTab === 'overview' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+            {/* Header */}
+            <div>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
+                Welcome back, Company Administrator
+              </h2>
+              <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
+                {activeCompanyName} — Monitor your charging network and business performance.
+              </div>
+            </div>
+
+            {loadingAnalytics ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                <RefreshCw size={32} className="spinner" style={{ color: 'var(--primary-600)' }} />
+              </div>
+            ) : (
+              <>
+                {/* KPI Cards */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CreditCard size={16} /> Revenue Today
                     </div>
                     <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                       {analyticsData ? (
