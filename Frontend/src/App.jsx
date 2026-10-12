@@ -14,6 +14,8 @@ import SessionHistoryPage from './pages/driver/SessionHistoryPage';
 import WalletPage from './pages/driver/WalletPage';
 import StationManagementPage from './pages/company/StationManagementPage';
 import CompanySessionsPage from './pages/company/CompanySessionsPage';
+import CompanyReportsPage from './pages/company/CompanyReportsPage';
+import ChargingSummaryPage from './pages/driver/ChargingSummaryPage';
 import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink } from './services/api';
 
 export default function App() {
@@ -118,6 +120,7 @@ export default function App() {
     activeView === 'finance' ||
     activeView === 'settings' ||
     activeView === 'analytics' ||
+    activeView === 'summary' ||
     activeView === 'live' ||
     activeView === 'staff' ||
     activeView === 'billing' ||
@@ -134,7 +137,8 @@ export default function App() {
           return <StationManagementPage authUser={authUser} />;
         case 'live':
           return <CompanySessionsPage />;
-        // Add more company views here
+        case 'analytics':
+          return <CompanyReportsPage />;
         default:
           return <CompanyDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleProfileUpdated} />;
       }
@@ -148,7 +152,8 @@ export default function App() {
           return <SessionHistoryPage authUser={authUser} />;
         case 'wallet':
           return <WalletPage authUser={authUser} />;
-        // Add more driver views here
+        case 'summary':
+          return <ChargingSummaryPage authUser={authUser} />;
         default:
           return <DriverDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleDriverProfileUpdated} onViewChange={setActiveView} />;
       }
@@ -172,7 +177,9 @@ export default function App() {
                  activeView === 'map' ? 'Find Chargers' : 
                  activeView === 'stations' ? 'Station Management' : 
                  activeView === 'live' ? 'Live Sessions' :
-                 activeView === 'history' ? 'Session History' : 'Dashboard'}
+                 activeView === 'history' ? 'Session History' :
+                 activeView === 'analytics' ? 'Reports' :
+                 activeView === 'summary' ? 'Charging Summary' : 'Dashboard'}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                 <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
