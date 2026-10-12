@@ -1,0 +1,180 @@
+Summary
+  Generated on: 10/12/2026 - 11:30:09 AM
+  Coverage date: 10/12/2026 - 11:18:58 AM - 10/12/2026 - 11:27:36 AM
+  Parser: MultiReport (5x Cobertura)
+  Assemblies: 4
+  Classes: 152
+  Files: 95
+  Line coverage: 41.5%
+  Covered lines: 2945
+  Uncovered lines: 4141
+  Coverable lines: 7086
+  Total lines: 12252
+  Branch coverage: 28.5% (510 of 1786)
+  Covered branches: 510
+  Total branches: 1786
+  Method coverage: 64.3% (567 of 881)
+  Full method coverage: 57% (503 of 881)
+  Covered methods: 567
+  Fully covered methods: 503
+  Total methods: 881
+
+EVNexus.AuthService                                                                   50%
+  EVNexus.AuthService.Attributes.RequireRoleAttribute                                100%
+  EVNexus.AuthService.Configuration.EmailSettings                                    100%
+  EVNexus.AuthService.Configuration.JwtSettings                                      100%
+  EVNexus.AuthService.Controllers.AuthController                                    31.7%
+  EVNexus.AuthService.Controllers.CompanyDataController                             43.8%
+  EVNexus.AuthService.Controllers.DriverDataController                              28.3%
+  EVNexus.AuthService.Controllers.PlatformAdminController                           35.9%
+  EVNexus.AuthService.Data.AccountAuditRepository                                      0%
+  EVNexus.AuthService.Data.DatabaseInitializer                                         0%
+  EVNexus.AuthService.Data.DriverRepository                                            0%
+  EVNexus.AuthService.Data.MySqlDbConnectionFactory                                    0%
+  EVNexus.AuthService.Data.RefreshTokenRepository                                      0%
+  EVNexus.AuthService.Data.StationRepository                                        14.4%
+  EVNexus.AuthService.Data.TenantRepository                                            0%
+  EVNexus.AuthService.DTOs.AccountStatusAuditDto                                     100%
+  EVNexus.AuthService.DTOs.AccountStatusResponseDto                                  100%
+  EVNexus.AuthService.DTOs.ApiResponse<T>                                            100%
+  EVNexus.AuthService.DTOs.ApproveCompanyRequestDto                                  100%
+  EVNexus.AuthService.DTOs.BillingInfoDto                                            100%
+  EVNexus.AuthService.DTOs.ChangeDriverPasswordRequestDto                            100%
+  EVNexus.AuthService.DTOs.CompanyApprovalResponseDto                                100%
+  EVNexus.AuthService.DTOs.CompanyLoginRequestDto                                    100%
+  EVNexus.AuthService.DTOs.CompanyLoginResponseDto                                   100%
+  EVNexus.AuthService.DTOs.CompanyProfileResponseDto                                 100%
+  EVNexus.AuthService.DTOs.CompanyRegisterRequestDto                                 100%
+  EVNexus.AuthService.DTOs.CompanyRegisterResponseDto                                100%
+  EVNexus.AuthService.DTOs.CreateDriverVehicleRequestDto                             100%
+  EVNexus.AuthService.DTOs.CreateStaffRequestDto                                     100%
+  EVNexus.AuthService.DTOs.CreateStationRequestDto                                   100%
+  EVNexus.AuthService.DTOs.DriverActivitySummaryDto                                    0%
+  EVNexus.AuthService.DTOs.DriverLoginRequestDto                                     100%
+  EVNexus.AuthService.DTOs.DriverLoginResponseDto                                    100%
+  EVNexus.AuthService.DTOs.DriverProfileResponseDto                                  100%
+  EVNexus.AuthService.DTOs.DriverRegisterRequestDto                                  100%
+  EVNexus.AuthService.DTOs.DriverRegisterResponseDto                                 100%
+  EVNexus.AuthService.DTOs.DriverVehicleDto                                          100%
+  EVNexus.AuthService.DTOs.DriverWalletDto                                           100%
+  EVNexus.AuthService.DTOs.InitiateEmailChangeRequestDto                             100%
+  EVNexus.AuthService.DTOs.InitiateEmailChangeResponseDto                            100%
+  EVNexus.AuthService.DTOs.LogoutRequestDto                                          100%
+  EVNexus.AuthService.DTOs.ReactivateAccountRequestDto                                 0%
+  EVNexus.AuthService.DTOs.RefreshTokenRequestDto                                    100%
+  EVNexus.AuthService.DTOs.RefreshTokenResponseDto                                   100%
+  EVNexus.AuthService.DTOs.RejectCompanyRequestDto                                   100%
+  EVNexus.AuthService.DTOs.ResendVerificationRequestDto                              100%
+  EVNexus.AuthService.DTOs.SimulatedNotificationDto                                  100%
+  EVNexus.AuthService.DTOs.StaffResponseDto                                          100%
+  EVNexus.AuthService.DTOs.StationResponseDto                                        100%
+  EVNexus.AuthService.DTOs.SuspendAccountRequestDto                                  100%
+  EVNexus.AuthService.DTOs.UpdateBillingRequestDto                                     0%
+  EVNexus.AuthService.DTOs.UpdateCompanyProfileRequestDto                            100%
+  EVNexus.AuthService.DTOs.UpdateDriverProfileRequestDto                             100%
+  EVNexus.AuthService.DTOs.UpdateDriverVehicleRequestDto                             100%
+  EVNexus.AuthService.DTOs.UpdateStaffStatusRequestDto                                 0%
+  EVNexus.AuthService.DTOs.UpdateStationRequestDto                                  66.6%
+  EVNexus.AuthService.DTOs.VerifyEmailRequestDto                                     100%
+  EVNexus.AuthService.DTOs.VerifyEmailResponseDto                                    100%
+  EVNexus.AuthService.Exceptions.AccountAlreadyVerifiedException                     100%
+  EVNexus.AuthService.Exceptions.BusinessEmailChangeRequiresVerificationException     50%
+  EVNexus.AuthService.Exceptions.CrossTenantAccessException                           50%
+  EVNexus.AuthService.Exceptions.DriverNotFoundException                             100%
+  EVNexus.AuthService.Exceptions.DuplicateEmailException                            42.8%
+  EVNexus.AuthService.Exceptions.DuplicateRegistrationNumberException               42.8%
+  EVNexus.AuthService.Exceptions.EmailVerificationException                           50%
+  EVNexus.AuthService.Exceptions.InvalidCredentialsException                          50%
+  EVNexus.AuthService.Exceptions.InvalidCurrentPasswordException                      50%
+  EVNexus.AuthService.Exceptions.TenantNotFoundException                             100%
+  EVNexus.AuthService.Exceptions.VerificationCodeAlreadyUsedException                100%
+  EVNexus.AuthService.Exceptions.VerificationCodeExpiredException                    100%
+  EVNexus.AuthService.Middleware.RoleAuthorizationMiddleware                         100%
+  EVNexus.AuthService.Middleware.RoleAuthorizationMiddlewareExtensions                 0%
+  EVNexus.AuthService.Middleware.TenantResolutionMiddleware                           90%
+  EVNexus.AuthService.Models.AccountStatusAudit                                      100%
+  EVNexus.AuthService.Models.CompanyUser                                             100%
+  EVNexus.AuthService.Models.Driver                                                  100%
+  EVNexus.AuthService.Models.DriverVehicle                                           100%
+  EVNexus.AuthService.Models.RefreshToken                                           76.9%
+  EVNexus.AuthService.Models.RevokedToken                                            100%
+  EVNexus.AuthService.Models.Station                                                 100%
+  EVNexus.AuthService.Models.Tariff                                                    0%
+  EVNexus.AuthService.Models.Tenant                                                  100%
+  EVNexus.AuthService.Models.Wallet                                                  100%
+  EVNexus.AuthService.Security.AppRoles                                                0%
+  EVNexus.AuthService.Services.AccountManagementService                             88.6%
+  EVNexus.AuthService.Services.BCryptPasswordHasher                                 64.2%
+  EVNexus.AuthService.Services.CompanyAuthService                                   84.6%
+  EVNexus.AuthService.Services.DriverAuthService                                    86.2%
+  EVNexus.AuthService.Services.ITenantContext                                        100%
+  EVNexus.AuthService.Services.JwtTokenService                                      49.6%
+  EVNexus.AuthService.Services.SessionService                                       90.2%
+  EVNexus.AuthService.Services.SmtpEmailService                                     72.5%
+  EVNexus.AuthService.Services.StatusNotificationService                            96.1%
+  EVNexus.AuthService.Services.TenantContext                                         100%
+  EVNexus.AuthService.Services.TokenBlacklistService                                55.5%
+  Program                                                                              0%
+
+EVNexus.DashboardService.Tests                                                      99.2%
+  AutoGeneratedProgram                                                                 0%
+  EVNexus.DashboardService.Tests.DashboardAnalyticsUnitTests                         100%
+  EVNexus.DashboardService.Tests.UnitTest1                                           100%
+
+EVNexus.MapService                                                                     0%
+  EVNexus.MapService.Configuration.JwtSettings                                         0%
+  EVNexus.MapService.Controllers.CompanySessionsController                             0%
+  EVNexus.MapService.Controllers.CompanyStationsController                             0%
+  EVNexus.MapService.Controllers.DriverStationsController                              0%
+  EVNexus.MapService.Controllers.QrValidationRequestDto                                0%
+  EVNexus.MapService.Controllers.SessionsController                                    0%
+  EVNexus.MapService.Controllers.StartSessionDto                                       0%
+  EVNexus.MapService.Data.ChargerRepository                                            0%
+  EVNexus.MapService.Data.DatabaseInitializer                                          0%
+  EVNexus.MapService.Data.MySqlDbConnectionFactory                                     0%
+  EVNexus.MapService.Data.SessionRepository                                            0%
+  EVNexus.MapService.Data.StationRepository                                            0%
+  EVNexus.MapService.Data.TenantContext                                                0%
+  EVNexus.MapService.DTOs.ChargerDto                                                   0%
+  EVNexus.MapService.DTOs.CreateStationDto                                             0%
+  EVNexus.MapService.DTOs.UpdateStationDto                                             0%
+  EVNexus.MapService.Middleware.TenantResolutionMiddleware                             0%
+  EVNexus.MapService.Models.Charger                                                    0%
+  EVNexus.MapService.Models.ChargingSession                                            0%
+  EVNexus.MapService.Models.Station                                                    0%
+  Program                                                                              0%
+
+EVNexus.PaymentService                                                                35%
+  EVNexus.PaymentService.Controllers.AuthorizePaymentDto                             100%
+  EVNexus.PaymentService.Controllers.CompanyAnalyticsController                      100%
+  EVNexus.PaymentService.Controllers.CompletePaymentDto                              100%
+  EVNexus.PaymentService.Controllers.PaymentsController                             79.4%
+  EVNexus.PaymentService.Controllers.TopUpDto                                        100%
+  EVNexus.PaymentService.Controllers.WalletController                                100%
+  EVNexus.PaymentService.Data.CompanyAnalyticsRepository                               0%
+  EVNexus.PaymentService.Data.DashboardAnalyticsDto                                  100%
+  EVNexus.PaymentService.Data.DatabaseInitializer                                    5.6%
+  EVNexus.PaymentService.Data.DbConnectionFactory                                      0%
+  EVNexus.PaymentService.Data.OutboxRepository                                         0%
+  EVNexus.PaymentService.Data.PaymentRepository                                        0%
+  EVNexus.PaymentService.Data.RevenueTrendDto                                        100%
+  EVNexus.PaymentService.Data.StationAnalyticsDto                                    100%
+  EVNexus.PaymentService.Data.TransactionDto                                         100%
+  EVNexus.PaymentService.Data.WalletRepository                                         0%
+  EVNexus.PaymentService.Forecasting.ForecastService                                77.2%
+  EVNexus.PaymentService.Forecasting.RevenueData                                     100%
+  EVNexus.PaymentService.Forecasting.RevenueForecast                                 100%
+  EVNexus.PaymentService.Forecasting.SsaRevenueForecast                                0%
+  EVNexus.PaymentService.Kafka.ChargingSessionCompletedConsumer                        0%
+  EVNexus.PaymentService.Kafka.KafkaProducerService                                 14.2%
+  EVNexus.PaymentService.Kafka.OutboxPublisherService                               68.7%
+  EVNexus.PaymentService.Models.ChargingSessionCompletedEvent                          0%
+  EVNexus.PaymentService.Models.OutboxMessage                                       81.8%
+  EVNexus.PaymentService.Models.PaginatedResponse<T>                                 100%
+  EVNexus.PaymentService.Models.PaginationMetadata                                   100%
+  EVNexus.PaymentService.Models.PaymentTransaction                                   100%
+  EVNexus.PaymentService.Models.Wallet                                               100%
+  EVNexus.PaymentService.Models.WalletTransaction                                    100%
+  PaymentChargeRequest                                                                 0%
+  Program                                                                           36.4%
+  TopUpRequest                                                                         0%

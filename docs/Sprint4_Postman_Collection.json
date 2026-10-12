@@ -1,0 +1,349 @@
+{
+  "info": {
+    "name": "EVNexus - Sprint 4 QA API Test Suite",
+    "_postman_id": "evnexus-sprint4-qa-suite",
+    "description": "Automated QA API Test Collection for Sprint 4 (SCRUM-89: Dashboard & AI Analytics)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5004",
+      "type": "string"
+    },
+    {
+      "key": "companyId",
+      "value": "comp-777",
+      "type": "string"
+    },
+    {
+      "key": "otherCompanyId",
+      "value": "comp-999",
+      "type": "string"
+    },
+    {
+      "key": "companyAdminToken",
+      "value": "YOUR_COMPANY_ADMIN_JWT_TOKEN",
+      "type": "string"
+    },
+    {
+      "key": "driverToken",
+      "value": "YOUR_DRIVER_JWT_TOKEN",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "SCRUM-123 & 130: Get Company Dashboard Overview",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response contains valid Overview KPI attributes', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData).to.have.property('totalRevenue');",
+              "    pm.expect(jsonData).to.have.property('totalRevenueToday');",
+              "    pm.expect(jsonData).to.have.property('totalEnergyKwh');",
+              "    pm.expect(jsonData).to.have.property('completedTransactions');",
+              "    pm.expect(typeof jsonData.totalRevenue).to.eql('number');",
+              "    pm.expect(typeof jsonData.completedTransactions).to.eql('number');",
+              "});",
+              "",
+              "pm.test('Response time is within SLA (< 1500ms)', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(1500);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}?startDate=2026-10-01&endDate=2026-10-10",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}"],
+          "query": [
+            { "key": "startDate", "value": "2026-10-01" },
+            { "key": "endDate", "value": "2026-10-10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "SCRUM-132: Get Revenue Trend Chart Data",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Response is an array of daily trends', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+              "    if (jsonData.length > 0) {",
+              "        pm.expect(jsonData[0]).to.have.property('date');",
+              "        pm.expect(jsonData[0]).to.have.property('revenue');",
+              "        pm.expect(jsonData[0]).to.have.property('energyKwh');",
+              "        pm.expect(jsonData[0]).to.have.property('sessions');",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}/revenue-trend",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}", "revenue-trend"]
+        }
+      }
+    },
+    {
+      "name": "SCRUM-124 & 168: Get Station Traffic & Analytics",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Stations array structure verified', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+              "    if (jsonData.length > 0) {",
+              "        pm.expect(jsonData[0]).to.have.property('stationId');",
+              "        pm.expect(jsonData[0]).to.have.property('sessions');",
+              "        pm.expect(jsonData[0]).to.have.property('revenue');",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}/stations",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}", "stations"]
+        }
+      }
+    },
+    {
+      "name": "SCRUM-128 & 131: Get Company Transactions (CSV Source)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Transactions list contains valid fields for reporting', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+              "    if (jsonData.length > 0) {",
+              "        pm.expect(jsonData[0]).to.have.property('id');",
+              "        pm.expect(jsonData[0]).to.have.property('stationId');",
+              "        pm.expect(jsonData[0]).to.have.property('amount');",
+              "        pm.expect(jsonData[0]).to.have.property('energyConsumedKwh');",
+              "        pm.expect(jsonData[0]).to.have.property('status');",
+              "    }",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}/transactions?limit=50",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}", "transactions"],
+          "query": [{ "key": "limit", "value": "50" }]
+        }
+      }
+    },
+    {
+      "name": "SCRUM-166: Get AI 7-Day Revenue Demand Forecast",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Forecast produces 7 days predictions with bounds', function () {",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(Array.isArray(jsonData)).to.be.true;",
+              "    pm.expect(jsonData.length).to.eql(7);",
+              "    jsonData.forEach(function(day) {",
+              "        pm.expect(day).to.have.property('date');",
+              "        pm.expect(day).to.have.property('predictedRevenue');",
+              "    });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}/forecast?historicalDays=30",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}", "forecast"],
+          "query": [{ "key": "historicalDays", "value": "30" }]
+        }
+      }
+    },
+    {
+      "name": "SECURITY NEGATIVE: Tenant Mismatch Returns 403 Forbidden",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 403 Forbidden (Multi-Tenancy Protected)', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{otherCompanyId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{otherCompanyId}}"]
+        }
+      }
+    },
+    {
+      "name": "SECURITY NEGATIVE: Driver Role Accessing Company Analytics Returns 403",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 403 Forbidden (RBAC Protected)', function () {",
+              "    pm.response.to.have.status(403);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{driverToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}"]
+        }
+      }
+    },
+    {
+      "name": "VALIDATION NEGATIVE: Forecast with historicalDays = 0 Returns 400 Bad Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 400 Bad Request', function () {",
+              "    pm.response.to.have.status(400);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{companyAdminToken}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/payment/analytics/company/{{companyId}}/forecast?historicalDays=0",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "payment", "analytics", "company", "{{companyId}}", "forecast"],
+          "query": [{ "key": "historicalDays", "value": "0" }]
+        }
+      }
+    }
+  ]
+}
