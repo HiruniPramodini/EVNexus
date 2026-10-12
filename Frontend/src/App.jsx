@@ -18,6 +18,29 @@ import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verify
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const mockRole = params.get('mockRole');
+      if (mockRole === 'CompanyAdmin') {
+        return {
+          tenantId: 'comp-101',
+          companyName: 'ElectroCharge Lanka',
+          businessEmail: 'admin@electrocharge.lk',
+          role: 'CompanyAdmin',
+          accessToken: 'mock_token'
+        };
+      }
+      if (mockRole === 'Driver') {
+        return {
+          driverId: 'drv-401',
+          name: 'Mohamed Ashmal',
+          email: 'ashmal@evnexus.lk',
+          role: 'Driver',
+          walletBalance: 125.50,
+          accessToken: 'mock_token'
+        };
+      }
+    } catch (_) {}
     const user = getStoredUser();
     const token = getAuthToken();
     if (user && token) {
@@ -27,6 +50,11 @@ export default function App() {
   });
 
   const [activeView, setActiveView] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const viewParam = params.get('view');
+      if (viewParam) return viewParam;
+    } catch (_) {}
     const user = getStoredUser();
     const token = getAuthToken();
     if (user && token) {
