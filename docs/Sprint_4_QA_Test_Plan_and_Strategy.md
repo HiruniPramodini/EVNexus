@@ -104,7 +104,7 @@ To ensure comprehensive test cases, the following established test design techni
 | **Performance Testing Tool**| Apache JMeter 5.6.3 (Java 21 OpenJDK) |
 | **API Test Automation** | Postman Desktop & Newman CLI 6.2.0 |
 | **Operating Systems Tested**| Windows 11 Enterprise (Local) & Ubuntu 22.04 LTS (GitHub Actions CI) |
-| **CI/CD Pipeline** | GitHub Actions (`.github/workflows/dashboard-ci.yml`) |
+| **CI/CD Pipeline** | GitHub Actions (`.github/workflows/payment-ci.yml`) |
 
 ---
 
@@ -161,7 +161,7 @@ The following QA deliverables are submitted and maintained in the project reposi
 4. **Execution Report (Markdown):** [`EVNexus/docs/Sprint_4_QA_Execution_Report.md`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint_4_QA_Execution_Report.md)
 5. **JMeter Test Plan Artifact:** [`EVNexus/docs/Sprint4_LoadTest_50Users.jmx`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint4_LoadTest_50Users.jmx)
 6. **Postman API Test Collection:** [`EVNexus/docs/Sprint4_Postman_Collection.json`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint4_Postman_Collection.json)
-7. **Automated CI/CD Workflow:** [`EVNexus/.github/workflows/dashboard-ci.yml`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/.github/workflows/dashboard-ci.yml)
+7. **Automated CI/CD Workflow:** [`EVNexus/.github/workflows/payment-ci.yml`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/.github/workflows/payment-ci.yml)
 8. **QA Quickstart Verification Guide:** [`EVNexus/docs/QA_QUICKSTART_GUIDE.md`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/QA_QUICKSTART_GUIDE.md)
 
 ---

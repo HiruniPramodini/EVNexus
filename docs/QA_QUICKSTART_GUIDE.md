@@ -87,5 +87,5 @@ npx newman run docs/Sprint4_Postman_Collection.json --reporters cli
 - 📋 **IEEE 829 Test Plan & Strategy:** [`docs/Sprint_4_QA_Test_Plan_and_Strategy.md`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint_4_QA_Test_Plan_and_Strategy.md)
 - ⚙️ **JMeter Test Plan JMX:** [`docs/Sprint4_LoadTest_50Users.jmx`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint4_LoadTest_50Users.jmx)
 - 📮 **Postman Collection JSON:** [`docs/Sprint4_Postman_Collection.json`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/docs/Sprint4_Postman_Collection.json)
-- 🤖 **CI/CD QA Pipeline:** [`.github/workflows/dashboard-ci.yml`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/.github/workflows/dashboard-ci.yml)
+- 🤖 **CI/CD QA Pipeline:** [`.github/workflows/payment-ci.yml`](file:///d:/OneDrive/Desktop/Nvexus/EVNexus/.github/workflows/payment-ci.yml)
 - 📊 **HTML Load Test Report:** Open [`load_report/index.html`](file:///d:/OneDrive/Desktop/Nvexus/load_report/index.html) in any web browser.
