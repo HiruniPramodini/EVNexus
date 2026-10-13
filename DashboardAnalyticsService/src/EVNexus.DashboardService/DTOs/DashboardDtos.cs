@@ -3,6 +3,17 @@ using System.Collections.Generic;
 
 namespace EVNexus.DashboardService.DTOs;
 
+/// Story 1: Driver Dashboard Charging History Summary
+public class DriverSummaryDto
+{
+    public string DriverId { get; set; } = string.Empty;
+    public int TotalCompletedSessions { get; set; }
+    public decimal TotalEnergyConsumedKwh { get; set; }
+    public decimal TotalAmountSpent { get; set; }
+    public string Currency { get; set; } = "LKR";
+    public DateTime LastSessionDate { get; set; }
+}
+
 /// Story 3: Revenue Trend Chart Point
 public class RevenueTrendPointDto
 {
