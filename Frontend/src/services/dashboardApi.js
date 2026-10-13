@@ -1,42 +1,68 @@
 import { getAuthToken } from './api';
 
-async function get(path, params = {}) {
-  const url = new URL(`${DASHBOARD_URL}/api/dashboard-reports/${path}`);
-  Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.append(k, v); });
-  const token = getAuthToken();
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
+const BASE = import.meta.env.VITE_DASHBOARD_API_URL || 'http://localhost:5100';
+
+async function request(path, params = {}) {
+  const token = await getAuthToken();
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString();
+
+  const res = await fetch(`${BASE}${path}${qs ? `?${qs}` : ''}`, {
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
   });
+
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;
-    try { const b = await res.json(); if (b?.message) msg = b.message; } catch { /* ignore */ }
+    try { msg = (await res.json())?.message || msg; } catch (_) {}
     throw new Error(msg);
   }
   return res.json();
 }
 
-// SCRUM-130: default range = last 7 days
-export function lastSevenDays() {
-  const fmt = (d) => d.toISOString().slice(0, 10);
-  return { from: fmt(new Date(Date.now() - 6 * 86400000)), to: fmt(new Date()) };
-}
+const authFetch = async (path, params = {}) => {
+  const token = await getAuthToken();
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== '')
+  ).toString();
+  const res = await fetch(`${BASE}${path}${qs ? `?${qs}` : ''}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    let msg = `Request failed (${res.status})`;
+    try { msg = (await res.json())?.message || msg; } catch (_) {}
+    throw new Error(msg);
+  }
+  return res;
+};
 
-export const getTrafficTable = (from, to) => get('traffic', { from, to });
-export const getPriceList = () => get('prices');
-export const getLocationTable = () => get('locations');
-export const getDailyUsage = (from, to) => get('daily-usage', { from, to });
-export const getDriverSummary = (from, to) => get('driver-summary', { from, to });
+const tzOffset = () => -new Date().getTimezoneOffset(); // minutes east of UTC (Sri Lanka = 330)
 
-// SCRUM-131: build and download a CSV file in the browser
-export function downloadCsv(filename, rows) {
-  if (!rows || rows.length === 0) return;
-  const headers = Object.keys(rows[0]);
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const csv = [headers.join(','), ...rows.map(r => headers.map(h => esc(r[h])).join(','))].join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+export const getDailyUsageReport = (from, to) =>
+  request('/api/company/reports/daily-usage', { from, to });
+
+export const getStationTraffic = (from, to) =>
+  request('/api/company/analytics/station-traffic', { from, to });
+
+export const getHourlyUsage = (from, to, stationId) =>
+  request('/api/company/analytics/hourly', { from, to, stationId, tzOffset: tzOffset() });
+
+export const getMonthlyReport = (year, month) =>
+  request('/api/company/analytics/monthly', { year, month });
+
+export const getPeakHours = (stationId) =>
+  request('/api/company/analytics/peak-hours', { stationId, tzOffset: tzOffset() });
+
+export const getDemandForecast = (stationId) =>
+  request('/api/company/analytics/forecast', { stationId });
+
+export async function downloadUsageCsv(from, to, stationId) {
+  const res = await authFetch('/api/company/analytics/export.csv', { from, to, stationId });
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
+  a.href = url;
+  a.download = `usage-report_${from}_${to}.csv`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  URL.revokeObjectURL(url);
 }

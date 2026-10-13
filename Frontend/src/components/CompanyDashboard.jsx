@@ -39,6 +39,7 @@ import {
 
 import StationManagementPage from '../pages/company/StationManagementPage';
 import CompanySessionsPage from '../pages/company/CompanySessionsPage';
+import CompanyRevenuePage from '../pages/company/CompanyRevenuePage';
 import {
   getCompanyProfile,
   updateCompanyProfile,
@@ -60,7 +61,8 @@ import {
   getDashboardAnalytics,
   getCompanyTransactions,
   getCompanyRevenueTrend,
-  getCompanyForecast
+  getCompanyForecast,
+  getStationAnalytics,
 } from '../services/api';
 
 import { 
@@ -192,6 +194,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const [transactionsData, setTransactionsData] = useState([]);
   const [revenueTrend, setRevenueTrend] = useState([]);
   const [forecastData, setForecastData] = useState(null);
+  const [stationAnalyticsData, setStationAnalyticsData] = useState([]);
   const [activeSessionsData, setActiveSessionsData] = useState(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
   const [analyticsError, setAnalyticsError] = useState(null);
@@ -266,6 +269,45 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const loadAnalytics = async () => {
     setLoadingAnalytics(true);
     setAnalyticsError(null);
+    try {
+      const companyId = authUser?.tenantId;
+      const [analyticsRes, txRes, trendRes, forecastRes, stationRes] = await Promise.all([
+        getDashboardAnalytics(companyId).catch(() => ({ data: null })),
+        getCompanyTransactions(companyId).catch(() => ({ data: [] })),
+        getCompanyRevenueTrend(companyId).catch(() => ({ data: [] })),
+        getCompanyForecast(companyId).catch(() => ({ data: null })),
+        getStationAnalytics(companyId).catch(() => ({ data: [] }))
+      ]);
+
+      const rawAnalytics = analyticsRes?.data ?? (analyticsRes?.totalRevenue !== undefined || analyticsRes?.TotalRevenue !== undefined ? analyticsRes : null);
+      if (rawAnalytics) {
+        setAnalyticsData({
+          totalRevenue: rawAnalytics.totalRevenue ?? rawAnalytics.TotalRevenue ?? 0,
+          totalRevenueToday: rawAnalytics.totalRevenueToday ?? rawAnalytics.TotalRevenueToday ?? 0,
+          completedTransactions: rawAnalytics.completedTransactions ?? rawAnalytics.CompletedTransactions ?? 0,
+          totalEnergyKwh: rawAnalytics.totalEnergyKwh ?? rawAnalytics.TotalEnergyKwh ?? 0
+        });
+      }
+      
+      const txData = txRes?.data ?? (Array.isArray(txRes) ? txRes : null);
+      if (txData) setTransactionsData(Array.isArray(txData) ? txData : []);
+      
+      const trendData = trendRes?.data ?? (Array.isArray(trendRes) ? trendRes : null);
+      if (trendData && Array.isArray(trendData)) {
+        const normalized = trendData.map(item => ({
+          date: item.date || item.Date || '',
+          revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0),
+          energyKwh: typeof item.energyKwh === 'number' ? item.energyKwh : (parseFloat(item.EnergyKwh || item.energyKwh) || 0),
+          sessions: typeof item.sessions === 'number' ? item.sessions : (parseInt(item.Sessions || item.sessions) || 0)
+        }));
+        setRevenueTrend(normalized);
+      }
+      
+      const forecast = forecastRes?.data ?? (Array.isArray(forecastRes) || forecastRes?.forecast ? forecastRes : null);
+      if (forecast) setForecastData(Array.isArray(forecast) ? forecast : (forecast.forecast || []));
+      
+      const stationData = stationRes?.data ?? (Array.isArray(stationRes) ? stationRes : null);
+      if (stationData) setStationAnalyticsData(Array.isArray(stationData) ? stationData : []);
     setKpiError(null);
     setTransactionsError(null);
     setTrendError(null);
@@ -730,9 +772,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        {/* ========================================================================= */}
-        {/* Urgent Alerts / Notice Banners */}
-        {/* ========================================================================= */}
+        /* Urgent Alerts / Notice Banners */
         {isOperator && (
           <div className="alert alert-warning animate-fade-in" style={{ margin: 0 }}>
             <ShieldAlert size={20} />
@@ -832,23 +872,26 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 1: OVERVIEW & KPIS */}
-        {/* ========================================================================= */}
+        /* TAB 1: OVERVIEW & KPIS */
         {activeTab === 'stations' && (
           <StationManagementPage />
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2.5: LIVE SESSIONS */}
-        {/* ========================================================================= */}
+        /* TAB 2.5: LIVE SESSIONS */
         {activeTab === 'live' && (
           <CompanySessionsPage />
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2.6: ANALYTICS & REVENUE OVERVIEW */}
-        {/* ========================================================================= */}
+        /* TAB 2.6: ANALYTICS */
+        {activeTab === 'analytics' && (
+          <CompanyRevenuePage 
+            authUser={authUser} 
+            stations={stations} 
+            onNavigateToOverview={() => setActiveTab('overview')} 
+          />
+        )}
+        
+        /* TAB 2.6: ANALYTICS & REVENUE OVERVIEW */
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Header */}
@@ -1130,6 +1173,74 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                     </div>
                   )}
                 </div>
+
+                {/* Station Analytics */}
+                <div className="dash-card" style={{ padding: '1.5rem' }}>
+                  <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <MapPin size={18} /> Station Analytics
+                  </h3>
+                  {stationAnalyticsData && stationAnalyticsData.length > 0 ? (
+                    (() => {
+                      const grouped = stationAnalyticsData.reduce((acc, curr) => {
+                        const sId = curr.stationId || curr.StationId || 'Unknown';
+                        if (!acc[sId]) acc[sId] = [];
+                        acc[sId].push(curr);
+                        return acc;
+                      }, {});
+                      return Object.entries(grouped).map(([sId, records]) => {
+                        const totalSessions = records.reduce((sum, r) => sum + (r.sessions || r.Sessions || 0), 0);
+                        const totalKwh = records.reduce((sum, r) => sum + (r.energyKwh || r.EnergyKwh || 0), 0);
+                        const totalRevenue = records.reduce((sum, r) => sum + (r.revenue || r.Revenue || 0), 0);
+                        
+                        return (
+                          <div key={sId} style={{ marginBottom: '2rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                            <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-main)', fontSize: '1.05rem', fontWeight: 600 }}>Station: {sId}</h4>
+                            <div className="dash-table-wrapper" style={{ marginBottom: '1rem' }}>
+                              <table className="dash-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', background: '#fff' }}>
+                                <thead>
+                                  <tr style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Date</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Sessions</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>kWh</th>
+                                    <th style={{ padding: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem' }}>Revenue</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {records.map((r, i) => (
+                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{r.date || r.Date}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{r.sessions || r.Sessions || 0}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem' }}>{(r.energyKwh || r.EnergyKwh || 0).toFixed(2)}</td>
+                                      <td style={{ padding: '0.75rem', fontSize: '0.9rem', fontWeight: 600 }}>${(r.revenue || r.Revenue || 0).toFixed(2)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            <div style={{ padding: '1rem', background: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0', display: 'flex', gap: '2rem' }}>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Sessions</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{totalSessions}</span>
+                              </div>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Energy</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{totalKwh.toFixed(2)} kWh</span>
+                              </div>
+                              <div>
+                                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Revenue</span>
+                                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-600)' }}>${totalRevenue.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px' }}>
+                      No charging activity yet.
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -1270,9 +1381,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 4: BILLING & PLAN */}
-        {/* ========================================================================= */}
+        /* TAB 4: BILLING & PLAN */
         {activeTab === 'billing' && (
           <div className="dash-card">
             <div className="dash-card-header">
@@ -1355,9 +1464,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 5: SECURITY & DEVELOPER SANDBOX */}
-        {/* ========================================================================= */}
+        /* TAB 5: SECURITY & DEVELOPER SANDBOX */
         {activeTab === 'security' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Cross-Tenant Access Simulator */}
@@ -1429,7 +1536,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
               )}
             </div>
 
-            {/* RBAC Security Access Simulator */}
+            /* RBAC Security Access Simulator */
             <div className="dash-card" style={{ borderLeft: '4px solid #f59e0b' }}>
               <div className="dash-card-header">
                 <div>
@@ -1481,7 +1588,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
               )}
             </div>
 
-            {/* Protected API Token Validation & JWT Raw String */}
+            /* Protected API Token Validation & JWT Raw String */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
               {/* Protected API Check */}
               <div className="dash-card">
@@ -1577,9 +1684,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 6: SETTINGS & PROFILE */}
-        {/* ========================================================================= */}
+        /* SETTINGS & PROFILE */
         {activeTab === 'settings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Organization Settings */}
@@ -1679,9 +1784,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* EDIT PROFILE MODAL */}
-        {/* ========================================================================= */}
+        /* EDIT PROFILE MODAL */
         {showEditProfileModal && (
           <div className="modal-backdrop">
             <div className="modal-dialog">
@@ -1760,7 +1863,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   </div>
                 </div>
 
-                {/* Logo Presets & Custom URL */}
+                /* Logo Presets & Custom URL */
                 <div style={{ background: 'var(--bg-page)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   <label className="form-label" style={{ marginBottom: '0.4rem' }}>
                     <ImageIcon size={16} color="var(--primary-600)" />
@@ -1896,9 +1999,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* INVITE STAFF MODAL */}
-        {/* ========================================================================= */}
+        /* INVITE STAFF MODAL */
         {showInviteStaffModal && (
           <div className="modal-backdrop">
             <div className="modal-dialog">
@@ -1995,9 +2096,6 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* DELETE CONFIRMATION MODAL */}
-        {/* ========================================================================= */}
         {showDeleteConfirm && (
           <div className="modal-backdrop">
             <div className="modal-dialog" style={{ maxWidth: '460px', border: '2px solid #ef4444' }}>
