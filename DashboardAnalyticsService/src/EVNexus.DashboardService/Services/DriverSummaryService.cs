@@ -1,4 +1,5 @@
 using EVNexus.DashboardService.Data;
+using DashboardService.Models;
 using EVNexus.DashboardService.DTOs;
 using Microsoft.EntityFrameworkCore;
 
