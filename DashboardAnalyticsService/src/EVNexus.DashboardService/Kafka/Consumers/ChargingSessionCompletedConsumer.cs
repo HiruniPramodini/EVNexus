@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using DashboardService.Data;
 using EVNexus.DashboardService.Data;
 using EVNexus.DashboardService.Models;
 using Microsoft.EntityFrameworkCore;
