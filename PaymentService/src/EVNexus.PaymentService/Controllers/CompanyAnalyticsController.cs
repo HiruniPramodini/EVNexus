@@ -1,5 +1,3 @@
-using System.Threading.Tasks;
-using EVNexus.PaymentService.Data;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,10 +14,6 @@ namespace EVNexus.PaymentService.Controllers;
 public class CompanyAnalyticsController : ControllerBase
 {
     private readonly ICompanyAnalyticsRepository _repository;
-
-    public CompanyAnalyticsController(ICompanyAnalyticsRepository repository)
-    {
-        _repository = repository;
     private readonly IForecastService _forecastService;
 
     public CompanyAnalyticsController(ICompanyAnalyticsRepository repository, IForecastService forecastService)
