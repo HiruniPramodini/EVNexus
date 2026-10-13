@@ -6,6 +6,10 @@
 ![Map Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/map-cd.yml/badge.svg)
 ![Auth Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-ci.yml/badge.svg)
 ![Auth Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/auth-cd.yml/badge.svg)
+![Payment Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/payment-ci.yml/badge.svg)
+![Payment Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/payment-cd.yml/badge.svg)
+![Dashboard Service CI](https://github.com/HiruniPramodini/EVNexus/actions/workflows/dashboard-ci.yml/badge.svg)
+![Dashboard Service CD](https://github.com/HiruniPramodini/EVNexus/actions/workflows/dashboard-cd.yml/badge.svg)
 
 EVNexus is a **multi-tenant electric vehicle (EV) charging management platform** designed to connect EV charging companies and EV drivers through a unified digital ecosystem.
 
@@ -827,23 +831,38 @@ Azure App Service
 
 Running tests again before deployment provides an additional deployment gate and prevents an invalid production artifact from being deployed.
 
+### 📊 Dashboard & Analytics Service CI/CD Pipeline
+
+The **Dashboard/Analytics Service** features dedicated GitHub Actions automation:
+
+* **CI Workflow (`dashboard-ci.yml`)**:
+  * Triggers automatically on every `push` and `pull_request` to `main` and `develop` touching `DashboardAnalyticsService/**`.
+  * Provisions a dedicated MySQL 8.0 test container service with automated health checks.
+  * Validates compilation and executes **27+ automated unit & integration tests** covering reporting, tenant isolation, and AI forecasting logic.
+  * **Build Gating**: The pipeline immediately fails the build if any automated test fails.
+  * **Code Coverage**: Generates XPlat code coverage reports and uploads `dashboard-code-coverage` as a pipeline artifact.
+  * Verifies Docker image compilation (`evnexus-dashboard-service:ci`).
+
+* **CD Workflow (`dashboard-cd.yml`)**:
+  * Triggers automatically on push to `main` or via manual `workflow_dispatch`.
+  * Executes a full test pass before packaging the .NET 8 production release bundle.
+  * Deploys automatically to Azure App Service (`evnexus-dashboard-service`) using the repository secret `AZURE_DASHBOARD_PUBLISH_PROFILE`.
+  * Verifies the live `/health` endpoint post-deployment to ensure continuous uptime.
+
 ---
 
 # 📈 Monitoring & Observability
 
-EVNexus uses **Azure Application Insights** for application monitoring and observability.
+EVNexus uses **Azure Application Insights** for application monitoring and observability across microservices.
 
-Monitoring can be used to track:
+### Dashboard / Analytics Service Telemetry
 
-* Application availability
-* Requests
-* Response times
-* Exceptions
-* Failures
-* Service health
-* Application performance
-
-The goal is to make it easier to identify and troubleshoot problems after deployment.
+* **Live Telemetry Stream**: Captures request rates, incoming requests/sec, and CPU/memory utilization via `Microsoft.ApplicationInsights.AspNetCore`.
+* **Performance & Latency**: Tracks response times across reporting and AI time-series forecasting endpoints.
+* **Failure & Exception Tracking**: Aggregates HTTP 4xx/5xx responses and unhandled exception stack traces for rapid triage.
+* **Health Check Endpoints**:
+  * `GET /health` — Verifies service health status (`Healthy`).
+  * `GET /api/health` — API Gateway health check route.
 
 ---
 
