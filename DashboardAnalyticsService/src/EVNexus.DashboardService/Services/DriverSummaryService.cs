@@ -1,5 +1,4 @@
-using EVNexus.DashboardService.Data;
-using DashboardService.Models;
+using DashboardService.Data;
 using EVNexus.DashboardService.DTOs;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,17 +13,26 @@ public class DriverSummaryService
     {
         var start = from.Date;
         var end = to.Date.AddDays(1);
-        var q = _db.Sessions.AsNoTracking()
-            .Where(s => s.DriverId == driverId && s.StartUtc >= start && s.StartUtc < end);
 
-        var count = await q.CountAsync(ct);
-        var energy = await q.SumAsync(s => (double?)s.EnergyKwh, ct) ?? 0;
-        var spent = await q.SumAsync(s => (decimal?)s.Cost, ct) ?? 0m;
-        var avg = await q.AverageAsync(s => (double?)s.DurationMinutes, ct) ?? 0;
-
-        var recent = await q.OrderByDescending(s => s.StartUtc).Take(10)
-            .Select(s => new RecentSessionDto(s.Id, s.StationName, s.StartUtc, s.DurationMinutes, s.EnergyKwh, s.Cost))
+        var sessions = await _db.Sessions.AsNoTracking()
+            .Where(s => s.DriverId == driverId && s.StartTime >= start && s.StartTime < end)
+            .OrderByDescending(s => s.StartTime)
             .ToListAsync(ct);
+
+        var count = sessions.Count;
+        var energy = (double)sessions.Sum(s => s.EnergyKwh);
+        var spent = sessions.Sum(s => s.TotalCost);
+        var avg = count == 0 ? 0 : sessions.Average(s => (s.EndTime - s.StartTime).TotalMinutes);
+
+        var recent = sessions.Take(10)
+            .Select(s => new RecentSessionDto(
+                s.SessionId,
+                s.StationName,
+                s.StartTime,
+                (s.EndTime - s.StartTime).TotalMinutes,
+                (double)s.EnergyKwh,
+                s.TotalCost))
+            .ToList();
 
         return new DriverSummaryDto(count, Math.Round(energy, 2), spent, Math.Round(avg, 1), recent);
     }
