@@ -114,12 +114,12 @@ public class DriverStationsController : ControllerBase
             data = new {
                 stationId = station.Id,
                 companyId = station.TenantId,
-                chargerId = resolvedChargerId,
+                chargerId = request.ChargerId ?? station.Id, // Fallback if frontend sends it
                 stationName = station.Name,
                 address = station.Address,
-                connectorType = resolvedConnectorType,
-                powerKw = resolvedPowerKw,
-                pricePerKwh = resolvedPricePerKwh,
+                connectorType = station.ConnectorType,
+                powerKw = station.CapacityKw,
+                pricePerKwh = station.PricePerKwh,
                 status = station.IsActive ? "Available" : "Offline",
                 chargingCode = station.ChargingCode
             }

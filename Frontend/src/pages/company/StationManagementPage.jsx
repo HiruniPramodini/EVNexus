@@ -13,17 +13,17 @@ function parseCoordinates(input) {
   if (decimalMatch) {
     return { lat: parseFloat(decimalMatch[1]), lng: parseFloat(decimalMatch[2]) };
   }
-  
+
   const dmsRegex = /(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([NSns])\s*[,]?\s*(\d+)[°\s]+(\d+)['\s]+([\d.]+)"?\s*([EWew])/i;
   const dmsMatch = input.match(dmsRegex);
-  
+
   if (dmsMatch) {
     let lat = parseInt(dmsMatch[1]) + parseInt(dmsMatch[2])/60 + parseFloat(dmsMatch[3])/3600;
     if (dmsMatch[4].toUpperCase() === 'S') lat = -lat;
-    
+
     let lng = parseInt(dmsMatch[5]) + parseInt(dmsMatch[6])/60 + parseFloat(dmsMatch[7])/3600;
     if (dmsMatch[8].toUpperCase() === 'W') lng = -lng;
-    
+
     return { lat: lat, lng: lng };
   }
 
@@ -33,7 +33,7 @@ function parseCoordinates(input) {
     let val = parseInt(singleMatch[1]) + parseInt(singleMatch[2])/60 + parseFloat(singleMatch[3])/3600;
     const dir = singleMatch[4].toUpperCase();
     if (dir === 'S' || dir === 'W') val = -val;
-    
+
     if (dir === 'N' || dir === 'S') return { latOnly: val.toFixed(6) };
     if (dir === 'E' || dir === 'W') return { lngOnly: val.toFixed(6) };
   }
@@ -279,7 +279,7 @@ export default function StationManagementPage() {
   const [showForm, setShowForm] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  
+
   const initialFormState = {
     name: '',
     address: '',
@@ -548,15 +548,15 @@ export default function StationManagementPage() {
     setDeleteChargerConfirmId(null);
   };
 
-  const handleViewQr = async (charger, station = managingChargersFor) => {
+  const handleStationViewQr = async (station) => {
     try {
-      const res = await getChargerQr(station.id, charger.id);
+      const res = await getStationQr(station.id);
       const payloadObj = res.data;
       setQrModalData({
-        chargerId: charger.id,
-        chargerType: charger.type || 'CCS2',
-        powerKw: charger.powerKw || station.capacityKw || 50,
-        pricePerKwh: charger.pricePerKwh || station.pricePerKwh || 0.50,
+        chargerId: station.id, // Station IS the charger
+        chargerType: station.connectorType || 'CCS2',
+        powerKw: station.capacityKw || 50,
+        pricePerKwh: station.pricePerKwh || 0.50,
         stationName: station.name,
         stationAddress: station.address,
         companyName: station.tenantId || 'EVNexus Operator',
@@ -565,19 +565,6 @@ export default function StationManagementPage() {
       });
     } catch (err) {
       alert(err.message || 'Failed to retrieve QR.');
-    }
-  };
-
-  const handleStationViewQr = async (station) => {
-    try {
-      const res = await getStationChargers(station.id);
-      if (res?.data && res.data.length > 0) {
-        handleViewQr(res.data[0], station);
-      } else {
-        alert("No chargers configured for this station. Please manage chargers to add one.");
-      }
-    } catch (err) {
-      alert("Failed to retrieve chargers for this station.");
     }
   };
 
@@ -639,7 +626,7 @@ export default function StationManagementPage() {
       {showForm && (
         <form onSubmit={handleSubmit} className="dash-form" style={{ marginBottom: '2rem', padding: '1.5rem', border: '1px solid var(--border-subtle)', borderRadius: '8px', background: '#f8fafc' }}>
           <h4 style={{ marginBottom: '1rem' }}>{isEditing ? 'Edit Station' : 'Add New Station'}</h4>
-          
+
           <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
               <label className="form-label">Station Name</label>
@@ -652,9 +639,9 @@ export default function StationManagementPage() {
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label">Latitude</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   value={formData.latitude}
                   onChange={handleLatChange}
                   placeholder="e.g. 6.927100 or 6°54'45.4&quot;N"
@@ -663,9 +650,9 @@ export default function StationManagementPage() {
               </div>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label">Longitude</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
+                <input
+                  type="text"
+                  className="form-input"
                   value={formData.longitude}
                   onChange={handleLngChange}
                   placeholder="e.g. 79.861200"
@@ -673,10 +660,10 @@ export default function StationManagementPage() {
                 />
               </div>
             </div>
-            
-            <button 
-              type="button" 
-              className="btn-secondary" 
+
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={() => {
                 if (navigator.geolocation) {
                   navigator.geolocation.getCurrentPosition(
@@ -791,7 +778,7 @@ export default function StationManagementPage() {
                   </td>
                   <td style={{ fontWeight: 600 }}>${stn.pricePerKwh} / kWh</td>
                   <td>
-                    <span className="badge" style={{ 
+                    <span className="badge" style={{
                       background: '#dcfce7',
                       color: '#166534'
                     }}>

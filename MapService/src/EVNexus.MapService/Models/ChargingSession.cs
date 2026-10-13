@@ -14,5 +14,5 @@ public class ChargingSession
     public string Status { get; set; } = "Active";
     public decimal EnergyConsumedKwh { get; set; } = 0;
     public decimal TotalCost { get; set; } = 0;
-    public decimal EstimatedCost { get; set; }
+    public decimal EstimatedCost { get; set; } = 0;
 }
