@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using EVNexus.DashboardService.Data;
 using EVNexus.DashboardService.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,22 +14,6 @@ var conn = builder.Configuration.GetConnectionString("DefaultConnection")
 builder.Services.AddDbContext<DashboardDbContext>(o =>
     o.UseMySql(conn, new MySqlServerVersion(new Version(8, 0, 36))));
 
-var jwt = builder.Configuration.GetSection("Jwt");
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o =>
-    {
-        o.MapInboundClaims = false;
-        o.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = !string.IsNullOrEmpty(jwt["Issuer"]),
-            ValidIssuer = jwt["Issuer"],
-            ValidateAudience = !string.IsNullOrEmpty(jwt["Audience"]),
-            ValidAudience = jwt["Audience"],
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt["Key"] ?? "")),
-            ValidateLifetime = true
-        };
-    });
 builder.Services.AddAuthorization();
 
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
@@ -117,6 +100,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<DashboardDbContext>().Database.EnsureCreated();
+}
 // Auto-initialize MySQL schema on startup
 using (var scope = app.Services.CreateScope())
 {
@@ -130,11 +114,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-app.Run();
 app.UseCors("AllowAll");
 
 app.UseAuthentication();
