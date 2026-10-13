@@ -248,29 +248,24 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
       const estimatedKwh = Math.min(powerKw * 1.0, 50);
       const estimatedAmount = Math.round(pricePerKwh * estimatedKwh * 100) / 100;
 
-      // 1. Authorize Payment
-      const paymentPayload = {
-        sessionId: "SESSION-" + Date.now(),
-        companyId: validatedData.companyId,
-        stationId: validatedData.stationId,
-        chargerId: validatedData.chargerId,
-        estimatedAmount
-      };
-      const paymentRes = await authorizePayment(paymentPayload, authUser?.accessToken);
-
-      // 2. Start Session
+      // Start Session directly using real verified QR charger & station data
       const sessionPayload = {
+        chargingCode: validatedData.chargingCode,
         companyId: validatedData.companyId,
         stationId: validatedData.stationId,
         chargerId: validatedData.chargerId,
-        estimatedCost: estimatedAmount,
-        paymentId: paymentRes.data.paymentId
+        estimatedCost: estimatedAmount
       };
       const res = await startChargingSession(sessionPayload, authUser?.accessToken);
 
       setActiveSession(res.data);
       setActiveStationInfo(res.station);
-      setActiveChargerInfo(res.charger);
+      setActiveChargerInfo(res.charger || {
+        id: validatedData.chargerId,
+        type: validatedData.connectorType || validatedData.chargerType || 'Type 2 / CCS2',
+        powerKw: validatedData.powerKw || 22,
+        pricePerKwh: validatedData.pricePerKwh || 0.5
+      });
       setShowStartModal(false);
       setQrPayload('');
       setValidatedData(null);
@@ -916,7 +911,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
                       <div className="text-caption">Connector / Port</div>
                       <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
-                        {validatedData.chargerType || 'Type 2 / CCS2'}
+                        {validatedData.connectorType || validatedData.chargerType || 'Type 2 / CCS2'}
                       </div>
                     </div>
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>

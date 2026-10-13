@@ -6,10 +6,10 @@ namespace EVNexus.PaymentService.Data;
 
 public interface ICompanyAnalyticsRepository
 {
-    Task<DashboardAnalyticsDto> GetDashboardAnalyticsAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string stationId = null);
-    Task<IEnumerable<TransactionDto>> GetCompanyTransactionsAsync(string companyId, int limit = 50, DateTime? startDate = null, DateTime? endDate = null, string stationId = null);
-    Task<IEnumerable<RevenueTrendDto>> GetCompanyRevenueTrendAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string stationId = null);
-    Task<IEnumerable<StationAnalyticsDto>> GetStationAnalyticsAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string stationId = null);
+    Task<DashboardAnalyticsDto> GetDashboardAnalyticsAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string? stationId = null);
+    Task<IEnumerable<TransactionDto>> GetCompanyTransactionsAsync(string companyId, int limit = 50, DateTime? startDate = null, DateTime? endDate = null, string? stationId = null);
+    Task<IEnumerable<RevenueTrendDto>> GetCompanyRevenueTrendAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string? stationId = null);
+    Task<IEnumerable<StationAnalyticsDto>> GetStationAnalyticsAsync(string companyId, DateTime? startDate = null, DateTime? endDate = null, string? stationId = null);
 }
 
 public class DashboardAnalyticsDto

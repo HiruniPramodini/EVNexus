@@ -13,7 +13,7 @@ public class CompanyAnalyticsRepository : ICompanyAnalyticsRepository
         _connectionFactory = connectionFactory;
     }
 
-    public async Task<DashboardAnalyticsDto> GetDashboardAnalyticsAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string stationId = null)
+    public async Task<DashboardAnalyticsDto> GetDashboardAnalyticsAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string? stationId = null)
     {
         var sql = @"
             SELECT 
@@ -32,7 +32,7 @@ public class CompanyAnalyticsRepository : ICompanyAnalyticsRepository
         return await connection.QuerySingleAsync<DashboardAnalyticsDto>(sql, new { CompanyId = companyId, StartDate = startDate, EndDate = endDate, StationId = stationId });
     }
 
-    public async Task<IEnumerable<TransactionDto>> GetCompanyTransactionsAsync(string companyId, int limit = 50, System.DateTime? startDate = null, System.DateTime? endDate = null, string stationId = null)
+    public async Task<IEnumerable<TransactionDto>> GetCompanyTransactionsAsync(string companyId, int limit = 50, System.DateTime? startDate = null, System.DateTime? endDate = null, string? stationId = null)
     {
         var sql = @"
             SELECT 
@@ -55,7 +55,7 @@ public class CompanyAnalyticsRepository : ICompanyAnalyticsRepository
         return await connection.QueryAsync<TransactionDto>(sql, new { CompanyId = companyId, Limit = limit, StartDate = startDate, EndDate = endDate, StationId = stationId });
     }
 
-    public async Task<IEnumerable<RevenueTrendDto>> GetCompanyRevenueTrendAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string stationId = null)
+    public async Task<IEnumerable<RevenueTrendDto>> GetCompanyRevenueTrendAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string? stationId = null)
     {
         var sql = @"
             SELECT 
@@ -75,7 +75,7 @@ public class CompanyAnalyticsRepository : ICompanyAnalyticsRepository
         return await connection.QueryAsync<RevenueTrendDto>(sql, new { CompanyId = companyId, StartDate = startDate, EndDate = endDate, StationId = stationId });
     }
 
-    public async Task<IEnumerable<StationAnalyticsDto>> GetStationAnalyticsAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string stationId = null)
+    public async Task<IEnumerable<StationAnalyticsDto>> GetStationAnalyticsAsync(string companyId, System.DateTime? startDate = null, System.DateTime? endDate = null, string? stationId = null)
     {
         var sql = @"
             SELECT 

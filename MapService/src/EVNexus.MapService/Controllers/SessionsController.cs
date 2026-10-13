@@ -32,9 +32,23 @@ public class SessionsController : ControllerBase
         var driverId = tenantContext.UserId;
         if (string.IsNullOrEmpty(driverId)) return Unauthorized();
 
-        // 1. Get all active stations and find the one matching the ChargingCode
+        // 1. Resolve station by StationId or ChargingCode
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
-        var station = allStations.FirstOrDefault(s => s.ChargingCode == request.ChargingCode);
+        Station? station = null;
+
+        if (!string.IsNullOrEmpty(request.StationId))
+        {
+            station = allStations.FirstOrDefault(s => s.Id == request.StationId);
+            if (station != null && !string.IsNullOrEmpty(request.ChargingCode) &&
+                !string.Equals(station.ChargingCode, request.ChargingCode, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { success = false, message = "Charging code does not match the station." });
+            }
+        }
+        else if (!string.IsNullOrEmpty(request.ChargingCode))
+        {
+            station = allStations.FirstOrDefault(s => string.Equals(s.ChargingCode, request.ChargingCode, StringComparison.OrdinalIgnoreCase));
+        }
 
         if (station == null)
             return BadRequest(new { success = false, message = "Invalid or inactive Charging Code." });
@@ -60,9 +74,7 @@ public class SessionsController : ControllerBase
         if (activeSession != null)
             return BadRequest(new { success = false, message = "You already have an active charging session." });
 
-        // 3. For MVP, we simulate a wallet check - assume balance is okay if they have a token.
-
-        // 4. Start the session
+        // 3. Start the session
         var session = new ChargingSession
         {
             StationId = station.Id,
@@ -74,7 +86,11 @@ public class SessionsController : ControllerBase
 
         await _sessionRepo.StartSessionAsync(session);
 
-        return Ok(new { success = true, data = session, station = station });
+        // Update charger status to reflect charging
+        charger.Status = "Charging";
+        await _chargerRepo.UpdateChargerAsync(charger);
+
+        return Ok(new { success = true, data = session, station = station, charger = charger });
     }
 
     [HttpPost("{id}/stop")]
@@ -101,8 +117,17 @@ public class SessionsController : ControllerBase
 
         await _sessionRepo.StopSessionAsync(id, energy, cost);
 
+        // Make charger available again
+        if (charger != null)
+        {
+            charger.Status = "Available";
+            await _chargerRepo.UpdateChargerAsync(charger);
+        }
+
         // Fetch updated
         var updatedSession = await _sessionRepo.GetSessionByIdAsync(id);
+        if (updatedSession == null)
+            return NotFound(new { success = false, message = "Session not found after update." });
 
         try
         {
@@ -157,8 +182,11 @@ public class SessionsController : ControllerBase
             return Ok(new { success = true, data = (object?)null });
         var allStations = await _stationRepo.GetAllActiveStationsAsync();
         var station = allStations.FirstOrDefault(s => s.Id == session.StationId);
+        var charger = !string.IsNullOrEmpty(session.ChargerId)
+            ? await _chargerRepo.GetChargerByIdAsync(session.ChargerId, session.StationId)
+            : null;
 
-        return Ok(new { success = true, data = session, station = station });
+        return Ok(new { success = true, data = session, station = station, charger = charger });
     }
 
     [HttpGet("history")]

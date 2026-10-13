@@ -1,0 +1,85 @@
+name: Dashboard Service CI
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'DashboardAnalyticsService/**'
+      - '.github/workflows/dashboard-ci.yml'
+
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'DashboardAnalyticsService/**'
+      - '.github/workflows/dashboard-ci.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build-test:
+    name: Build, Test and Code Coverage Check
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: dashboard_db_test
+          MYSQL_USER: evnexus
+          MYSQL_PASSWORD: evnexus_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=dashboard_db_test;User=evnexus;Password=evnexus_password;"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      JWT_SECRET: "EVNexus_Test_Only_Jwt_Secret_2026_AtLeast32Chars!"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Dashboard Service
+        run: dotnet restore DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj
+
+      - name: Build Dashboard Service
+        run: dotnet build DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Dashboard Service Automated Tests & Collect Coverage
+        run: >
+          dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj
+          --no-build
+          --configuration Release
+          --verbosity normal
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage
+
+      - name: Upload Code Coverage Report Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-code-coverage
+          path: ./coverage
+
+      - name: Build Dashboard Docker image
+        run: docker build -t evnexus-dashboard-service:ci DashboardAnalyticsService/src/EVNexus.DashboardService
