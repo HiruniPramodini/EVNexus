@@ -1,0 +1,78 @@
+name: Dashboard Service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'DashboardAnalyticsService/**'
+      - '.github/workflows/dashboard-cd.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build-test-package:
+    name: Build, Test and Package Dashboard Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Dashboard Service
+        run: dotnet restore DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj
+
+      - name: Build Dashboard Service
+        run: dotnet build DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Dashboard Service tests
+        run: dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Publish Dashboard Service
+        run: dotnet publish DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --configuration Release --output ./publish
+
+      - name: Build Dashboard Docker image
+        run: docker build -t evnexus-dashboard-service:cd DashboardAnalyticsService/src/EVNexus.DashboardService
+
+      - name: Upload published application
+        uses: actions/upload-artifact@v4
+        with:
+          name: evnexus-dashboard-service
+          path: ./publish
+
+  deploy-azure:
+    name: Deploy to Azure App Service
+    runs-on: ubuntu-latest
+    needs: build-test-package
+
+    steps:
+      - name: Download published application
+        uses: actions/download-artifact@v4
+        with:
+          name: evnexus-dashboard-service
+          path: ./publish
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-dashboard-service'
+          publish-profile: ${{ secrets.AZURE_DASHBOARD_PUBLISH_PROFILE }}
+          package: ./publish
+
+      - name: Verify Health Check Endpoint
+        run: |
+          echo "Verifying live health check endpoint on Azure..."
+          sleep 10
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://evnexus-dashboard-service.azurewebsites.net/health || echo "000")
+          echo "Health check HTTP response: $STATUS"
