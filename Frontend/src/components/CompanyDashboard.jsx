@@ -62,8 +62,7 @@ import {
   getCompanyTransactions,
   getCompanyRevenueTrend,
   getCompanyForecast,
-  getStationAnalytics
-  getCompanyForecast
+  getStationAnalytics,
 } from '../services/api';
 
 import { 
@@ -246,31 +245,6 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
       
       const stationData = stationRes?.data ?? (Array.isArray(stationRes) ? stationRes : null);
       if (stationData) setStationAnalyticsData(Array.isArray(stationData) ? stationData : []);
-      const [analyticsRes, txRes, trendRes, forecastRes] = await Promise.all([
-        getDashboardAnalytics(companyId).catch(() => ({ data: null })),
-        getCompanyTransactions(companyId).catch(() => ({ data: [] })),
-        getCompanyRevenueTrend(companyId).catch(() => ({ data: [] })),
-        getCompanyForecast(companyId).catch(() => ({ data: null }))
-      ]);
-
-      if (analyticsRes?.data) {
-        const raw = analyticsRes.data;
-        setAnalyticsData({
-          totalRevenue: raw.totalRevenue ?? raw.TotalRevenue ?? 0,
-          completedTransactions: raw.completedTransactions ?? raw.CompletedTransactions ?? 0,
-          totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0
-        });
-      }
-      if (txRes?.data) setTransactionsData(Array.isArray(txRes.data) ? txRes.data : []);
-      if (trendRes?.data && Array.isArray(trendRes.data)) {
-        const normalized = trendRes.data.map(item => ({
-          date: item.date || item.Date || '',
-          revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0)
-        }));
-        setRevenueTrend(normalized);
-      }
-      if (forecastRes?.data) setForecastData(Array.isArray(forecastRes.data) ? forecastRes.data : (forecastRes.data.forecast || []));
-
     } catch (err) {
       setAnalyticsError(err.message || 'Failed to load analytics.');
     } finally {
@@ -646,9 +620,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   return (
     <div className="dashboard-page">
       <div className="dashboard-container">
-        {/* ========================================================================= */}
-        {/* Urgent Alerts / Notice Banners */}
-        {/* ========================================================================= */}
+        /* Urgent Alerts / Notice Banners */
         {isOperator && (
           <div className="alert alert-warning animate-fade-in" style={{ margin: 0 }}>
             <ShieldAlert size={20} />
@@ -748,23 +720,17 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 1: OVERVIEW & KPIS */}
-        {/* ========================================================================= */}
+        /* TAB 1: OVERVIEW & KPIS */
         {activeTab === 'stations' && (
           <StationManagementPage />
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2.5: LIVE SESSIONS */}
-        {/* ========================================================================= */}
+        /* TAB 2.5: LIVE SESSIONS */
         {activeTab === 'live' && (
           <CompanySessionsPage />
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 2.6: ANALYTICS */}
-        {/* ========================================================================= */}
+        /* TAB 2.6: ANALYTICS */
         {activeTab === 'analytics' && (
           <CompanyRevenuePage 
             authUser={authUser} 
@@ -773,50 +739,6 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           />
         )}
         
-        {activeTab === 'overview' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-            {/* Header */}
-            <div>
-              <h2 style={{ fontSize: '1.75rem', fontWeight: 700, margin: '0 0 0.5rem 0', color: 'var(--text-main)' }}>
-                Welcome back, Company Administrator
-              </h2>
-              <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
-                {activeCompanyName} — Monitor your charging network and business performance.
-              </div>
-            </div>
-
-            {loadingAnalytics ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                <RefreshCw size={32} className="spinner" style={{ color: 'var(--primary-600)' }} />
-              </div>
-            ) : (
-              <>
-                {/* KPI Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
-                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <CreditCard size={16} /> Revenue Today
-                    </div>
-                    <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
-                      {analyticsData ? (
-                        `$${(analyticsData.totalRevenueToday || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      ) : (
-                        <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Data unavailable</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="dash-card" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <BarChart3 size={16} /> Total Revenue
-        {/* ========================================================================= */}
-        {activeTab === 'live' && (
-          <CompanySessionsPage />
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 2.6: ANALYTICS */}
-        {/* ========================================================================= */}
         {activeTab === 'overview' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
             {/* Header */}
@@ -1191,9 +1113,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 4: BILLING & PLAN */}
-        {/* ========================================================================= */}
+        /* TAB 4: BILLING & PLAN */
         {activeTab === 'billing' && (
           <div className="dash-card">
             <div className="dash-card-header">
@@ -1276,9 +1196,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 5: SECURITY & DEVELOPER SANDBOX */}
-        {/* ========================================================================= */}
+        /* TAB 5: SECURITY & DEVELOPER SANDBOX */
         {activeTab === 'security' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Cross-Tenant Access Simulator */}
@@ -1350,7 +1268,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
               )}
             </div>
 
-            {/* RBAC Security Access Simulator */}
+            /* RBAC Security Access Simulator */
             <div className="dash-card" style={{ borderLeft: '4px solid #f59e0b' }}>
               <div className="dash-card-header">
                 <div>
@@ -1402,7 +1320,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
               )}
             </div>
 
-            {/* Protected API Token Validation & JWT Raw String */}
+            /* Protected API Token Validation & JWT Raw String */
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
               {/* Protected API Check */}
               <div className="dash-card">
@@ -1498,9 +1416,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TAB 6: SETTINGS & PROFILE */}
-        {/* ========================================================================= */}
+        /* SETTINGS & PROFILE */
         {activeTab === 'settings' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Organization Settings */}
@@ -1600,9 +1516,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* EDIT PROFILE MODAL */}
-        {/* ========================================================================= */}
+        /* EDIT PROFILE MODAL */
         {showEditProfileModal && (
           <div className="modal-backdrop">
             <div className="modal-dialog">
@@ -1681,7 +1595,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   </div>
                 </div>
 
-                {/* Logo Presets & Custom URL */}
+                /* Logo Presets & Custom URL */
                 <div style={{ background: 'var(--bg-page)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
                   <label className="form-label" style={{ marginBottom: '0.4rem' }}>
                     <ImageIcon size={16} color="var(--primary-600)" />
@@ -1817,9 +1731,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* INVITE STAFF MODAL */}
-        {/* ========================================================================= */}
+        /* INVITE STAFF MODAL */
         {showInviteStaffModal && (
           <div className="modal-backdrop">
             <div className="modal-dialog">
@@ -1916,9 +1828,6 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* DELETE CONFIRMATION MODAL */}
-        {/* ========================================================================= */}
         {showDeleteConfirm && (
           <div className="modal-backdrop">
             <div className="modal-dialog" style={{ maxWidth: '460px', border: '2px solid #ef4444' }}>

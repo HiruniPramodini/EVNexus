@@ -524,21 +524,41 @@ export async function getStationChargers(stationId) {
   return handleResponse(response, 'Failed to fetch chargers.');
 }
 
+
 export async function getStationQr(stationId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/qr`, {
+
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/map/company/stations/${stationId}/qr`,
+    {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
+    }
+  );
+
+  return handleResponse(response, 'Failed to get QR for station.');
+}
+
 export async function getChargerQr(stationId, chargerId) {
   const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers/${chargerId}/qr`, {
-    method: 'GET',
-    headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${authToken}`
+
+  const response = await fetch(
+    `${API_GATEWAY_URL}/api/map/company/stations/${stationId}/chargers/${chargerId}/qr`,
+    {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${authToken}`
+      }
     }
-  });
-  return handleResponse(response, 'Failed to get QR for station.');
+  );
+
   return handleResponse(response, 'Failed to get QR for charger.');
 }
+
 
 export async function updateCharger(stationId, chargerId, chargerData) {
   const authToken = getAuthToken();
@@ -576,9 +596,6 @@ export async function getDashboardAnalytics(companyId, startDate = null, endDate
   const authToken = getAuthToken();
   const url = buildUrlWithFilters(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}`, startDate, endDate, stationId);
   const response = await fetch(url, {
-export async function getDashboardAnalytics(companyId) {
-  const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -592,9 +609,6 @@ export async function getCompanyTransactions(companyId, startDate = null, endDat
   const authToken = getAuthToken();
   const url = buildUrlWithFilters(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}/transactions`, startDate, endDate, stationId);
   const response = await fetch(url, {
-export async function getCompanyTransactions(companyId) {
-  const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/transactions`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
@@ -608,9 +622,6 @@ export async function getCompanyRevenueTrend(companyId, startDate = null, endDat
   const authToken = getAuthToken();
   const url = buildUrlWithFilters(`${API_GATEWAY_URL}/api/payment/analytics/company/${companyId}/revenue-trend`, startDate, endDate, stationId);
   const response = await fetch(url, {
-export async function getCompanyRevenueTrend(companyId) {
-  const authToken = getAuthToken();
-  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/revenue-trend`, {
     method: 'GET',
     headers: {
       'Accept': 'application/json',
