@@ -1,8 +1,7 @@
 using System.Text.Json;
 using Confluent.Kafka;
 using DashboardService.Data;
-using EVNexus.DashboardService.Data;
-using EVNexus.DashboardService.Models;
+using DashboardService.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace EVNexus.DashboardService.Kafka;
@@ -70,24 +69,24 @@ public class ChargingSessionCompletedConsumer : BackgroundService
 
         using var scope = _scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DashboardDbContext>();
-        if (await db.Sessions.AnyAsync(s => s.Id == e.SessionId, ct)) return;   // idempotent
+        if (await db.Sessions.AnyAsync(s => s.SessionId == e.SessionId, ct)) return;   // idempotent
 
         var end = DateTime.SpecifyKind(e.EndTime ?? e.CompletedAt ?? DateTime.UtcNow, DateTimeKind.Utc);
         var start = DateTime.SpecifyKind(e.StartTime ?? end, DateTimeKind.Utc);
 
-        db.Sessions.Add(new ChargingSessionRecord
+        db.Sessions.Add(new SessionRecord
         {
-            Id = e.SessionId,
-            DriverId = e.DriverId,
-            CompanyId = e.CompanyId ?? "",
+            SessionId = e.SessionId,
+            TenantId = e.CompanyId ?? "",
             StationId = e.StationId ?? "",
             StationName = e.StationName ?? "Unknown Station",
             ChargerId = e.ChargerId ?? "",
-            StartUtc = start,
-            EndUtc = end,
-            DurationMinutes = Math.Max(0, (end - start).TotalMinutes),
-            EnergyKwh = e.EnergyConsumedKwh,
-            Cost = e.FinalAmount
+            DriverId = e.DriverId,
+            StartTime = start,
+            EndTime = end,
+            EnergyKwh = (decimal)e.EnergyConsumedKwh,
+            TotalCost = e.FinalAmount,
+            PaymentStatus = "COMPLETED"
         });
         await db.SaveChangesAsync(ct);
     }
