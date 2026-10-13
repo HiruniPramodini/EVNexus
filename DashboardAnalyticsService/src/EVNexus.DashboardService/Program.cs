@@ -6,9 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using EVNexus.DashboardService.Data;
 using EVNexus.DashboardService.Kafka;
 using EVNexus.DashboardService.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore;
-using EVNexus.DashboardService.Services;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
