@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { History, Zap, Clock, CreditCard, RefreshCw, FileText, X } from 'lucide-react';
 import { getSessionHistory } from '../../services/api';
 
-export default function SessionHistoryPage() {
+export default function SessionHistoryPage({ authUser }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,7 +16,7 @@ export default function SessionHistoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await getSessionHistory();
+      const res = await getSessionHistory(authUser?.accessToken);
       setHistory(res?.data || []);
     } catch (err) {
       setError(err.message || 'Error loading history');

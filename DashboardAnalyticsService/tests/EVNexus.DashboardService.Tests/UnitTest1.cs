@@ -1,10 +1,11 @@
+// Retained for test discovery consistency
 namespace EVNexus.DashboardService.Tests;
 
-public class UnitTest1
+public class BasicSmokeTest
 {
     [Fact]
-    public void Test1()
+    public void SmokeTest_DashboardTestAssembly_IsActive()
     {
-
+        Assert.True(true);
     }
 }

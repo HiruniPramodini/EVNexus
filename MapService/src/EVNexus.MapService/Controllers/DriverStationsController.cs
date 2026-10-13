@@ -50,7 +50,7 @@ public class DriverStationsController : ControllerBase
 
     [HttpPost("qr/validate")]
     [Authorize]
-    public async Task<IActionResult> ValidateQrCode([FromBody] QrValidationRequestDto request)
+    public async Task<IActionResult> ValidateQrCode([FromBody] QrValidationRequestDto request, [FromServices] IChargerRepository chargerRepo)
     {
         if (request == null || request.System != "EVNEXUS")
             return BadRequest(new { success = false, message = "Invalid QR Code — this QR code does not belong to a valid EVNexus charging port." });
@@ -64,7 +64,51 @@ public class DriverStationsController : ControllerBase
         if (station == null)
             return NotFound(new { success = false, message = "Incorrect QR Code — station or charger not found or inactive." });
 
-        // Since a Station represents a single physical charger/port in this MVP, we map it back to the expected frontend format
+        // If chargerId is provided, validate it against the charger table and use its data
+        string resolvedChargerId = station.Id; // fallback
+        decimal resolvedPowerKw = station.CapacityKw;
+        decimal resolvedPricePerKwh = station.PricePerKwh;
+        string resolvedConnectorType = station.ConnectorType;
+
+        if (!string.IsNullOrEmpty(request.ChargerId))
+        {
+            var charger = await chargerRepo.GetChargerByIdAsync(request.ChargerId, station.Id);
+            if (charger != null)
+            {
+                resolvedChargerId = charger.Id;
+                resolvedPowerKw = charger.PowerKw;
+                resolvedPricePerKwh = charger.PricePerKwh;
+                resolvedConnectorType = charger.Type;
+            }
+            else
+            {
+                // ChargerId provided but not found — try to get the first available charger for this station
+                var chargers = await chargerRepo.GetChargersByStationIdAsync(station.Id);
+                var firstCharger = chargers.FirstOrDefault(c => c.Status == "Available");
+                if (firstCharger != null)
+                {
+                    resolvedChargerId = firstCharger.Id;
+                    resolvedPowerKw = firstCharger.PowerKw;
+                    resolvedPricePerKwh = firstCharger.PricePerKwh;
+                    resolvedConnectorType = firstCharger.Type;
+                }
+                // else fall back to station data with station.Id as chargerId
+            }
+        }
+        else
+        {
+            // No chargerId in QR — find first available charger for this station
+            var chargers = await chargerRepo.GetChargersByStationIdAsync(station.Id);
+            var firstCharger = chargers.FirstOrDefault(c => c.Status == "Available");
+            if (firstCharger != null)
+            {
+                resolvedChargerId = firstCharger.Id;
+                resolvedPowerKw = firstCharger.PowerKw;
+                resolvedPricePerKwh = firstCharger.PricePerKwh;
+                resolvedConnectorType = firstCharger.Type;
+            }
+        }
+
         return Ok(new {
             success = true,
             data = new {

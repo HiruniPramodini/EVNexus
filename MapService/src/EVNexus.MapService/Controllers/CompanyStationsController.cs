@@ -192,4 +192,107 @@ public class CompanyStationsController : ControllerBase
 
         return Ok(new { success = true, data = enrichedSessions });
     }
+
+    [HttpGet("{stationId}/chargers")]
+    public async Task<IActionResult> GetChargers(string stationId, [FromServices] IChargerRepository chargerRepo)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(stationId, tenantId);
+        if (station == null)
+            return NotFound(new { success = false, message = "Station not found." });
+
+        var chargers = await chargerRepo.GetChargersByStationIdAsync(stationId);
+        return Ok(new { success = true, data = chargers });
+    }
+
+    [HttpPost("{stationId}/chargers")]
+    public async Task<IActionResult> CreateCharger(string stationId, [FromBody] ChargerDto dto, [FromServices] IChargerRepository chargerRepo)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(stationId, tenantId);
+        if (station == null)
+            return NotFound(new { success = false, message = "Station not found." });
+
+        var charger = new Charger
+        {
+            Id = Guid.NewGuid().ToString(),
+            StationId = stationId,
+            Type = dto.Type,
+            PowerKw = dto.PowerKw,
+            PricePerKwh = dto.PricePerKwh,
+            Status = "Available"
+        };
+
+        var id = await chargerRepo.CreateChargerAsync(charger);
+        return Ok(new { success = true, id });
+    }
+
+    [HttpPut("{stationId}/chargers/{chargerId}")]
+    public async Task<IActionResult> UpdateCharger(string stationId, string chargerId, [FromBody] ChargerDto dto, [FromServices] IChargerRepository chargerRepo)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(stationId, tenantId);
+        if (station == null)
+            return NotFound(new { success = false, message = "Station not found." });
+
+        var charger = await chargerRepo.GetChargerByIdAsync(chargerId, stationId);
+        if (charger == null)
+            return NotFound(new { success = false, message = "Charger not found." });
+
+        charger.Type = dto.Type;
+        charger.PowerKw = dto.PowerKw;
+        charger.PricePerKwh = dto.PricePerKwh;
+
+        var updated = await chargerRepo.UpdateChargerAsync(charger);
+        if (updated)
+            return Ok(new { success = true });
+
+        return BadRequest(new { success = false, message = "Failed to update charger." });
+    }
+
+    [HttpDelete("{stationId}/chargers/{chargerId}")]
+    public async Task<IActionResult> DeleteCharger(string stationId, string chargerId, [FromServices] IChargerRepository chargerRepo, [FromServices] ISessionRepository sessionRepo)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(stationId, tenantId);
+        if (station == null)
+            return NotFound(new { success = false, message = "Station not found." });
+
+        var charger = await chargerRepo.GetChargerByIdAsync(chargerId, stationId);
+        if (charger == null)
+            return NotFound(new { success = false, message = "Charger not found." });
+
+        // Step 6: check if charger is involved in active session
+        var activeSessions = await sessionRepo.GetActiveSessionsForTenantAsync(tenantId);
+        if (activeSessions.Any(s => s.ChargerId == chargerId))
+            return BadRequest(new { success = false, message = "Cannot delete charger with an active session." });
+
+        var deleted = await chargerRepo.DeleteChargerAsync(chargerId, stationId);
+        if (deleted)
+            return Ok(new { success = true });
+
+        return BadRequest(new { success = false, message = "Failed to delete charger." });
+    }
+
+    [HttpGet("{stationId}/chargers/{chargerId}/qr")]
+    public async Task<IActionResult> GetChargerQr(string stationId, string chargerId, [FromServices] IChargerRepository chargerRepo)
+    {
+        var tenantId = _tenantContext.TenantId;
+        var station = await _repository.GetStationByIdAsync(stationId, tenantId);
+        if (station == null || !station.IsActive)
+            return NotFound(new { success = false, message = "Station not found or inactive." });
+
+        var charger = await chargerRepo.GetChargerByIdAsync(chargerId, stationId);
+        if (charger == null)
+            return NotFound(new { success = false, message = "Charger not found." });
+
+        var payload = new {
+            system = "EVNEXUS",
+            companyId = station.TenantId,
+            stationId = station.Id,
+            chargerId = charger.Id
+        };
+
+        return Ok(new { success = true, data = payload });
+    }
 }

@@ -1,0 +1,52 @@
+name: Payment Service CD
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'PaymentService/**'
+      - '.github/workflows/payment-cd.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build-publish:
+    name: Build, Test and Package Payment Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Payment Service
+        run: dotnet restore PaymentService/src/EVNexus.PaymentService/EVNexus.PaymentService.csproj
+
+      - name: Build Payment Service
+        run: dotnet build PaymentService/src/EVNexus.PaymentService/EVNexus.PaymentService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Payment Service tests
+        run: dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Publish Payment Service
+        run: dotnet publish PaymentService/src/EVNexus.PaymentService/EVNexus.PaymentService.csproj --configuration Release --output ./publish
+
+      - name: Build Payment Docker image
+        run: docker build -t evnexus-payment-service:cd PaymentService/src/EVNexus.PaymentService
+
+      - name: Upload published application
+        uses: actions/upload-artifact@v4
+        with:
+          name: evnexus-payment-service
+          path: ./publish

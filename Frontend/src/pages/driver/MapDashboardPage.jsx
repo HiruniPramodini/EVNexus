@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Search, MapPin, Zap, Navigation, Navigation2, X, RefreshCw, BatteryCharging, CheckCircle2, AlertTriangle, Play, UploadCloud } from 'lucide-react';
-import { getNearbyStations, getActiveSession, startChargingSession, stopChargingSession, validateQrCode } from '../../services/api';
+import { getNearbyStations, getActiveSession, startChargingSession, stopChargingSession, validateQrCode, authorizePayment, getPaymentStatus, getDriverWallet } from '../../services/api';
 import { searchNominatimLocations } from '../../services/nominatim';
 import { createStationIcon, createSearchIcon, createUserLocationIcon } from '../../utils/leafletIcons';
 import jsQR from 'jsqr';
@@ -66,9 +66,12 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
   const [validatedData, setValidatedData] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
-
-
-
+  
+  // Payment Result Tracking
+  const [isPollingPayment, setIsPollingPayment] = useState(false);
+  const [paymentResult, setPaymentResult] = useState(null);
+  const [walletBalance, setWalletBalance] = useState(null);
+  
   // Real-time counter
   const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const timerRef = useRef(null);
@@ -177,7 +180,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
           console.error("Meter polling error:", err);
         }
       };
-
+      
       timerRef.current = setInterval(pollMeter, 2000);
     } else {
       clearInterval(timerRef.current);
@@ -200,7 +203,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
         ctx.drawImage(img, 0, 0, img.width, img.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height);
-
+        
         if (code) {
           setQrPayload(code.data);
           handleValidateQR(code.data);
@@ -257,7 +260,12 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
 
       setActiveSession(res.data);
       setActiveStationInfo(res.station);
-      setActiveChargerInfo(res.charger);
+      setActiveChargerInfo(res.charger || {
+        id: validatedData.chargerId,
+        type: validatedData.connectorType || validatedData.chargerType || 'Type 2 / CCS2',
+        powerKw: validatedData.powerKw || 22,
+        pricePerKwh: validatedData.pricePerKwh || 0.5
+      });
       setShowStartModal(false);
       setQrPayload('');
       setValidatedData(null);
@@ -286,19 +294,63 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
     try {
       const stopRes = await stopChargingSession(stoppedSessionId, authUser?.accessToken);
       const sessionData = stopRes?.data;
-
+      
       if (isMountedRef.current) {
         setActiveSession(null);
         setActiveStationInfo(null);
         setActiveChargerInfo(null);
         setShowStopConfirm(false);
+        setIsPollingPayment(true);
       }
+      
+      let attempts = 0;
+      const maxAttempts = 15;
+      let finalPayment = null;
+      
+      while (attempts < maxAttempts && isMountedRef.current) {
+        try {
+           const statusRes = await getPaymentStatus(stoppedSessionId);
+           if (statusRes.success && statusRes.data && (statusRes.data.status === 'COMPLETED' || statusRes.data.status === 'FAILED')) {
+               finalPayment = {
+                 ...statusRes.data,
+                 meterStartKwh: sessionData?.meterStartKwh,
+                 meterEndKwh: sessionData?.meterEndKwh || sessionData?.meterCurrentKwh,
+                 energyConsumedKwh: sessionData?.energyConsumedKwh,
+                 pricePerKwh: sessionData?.pricePerKwh
+               };
+               break;
+           }
+        } catch (e) {
+           // ignore and retry
+        }
+        attempts++;
+        if (isMountedRef.current) {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+      
+      if (!isMountedRef.current) return;
 
+      try {
+        const walletRes = await getDriverWallet();
+        if (walletRes?.data && isMountedRef.current) {
+          setWalletBalance(walletRes.data.balance);
+        }
+      } catch (wErr) {
+        console.error('Failed to update wallet balance:', wErr);
+      }
+      
       if (isMountedRef.current) {
-        setStopSuccessMsg("Session stopped successfully.");
-        setTimeout(() => {
-          if (isMountedRef.current) setStopSuccessMsg(null);
-        }, 5000);
+        setIsPollingPayment(false);
+
+        if (finalPayment) {
+          setPaymentResult(finalPayment);
+        } else {
+          setStopSuccessMsg("Session stopped. Finalizing payment processing...");
+          setTimeout(() => {
+            if (isMountedRef.current) setStopSuccessMsg(null);
+          }, 5000);
+        }
       }
     } catch (err) {
       if (isMountedRef.current) {
@@ -357,17 +409,17 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
 
           <div style={{ position: 'relative', marginBottom: 'var(--space-3)' }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Search station, city, connector..."
+            <input 
+              type="text" 
+              className="form-input" 
+              placeholder="Search station, city, connector..." 
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{ paddingLeft: '38px' }}
             />
             {searchQuery && (
-              <button
-                type="button"
+              <button 
+                type="button" 
                 onClick={() => setSearchQuery('')}
                 style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}
               >
@@ -378,20 +430,20 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
             <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Radius: <strong>{radius} km</strong></span>
-            <input
-              type="range"
-              min="5"
-              max="200"
-              step="5"
-              value={radius}
+            <input 
+              type="range" 
+              min="5" 
+              max="200" 
+              step="5" 
+              value={radius} 
               onChange={e => setRadius(Number(e.target.value))}
               style={{ width: '120px', accentColor: 'var(--color-primary)' }}
             />
           </div>
 
-          <button
-            type="button"
-            className="btn btn-outline"
+          <button 
+            type="button" 
+            className="btn btn-outline" 
             onClick={fetchNearbyStations}
             style={{ width: '100%', display: 'flex', justifyContent: 'center', gap: '0.4rem' }}
           >
@@ -455,9 +507,9 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                 </div>
               </div>
 
-              <button
-                type="button"
-                className="btn btn-outline"
+              <button 
+                type="button" 
+                className="btn btn-outline" 
                 onClick={() => setShowStopConfirm(true)}
                 disabled={isStopping}
                 style={{ width: '100%', marginTop: 'auto', borderColor: 'var(--color-danger)', color: 'var(--color-danger)', padding: 'var(--space-3)' }}
@@ -477,13 +529,13 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                   <p className="empty-state-description">Expand your search radius, try a different location, or adjust your search term.</p>
                 </div>
               )}
-
+              
               {!loading && filteredStations.map(item => {
                 const lat = Number(item.station.latitude);
                 const lng = Number(item.station.longitude);
                 return (
-                  <div
-                    key={item.station.id}
+                  <div 
+                    key={item.station.id} 
                     onClick={() => {
                       setSelectedStation(item.station);
                       if (!isNaN(lat) && !isNaN(lng)) {
@@ -499,7 +551,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                   >
                     <h4 style={{ margin: '0 0 0.25rem 0', fontSize: '1rem', fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>{item.station.name}</h4>
                     <p className="text-caption" style={{ margin: 0, marginBottom: '0.75rem' }}>{item.station.address}</p>
-
+                    
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span className="badge badge-info">
                         {item.station.connectorType} • {item.station.capacityKw}kW
@@ -519,7 +571,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
       {/* Right Sidebar: Leaflet OpenStreetMap */}
       <div style={{ flex: 1, position: 'relative', height: '100%', minHeight: '500px' }}>
         {/* OPENSTREETMAP / NOMINATIM LOCATION SEARCH BAR OVERLAY */}
-        <div
+        <div 
           style={{
             position: 'absolute',
             top: '16px',
@@ -529,7 +581,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
             zIndex: 1000
           }}
         >
-          <div
+          <div 
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -758,10 +810,10 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                         ⚡ {item.station.capacityKw} kW ({item.station.connectorType})
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      className="btn btn-primary"
+                    
+                    <button 
+                      type="button" 
+                      className="btn btn-primary" 
                       disabled={!!activeSession}
                       onClick={() => {
                         setQrPayload('');
@@ -799,7 +851,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                 <X size={20} />
               </button>
             </div>
-
+            
             <p className="text-secondary" style={{ marginBottom: 'var(--space-5)' }}>
               Upload a QR code image from the physical charger to authorize and begin charging.
             </p>
@@ -816,8 +868,8 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                   <UploadCloud size={32} color="var(--color-primary)" style={{ margin: '0 auto var(--space-3) auto' }} />
                   <label className="btn btn-outline" style={{ display: 'inline-flex', cursor: 'pointer' }}>
                     Upload QR Image
-                    <input
-                      type="file"
+                    <input 
+                      type="file" 
                       accept="image/*"
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
@@ -825,7 +877,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                   </label>
                   <div className="text-caption" style={{ marginTop: 'var(--space-3)' }}>Supports JPG, PNG, WEBP</div>
                 </div>
-
+                
                 <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-5)' }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setShowStartModal(false)} style={{ flex: 1 }}>
                     Cancel
@@ -839,7 +891,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                     <CheckCircle2 size={20} />
                     <h4 style={{ margin: 0, fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>Charger Verified</h4>
                   </div>
-
+                  
                   {/* Company Name */}
                   <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-semibold)', color: 'var(--color-primary-dark)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.2rem' }}>
                     Company: {validatedData.companyName || validatedData.companyId || 'EVNexus Charging Network'}
@@ -853,13 +905,13 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                     <MapPin size={14} color="var(--color-text-muted)" />
                     {validatedData.address || 'Station Location'}
                   </div>
-
+                  
                   {/* Details Grid */}
                   <div className="grid grid-cols-2" style={{ gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
                       <div className="text-caption">Connector / Port</div>
                       <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
-                        {validatedData.chargerType || 'Type 2 / CCS2'}
+                        {validatedData.connectorType || validatedData.chargerType || 'Type 2 / CCS2'}
                       </div>
                     </div>
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
@@ -881,10 +933,10 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                       </span>
                     </div>
                   </div>
-
+                  
                   <div style={{ padding: 'var(--space-3)', background: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-border)' }}>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <AlertTriangle size={15} color="var(--color-warning-dark)" />
+                      <AlertTriangle size={15} color="var(--color-warning-dark)" /> 
                       Estimated session cost: <strong>${(Math.round((parseFloat(validatedData.pricePerKwh) || 0) * Math.min((parseFloat(validatedData.powerKw) || 22) * 1.0, 50) * 100) / 100).toFixed(2)}</strong>
                     </p>
                   </div>
@@ -941,7 +993,156 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
         </div>
       )}
 
+      {/* POLLING SPINNER MODAL */}
+      {isPollingPayment && (
+        <div className="modal-backdrop" style={{ zIndex: 1100 }}>
+          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '350px', textAlign: 'center', padding: 'var(--space-6)' }}>
+            <RefreshCw size={48} className="spinner" color="var(--color-primary)" style={{ margin: '0 auto var(--space-4) auto' }} />
+            <h3 className="text-h3" style={{ color: 'var(--color-primary-dark)', marginBottom: 'var(--space-2)' }}>Finalizing payment...</h3>
+            <p className="text-secondary" style={{ margin: 0 }}>Please wait while your transaction completes.</p>
+          </div>
+        </div>
+      )}
 
+      {/* PAYMENT RESULT UI (RECEIPT) */}
+      {paymentResult && paymentResult.status === 'FAILED' && (
+        <div className="modal-backdrop" style={{ zIndex: 1200 }}>
+          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '400px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 'var(--space-5)' }}>
+              <div style={{ display: 'inline-flex', padding: 'var(--space-4)', background: '#fee2e2', borderRadius: '50%', marginBottom: 'var(--space-3)' }}>
+                <AlertTriangle size={40} color="#dc2626" />
+              </div>
+              <h3 className="text-h2" style={{ color: 'var(--color-text)', margin: 0 }}>Payment Failed</h3>
+            </div>
+            
+            <div className="card" style={{ background: 'var(--color-background)', marginBottom: 'var(--space-5)', padding: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <span className="text-secondary">Payment status</span>
+                <span style={{ fontWeight: 'var(--weight-bold)', color: '#dc2626' }}>FAILED</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <span className="text-secondary">Amount due</span>
+                <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>
+                  ${(paymentResult.amount || paymentResult.finalAmount || paymentResult.estimatedAmount || 0).toFixed(2)} {paymentResult.currency || 'USD'}
+                </span>
+              </div>
+              {(paymentResult.sessionId || paymentResult.id) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary">Session ID</span>
+                  <span className="text-caption" style={{ fontFamily: 'monospace' }}>{paymentResult.sessionId || paymentResult.id}</span>
+                </div>
+              )}
+              {paymentResult.paymentId && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary">Payment ID</span>
+                  <span className="text-caption" style={{ fontFamily: 'monospace' }}>{paymentResult.paymentId}</span>
+                </div>
+              )}
+              <div style={{ padding: 'var(--space-3)', background: '#fff1f2', borderRadius: 'var(--radius-md)', border: '1px solid #fecdd3', marginTop: 'var(--space-2)' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#9f1239' }}>
+                  Insufficient wallet balance to cover the charging cost. Your wallet balance remains unchanged ($2.00). Please top up your wallet to resolve dues.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)', padding: 'var(--space-3)', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+              <span className="text-secondary" style={{ fontSize: '0.9rem' }}>Current Wallet Balance</span>
+              <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '0.9rem', color: '#dc2626' }}>
+                ${walletBalance !== null ? walletBalance.toFixed(2) : '--'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <button type="button" className="btn btn-primary" onClick={() => { setPaymentResult(null); if(onViewChange) onViewChange('wallet'); }} style={{ width: '100%' }}>
+                Top Up Wallet
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setPaymentResult(null)} style={{ width: '100%' }}>
+                Back to Map
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentResult && paymentResult.status !== 'FAILED' && (
+        <div className="modal-backdrop" style={{ zIndex: 1200 }}>
+          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '400px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 'var(--space-5)' }}>
+              <div style={{ display: 'inline-flex', padding: 'var(--space-4)', background: 'var(--color-success-light)', borderRadius: '50%', marginBottom: 'var(--space-3)' }}>
+                <CheckCircle2 size={40} color="var(--color-success-dark)" />
+              </div>
+              <h3 className="text-h2" style={{ color: 'var(--color-text)', margin: 0 }}>Charging Complete</h3>
+            </div>
+            
+            <div className="card" style={{ background: 'var(--color-background)', marginBottom: 'var(--space-5)', padding: 'var(--space-4)' }}>
+              {(paymentResult.meterStartKwh !== undefined || paymentResult.meterEndKwh !== undefined) && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                    <span className="text-secondary">Meter Start</span>
+                    <span style={{ fontWeight: 'var(--weight-semibold)', fontFamily: 'monospace' }}>
+                      {parseFloat(paymentResult.meterStartKwh || 100).toFixed(4)} kWh
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                    <span className="text-secondary">Meter End</span>
+                    <span style={{ fontWeight: 'var(--weight-semibold)', fontFamily: 'monospace' }}>
+                      {parseFloat(paymentResult.meterEndKwh || paymentResult.meterCurrentKwh || 0).toFixed(4)} kWh
+                    </span>
+                  </div>
+                </>
+              )}
+              {(paymentResult.energyConsumedKwh !== undefined || paymentResult.kwhTransferred !== undefined) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary">Energy consumed</span>
+                  <span style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-primary-dark)' }}>
+                    {parseFloat(paymentResult.energyConsumedKwh ?? paymentResult.kwhTransferred ?? 0).toFixed(4)} kWh
+                  </span>
+                </div>
+              )}
+              {paymentResult.pricePerKwh !== undefined && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary">Rate</span>
+                  <span style={{ fontWeight: 'var(--weight-semibold)' }}>${parseFloat(paymentResult.pricePerKwh).toFixed(2)} / kWh</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <span className="text-secondary">Final amount</span>
+                <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-primary-dark)' }}>${paymentResult.amount?.toFixed(2)} {paymentResult.currency || 'USD'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                <span className="text-secondary">Payment status</span>
+                <span style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-success-dark)' }}>{paymentResult.status}</span>
+              </div>
+              {(paymentResult.sessionId || paymentResult.id) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
+                  <span className="text-secondary">Session ID</span>
+                  <span className="text-caption" style={{ fontFamily: 'monospace' }}>{paymentResult.sessionId || paymentResult.id}</span>
+                </div>
+              )}
+              {paymentResult.paymentId && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span className="text-secondary">Payment ID</span>
+                  <span className="text-caption" style={{ fontFamily: 'monospace' }}>{paymentResult.paymentId}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)', padding: 'var(--space-3)', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+              <span className="text-secondary" style={{ fontSize: '0.9rem' }}>Wallet Balance</span>
+              <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '0.9rem' }}>${walletBalance !== null ? walletBalance.toFixed(2) : '--'}</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <button type="button" className="btn btn-primary" onClick={() => { setPaymentResult(null); if(onViewChange) onViewChange('history'); }} style={{ width: '100%' }}>
+                View Charging History
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={() => setPaymentResult(null)} style={{ width: '100%' }}>
+                Back to Map
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

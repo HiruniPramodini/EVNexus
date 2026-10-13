@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { RefreshCw, Plus, Zap, Edit3, Trash2, AlertTriangle, BatteryCharging, QrCode, Copy, Download, X, Search, MapPin } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { getCompanyStations, createStation, updateStation, deactivateStation, getStationQr } from '../../services/api';
+import { getCompanyStations, createStation, updateStation, deactivateStation, getStationChargers, addChargerToStation, getChargerQr, updateCharger, deleteCharger } from '../../services/api';
 import { createStationIcon } from '../../utils/leafletIcons';
 import { searchNominatimLocations, reverseGeocodeNominatim } from '../../services/nominatim';
 
@@ -79,7 +79,7 @@ function LocationPickerMap({ formData, setFormData }) {
   const lat = parseFloat(formData.latitude);
   const lng = parseFloat(formData.longitude);
   const hasValidCoords = !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-
+  
   const mapCenter = hasValidCoords ? { lat, lng } : { lat: 6.9271, lng: 79.8612 };
 
   // Search state
@@ -165,7 +165,7 @@ function LocationPickerMap({ formData, setFormData }) {
 
       {/* Map Container Container */}
       <div style={{ width: '100%', height: '520px', position: 'relative', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
-
+        
         {/* Search Overlay */}
         <div style={{ position: 'absolute', top: '14px', left: '14px', right: '14px', maxWidth: '420px', zIndex: 1000 }}>
           <div style={{ display: 'flex', alignItems: 'center', background: '#ffffff', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', padding: '4px 8px', border: '1px solid #cbd5e1' }}>
@@ -307,7 +307,7 @@ export default function StationManagementPage() {
   const [chargerError, setChargerError] = useState(null);
   const [editingChargerId, setEditingChargerId] = useState(null);
   const [deleteChargerConfirmId, setDeleteChargerConfirmId] = useState(null);
-
+  
   // QR Modal State
   const [qrModalData, setQrModalData] = useState(null);
 
@@ -392,19 +392,31 @@ export default function StationManagementPage() {
         const createRes = await createStation(payload);
         setShowForm(false);
         loadStations();
-
-        // Auto-create initial charger is NO LONGER NEEDED, Station IS the charger
+        
+        // Auto-create initial charger so we can generate the QR code
         if (createRes?.id) {
-          setSuccessMsg('Station created successfully!');
-          const stationObj = {
-            id: createRes.id,
-            name: payload.name,
-            address: payload.address,
-            capacityKw: payload.capacityKw,
-            pricePerKwh: payload.pricePerKwh,
-            connectorType: payload.connectorType
-          };
-          handleStationViewQr(stationObj);
+          try {
+            const chargerPayload = {
+              type: payload.connectorType,
+              powerKw: payload.capacityKw,
+              pricePerKwh: payload.pricePerKwh
+            };
+            const chargerRes = await addChargerToStation(createRes.id, chargerPayload);
+            if (chargerRes?.id) {
+              setSuccessMsg('Station created successfully!');
+              const stationObj = {
+                id: createRes.id,
+                name: payload.name,
+                address: payload.address,
+                capacityKw: payload.capacityKw,
+                pricePerKwh: payload.pricePerKwh
+              };
+              handleViewQr({ id: chargerRes.id, type: payload.connectorType, powerKw: payload.capacityKw, pricePerKwh: payload.pricePerKwh }, stationObj);
+            }
+          } catch (e) {
+            console.error("Failed to auto-create initial charger for QR code", e);
+            setError(`Station was created, but the default charger could not be created. Please try generating the QR from the station's charger management.`);
+          }
         } else {
           setSuccessMsg('Station created successfully!');
         }
