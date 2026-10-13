@@ -4,6 +4,7 @@ using DashboardService.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using EVNexus.DashboardService.Data;
+using EVNexus.DashboardService.Kafka;
 using EVNexus.DashboardService.Services;
 using Microsoft.IdentityModel.Tokens;
 
@@ -60,6 +61,8 @@ builder.Services.AddControllers();
 // Configure Swagger / OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddCors(o => o.AddPolicy("frontend", p =>
+    p.WithOrigins("http://localhost:3000", "http://localhost:5173").AllowAnyHeader().AllowAnyMethod()));
 
 // Configure Dependency Injection
 builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
@@ -112,8 +115,15 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    using var scope = app.Services.CreateScope();
+    scope.ServiceProvider.GetRequiredService<DashboardDbContext>().Database.EnsureCreated(); // dev only
 }
 
+app.UseCors("frontend");
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+app.Run();
 app.UseCors("AllowAll");
 
 app.UseAuthentication();

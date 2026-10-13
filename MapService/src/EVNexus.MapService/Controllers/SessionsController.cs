@@ -140,6 +140,9 @@ public class SessionsController : ControllerBase
             };
             using var producer = new Confluent.Kafka.ProducerBuilder<string, string>(config).Build();
 
+            var allStationsForEvent = await _stationRepo.GetAllActiveStationsAsync();
+            var stationForEvent = allStationsForEvent.FirstOrDefault(s => s.Id == updatedSession.StationId);
+
             var eventPayload = new
             {
                 EventId = Guid.NewGuid().ToString(),
@@ -147,11 +150,14 @@ public class SessionsController : ControllerBase
                 DriverId = updatedSession.DriverId,
                 CompanyId = updatedSession.CompanyId,
                 StationId = updatedSession.StationId,
+                StationName = stationForEvent?.Name ?? "Unknown Station",
                 ChargerId = updatedSession.ChargerId,
                 EnergyConsumedKwh = updatedSession.EnergyConsumedKwh,
                 FinalAmount = updatedSession.TotalCost,
                 PricePerKwh = price,
                 Currency = "USD",
+                StartTime = DateTime.SpecifyKind(updatedSession.StartTime, DateTimeKind.Utc),
+                EndTime = DateTime.UtcNow,
                 CompletedAt = DateTime.UtcNow
             };
 

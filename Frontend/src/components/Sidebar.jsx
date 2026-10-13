@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity } from 'lucide-react';
+import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity, BarChart3 } from 'lucide-react';
 
 export default function Sidebar({ userRole, currentView, onViewChange, onLogout }) {
   const isCompany = userRole === 'CompanyAdmin' || userRole === 'Company';
@@ -9,11 +9,13 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout 
     { id: 'map', label: 'Find Chargers', icon: Zap },
     { id: 'wallet', label: 'My Wallet', icon: CreditCard },
     { id: 'history', label: 'Session History', icon: FileText },
+    { id: 'summary', label: 'Charging Summary', icon: BarChart3 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const companyLinks = [
     { id: 'dashboard', label: 'Analytics', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Reports', icon: BarChart3 },
     { id: 'stations', label: 'Station Management', icon: Zap },
     { id: 'live', label: 'Live Sessions', icon: Activity },
     { id: 'finance', label: 'Revenue', icon: CreditCard },
