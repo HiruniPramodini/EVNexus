@@ -9,7 +9,7 @@ public class DriverSummaryService
     private readonly DashboardDbContext _db;
     public DriverSummaryService(DashboardDbContext db) => _db = db;
 
-    public async Task<DriverSummaryDto> GetAsync(string driverId, DateTime from, DateTime to, CancellationToken ct = default)
+    public async Task<DriverRangeSummaryDto> GetAsync(string driverId, DateTime from, DateTime to, CancellationToken ct = default)
     {
         var start = from.Date;
         var end = to.Date.AddDays(1);
@@ -34,6 +34,6 @@ public class DriverSummaryService
                 s.TotalCost))
             .ToList();
 
-        return new DriverSummaryDto(count, Math.Round(energy, 2), spent, Math.Round(avg, 1), recent);
+        return new DriverRangeSummaryDto(count, Math.Round(energy, 2), spent, Math.Round(avg, 1), recent);
     }
 }
