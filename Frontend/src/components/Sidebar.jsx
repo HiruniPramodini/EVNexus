@@ -1,12 +1,13 @@
 import React from 'react';
-import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity } from 'lucide-react';
+import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity, X, MapPin } from 'lucide-react';
+import BrandLogo from './BrandLogo';
 
-export default function Sidebar({ userRole, currentView, onViewChange, onLogout }) {
+export default function Sidebar({ userRole, currentView, onViewChange, onLogout, isOpen = false, onClose }) {
   const isCompany = userRole === 'CompanyAdmin' || userRole === 'Company';
 
   const driverLinks = [
     { id: 'driver-dashboard', label: 'Overview', icon: LayoutDashboard },
-    { id: 'map', label: 'Find Chargers', icon: Zap },
+    { id: 'map', label: 'Find Chargers', icon: MapPin },
     { id: 'wallet', label: 'My Wallet', icon: CreditCard },
     { id: 'history', label: 'Session History', icon: FileText },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -21,40 +22,58 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout 
   ];
 
   const links = isCompany ? companyLinks : driverLinks;
+  const homeView = isCompany ? 'dashboard' : 'driver-dashboard';
+
+  const handleNavigate = (id) => {
+    onViewChange(id);
+    if (onClose) onClose();
+  };
 
   return (
-    <div className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-icon-dark">
-          <Zap size={20} strokeWidth={2.5} />
-        </div>
-        EVNexus
-      </div>
-
-      <div className="sidebar-nav">
-        {links.map((link) => (
-          <button
-            key={link.id}
-            className={`sidebar-item ${currentView === link.id ? 'active' : ''}`}
-            onClick={() => onViewChange(link.id)}
-            style={{ border: 'none', background: currentView === link.id ? 'rgba(0, 212, 255, 0.1)' : 'transparent', width: '100%', textAlign: 'left', fontFamily: 'inherit', fontSize: '0.95rem' }}
-          >
-            <link.icon size={18} />
-            {link.label}
+    <>
+      {isOpen && <div className="sidebar-scrim" onClick={onClose} aria-hidden="true" />}
+      <nav className={`sidebar ${isOpen ? 'open' : ''}`} aria-label={isCompany ? 'Company portal navigation' : 'Driver portal navigation'}>
+        <div className="sidebar-brand">
+          <button type="button" onClick={() => handleNavigate(homeView)} aria-label="Go to overview">
+            <BrandLogo size="sm" />
           </button>
-        ))}
-      </div>
+          <button type="button" className="sidebar-close" onClick={onClose} aria-label="Close navigation menu">
+            <X size={20} />
+          </button>
+        </div>
 
-      <div style={{ marginTop: 'auto', padding: '1.5rem 1rem' }}>
-        <button
-          className="sidebar-item"
-          onClick={onLogout}
-          style={{ border: 'none', background: 'transparent', width: '100%', textAlign: 'left', fontFamily: 'inherit', fontSize: '0.95rem', color: '#fca5a5' }}
-        >
-          <LogOut size={18} />
-          Logout
-        </button>
-      </div>
-    </div>
+        <div className="sidebar-section-label">{isCompany ? 'Company Portal' : 'Driver Portal'}</div>
+        <div className="sidebar-nav">
+          {links.map((link) => {
+            const isActive = currentView === link.id;
+            return (
+              <button
+                key={link.id}
+                type="button"
+                className={`sidebar-item ${isActive ? 'active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
+                onClick={() => handleNavigate(link.id)}
+              >
+                <link.icon size={19} />
+                {link.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="sidebar-promo">
+            <div className="sidebar-promo-title">{isCompany ? 'Network insights' : 'Ready to charge?'}</div>
+            <div className="sidebar-promo-text">
+              {isCompany ? 'Revenue, energy and forecasts live on Analytics.' : 'Find a nearby charger and scan its QR code to start.'}
+            </div>
+          </div>
+          <button type="button" className="sidebar-item sidebar-item--logout" onClick={onLogout}>
+            <LogOut size={19} />
+            Logout
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }
