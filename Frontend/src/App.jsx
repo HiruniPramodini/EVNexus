@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, X, Bell, User } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Bell, Menu } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LandingPage from './pages/LandingPage';
@@ -36,6 +36,7 @@ export default function App() {
   });
 
   const [linkVerificationNotice, setLinkVerificationNotice] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -155,40 +156,76 @@ export default function App() {
     }
   };
 
+  const VIEW_TITLES = {
+    'driver-dashboard': 'Overview',
+    dashboard: 'Overview',
+    analytics: 'Analytics',
+    finance: 'Revenue',
+    map: 'Find Chargers',
+    stations: 'Station Management',
+    live: 'Live Sessions',
+    history: 'Session History',
+    wallet: 'My Wallet',
+    settings: 'Settings',
+    staff: 'Staff',
+    billing: 'Billing',
+    security: 'Security',
+    vehicles: 'My Vehicles'
+  };
+
   const renderCurrentView = () => {
     if (isDashboardView) {
+      const resolvedRole = authUser.role || (authUser.driverId ? 'Driver' : 'CompanyAdmin');
+      const isCompanyUser = resolvedRole === 'CompanyAdmin' || resolvedRole === 'Company';
+      const displayName = authUser.name || authUser.companyName || 'Account';
       return (
         <div className="app-layout">
           <Sidebar 
-            userRole={authUser.role || (authUser.driverId ? 'Driver' : 'CompanyAdmin')} 
+            userRole={resolvedRole} 
             currentView={activeView} 
             onViewChange={setActiveView} 
             onLogout={handleLogout} 
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
           />
           <div className="main-area">
-            <div className="topbar">
-              <div style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-main)' }}>
-                {activeView === 'driver-dashboard' || activeView === 'dashboard' ? 'Overview' : 
-                 activeView === 'map' ? 'Find Chargers' : 
-                 activeView === 'stations' ? 'Station Management' : 
-                 activeView === 'live' ? 'Live Sessions' :
-                 activeView === 'history' ? 'Session History' : 'Dashboard'}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                  <Bell size={20} />
+            <header className="topbar">
+              <div className="topbar-left">
+                <button
+                  type="button"
+                  className="topbar-menu-btn"
+                  onClick={() => setSidebarOpen(true)}
+                  aria-label="Open navigation menu"
+                >
+                  <Menu size={20} />
                 </button>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-page)', padding: '0.4rem 0.75rem', borderRadius: '99px', border: '1px solid var(--border-subtle)' }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--primary-100)', color: 'var(--primary-700)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <User size={16} />
-                  </div>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{authUser.name || authUser.companyName}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="topbar-crumb">{isCompanyUser ? 'Company Portal' : 'Driver Portal'}</div>
+                  <div className="topbar-title">{VIEW_TITLES[activeView] || 'Dashboard'}</div>
                 </div>
               </div>
-            </div>
-            <div className="content-scrollable">
+              <div className="topbar-right">
+                <button type="button" className="icon-btn" aria-label="Notifications">
+                  <Bell size={18} />
+                </button>
+                <div className="user-chip">
+                  <div className="user-chip-avatar" aria-hidden="true">
+                    {isCompanyUser && authUser.logoUrl ? (
+                      <img src={authUser.logoUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                    ) : (
+                      displayName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="user-chip-text">
+                    <div className="user-chip-name">{displayName}</div>
+                    <div className="user-chip-role">{isCompanyUser ? (resolvedRole === 'Company' ? 'Company' : 'Company Admin') : 'EV Driver'}</div>
+                  </div>
+                </div>
+              </div>
+            </header>
+            <main className={`content-scrollable ${activeView === 'map' ? 'content-scrollable--flush' : ''}`}>
               {renderDashboardContent()}
-            </div>
+            </main>
           </div>
         </div>
       );
@@ -207,20 +244,15 @@ export default function App() {
 
         {linkVerificationNotice && (
           <div
-            className="animate-fade-in"
+            role="status"
+            className={`alert ${linkVerificationNotice.success ? 'alert-success' : 'alert-danger'} animate-fade-in`}
             style={{
               maxWidth: '960px',
+              width: 'calc(100% - 2rem)',
               margin: '1rem auto 0 auto',
-              padding: '0.85rem 1.25rem',
-              borderRadius: '10px',
-              background: linkVerificationNotice.success ? '#dcfce7' : '#fee2e2',
-              border: `1px solid ${linkVerificationNotice.success ? '#86efac' : '#fca5a5'}`,
-              color: linkVerificationNotice.success ? '#166534' : '#991b1b',
-              display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '0.75rem',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)'
+              boxShadow: 'var(--shadow-md)'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -263,6 +295,7 @@ export default function App() {
           <CompanyLoginPage
             onLoginSuccess={handleCompanyLoginSuccess}
             onSwitchToRegister={() => setActiveView('register')}
+            onSwitchToDriver={() => setActiveView('driver-login')}
           />
         )}
       </div>

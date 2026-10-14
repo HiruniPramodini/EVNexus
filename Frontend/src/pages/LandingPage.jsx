@@ -1,381 +1,781 @@
-import React from 'react';
-import { ArrowRight, Zap, Shield, Globe, MapPin, QrCode, CreditCard, BarChart3, Settings2, Smartphone, Monitor } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  ArrowRight,
+  Zap,
+  Shield,
+  MapPin,
+  QrCode,
+  CreditCard,
+  BarChart3,
+  Sparkles,
+  Smartphone,
+  Building2,
+  Check,
+  Activity,
+  Layers,
+  ChevronRight,
+  Menu,
+  X,
+  Leaf
+} from 'lucide-react';
+import BrandLogo from '../components/BrandLogo';
 
 export default function LandingPage({ onNavigate }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleNav = (target) => {
+    setMobileMenuOpen(false);
+    if (onNavigate) {
+      onNavigate(target);
+    }
+  };
+
   return (
-    <div className="app-container" style={{ backgroundColor: 'var(--color-surface)', overflowX: 'hidden' }}>
-      
-      {/* Navigation */}
-      <nav style={{ 
-        padding: 'var(--space-4) var(--space-6)', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        borderBottom: '1px solid var(--color-border)',
-        position: 'sticky',
-        top: 0,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(12px)',
-        zIndex: 50
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-          <div style={{ 
-            width: 36, height: 36, borderRadius: 'var(--radius-md)', 
-            background: 'var(--color-primary)', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center' 
-          }}>
-            <Zap size={20} color="white" />
+    <div className="lp">
+      {/* =========================================================================
+          1. PUBLIC HEADER
+          ========================================================================= */}
+      <header className="lp-header">
+        <div className="lp-container lp-header-inner">
+          <button
+            type="button"
+            className="brand-logo"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            aria-label="EVNexus Home"
+          >
+            <BrandLogo size="md" />
+          </button>
+
+          <nav className="lp-nav" aria-label="Main Navigation">
+            <a href="#features">Features</a>
+            <a href="#drivers">For Drivers</a>
+            <a href="#companies">For Companies</a>
+            <a href="#analytics">AI &amp; Analytics</a>
+            <a href="#mission">Mission</a>
+          </nav>
+
+          <div className="lp-header-actions">
+            <button
+              type="button"
+              onClick={() => handleNav('driver-login')}
+              className="btn btn-ghost btn-sm btn-hide-xs"
+            >
+              Driver Login
+            </button>
+            <button
+              type="button"
+              onClick={() => handleNav('login')}
+              className="btn btn-secondary btn-sm btn-hide-sm"
+            >
+              Company Portal
+            </button>
+            <button
+              type="button"
+              onClick={() => handleNav('driver-register')}
+              className="btn btn-primary btn-sm"
+            >
+              Get Started <ArrowRight size={14} />
+            </button>
+            <button
+              type="button"
+              className="icon-btn lp-menu-btn"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label={mobileMenuOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={mobileMenuOpen}
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
           </div>
-          <span style={{ fontSize: 'var(--text-h3)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>EVNexus</span>
         </div>
-        
-        {/* Desktop Nav Links */}
-        <div style={{ display: 'none' }} className="nav-links">
-          {/* We'll use a media query in style tag or just hide on mobile via inline flex block later, but for React inline styles we need to do basic responsive or just keep it simple */}
-        </div>
-        
-        <div style={{ display: 'flex', gap: 'var(--space-3)', alignItems: 'center' }}>
-          <button 
-            onClick={() => onNavigate('driver-login')}
-            className="btn btn-ghost"
-          >
-            Driver Login
+
+        {/* Mobile Navigation Drawer */}
+        <div className={`lp-mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
+          <a href="#drivers" onClick={() => setMobileMenuOpen(false)}>For Drivers</a>
+          <a href="#companies" onClick={() => setMobileMenuOpen(false)}>For Companies</a>
+          <a href="#analytics" onClick={() => setMobileMenuOpen(false)}>AI &amp; Analytics</a>
+          <a href="#mission" onClick={() => setMobileMenuOpen(false)}>Mission</a>
+          <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', margin: '8px 0' }} />
+          <button type="button" onClick={() => handleNav('driver-login')}>Driver Login</button>
+          <button type="button" onClick={() => handleNav('login')}>Company Sign In</button>
+          <button type="button" onClick={() => handleNav('driver-register')} style={{ color: 'var(--brand-700)', fontWeight: 700 }}>
+            Register as Driver →
           </button>
-          <button 
-            onClick={() => onNavigate('login')}
-            className="btn btn-outline"
-          >
-            Company Portal
-          </button>
-          <button 
-            onClick={() => onNavigate('driver-register')}
-            className="btn btn-primary"
-          >
-            Get Started
+          <button type="button" onClick={() => handleNav('register')} style={{ color: 'var(--brand-700)', fontWeight: 700 }}>
+            Register Your Company →
           </button>
         </div>
-      </nav>
+      </header>
 
       <main>
-        {/* Hero Section */}
-        <section style={{ 
-          padding: 'var(--space-16) var(--space-6)', 
-          textAlign: 'center',
-          maxWidth: '1000px',
-          margin: '0 auto',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}>
-          <span className="badge badge-info" style={{ marginBottom: 'var(--space-6)', padding: 'var(--space-2) var(--space-4)' }}>
-            Smart EV Charging Platform
-          </span>
-          <h1 className="text-h1" style={{ fontSize: '3.5rem', lineHeight: 1.2, marginBottom: 'var(--space-6)', letterSpacing: '-0.02em' }}>
-            Charge smarter. <br/>
-            <span style={{ color: 'var(--color-primary)' }}>Manage charging better.</span>
-          </h1>
-          <p className="text-body" style={{ color: 'var(--color-text-secondary)', fontSize: '1.25rem', maxWidth: '700px', margin: '0 auto var(--space-8) auto' }}>
-            The unified platform connecting EV drivers with charging network operators. Discover stations, manage payments, and scale your charging business seamlessly.
-          </p>
-          
-          <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button 
-              onClick={() => onNavigate('driver-register')}
-              className="btn btn-primary"
-              style={{ padding: 'var(--space-3) var(--space-6)', height: 'auto', fontSize: '1.125rem' }}
-            >
-              Find a Charging Station <ArrowRight size={20} />
-            </button>
-            <button 
-              onClick={() => onNavigate('register')}
-              className="btn btn-outline"
-              style={{ padding: 'var(--space-3) var(--space-6)', height: 'auto', fontSize: '1.125rem' }}
-            >
-              For Charging Companies
-            </button>
-          </div>
-        </section>
-
-        {/* Hero Visual (Product Preview) */}
-        <section style={{ padding: '0 var(--space-6) var(--space-16) var(--space-6)', maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ 
-            background: 'var(--color-background)', 
-            borderRadius: 'var(--radius-lg)', 
-            padding: 'var(--space-2)',
-            boxShadow: 'var(--shadow-modal)',
-            border: '1px solid var(--color-border)',
-            position: 'relative',
-            overflow: 'hidden'
-          }}>
-            {/* Mock Dashboard UI */}
-            <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', display: 'flex', height: '400px', border: '1px solid var(--color-border)' }}>
-              <div style={{ width: '200px', borderRight: '1px solid var(--color-border)', padding: 'var(--space-4)', display: 'flex', flexDirection: 'column', gap: 'var(--space-4)', background: 'var(--bg-sidebar)' }}>
-                <div className="skeleton-title" style={{ background: 'rgba(255,255,255,0.1)' }}></div>
-                <div className="skeleton-text" style={{ background: 'rgba(255,255,255,0.1)' }}></div>
-                <div className="skeleton-text" style={{ background: 'rgba(255,255,255,0.1)' }}></div>
-              </div>
-              <div style={{ flex: 1, padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', background: 'var(--color-background)' }}>
-                <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-                  <div className="card" style={{ flex: 1, height: '100px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-caption)' }}>Active Sessions (Demo)</div>
-                    <div style={{ fontSize: 'var(--text-h2)', fontWeight: 'var(--weight-bold)' }}>24</div>
-                  </div>
-                  <div className="card" style={{ flex: 1, height: '100px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-caption)' }}>Energy Delivered (Demo)</div>
-                    <div style={{ fontSize: 'var(--text-h2)', fontWeight: 'var(--weight-bold)' }}>1,430 kWh</div>
-                  </div>
-                  <div className="card" style={{ flex: 1, height: '100px' }}>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-caption)' }}>Network Status</div>
-                    <div className="badge badge-success" style={{ marginTop: 'var(--space-2)' }}>99.9% Uptime</div>
-                  </div>
+        {/* =========================================================================
+            2. HERO SECTION
+            ========================================================================= */}
+        <section className="lp-hero">
+          <div className="lp-container">
+            <div className="lp-hero-grid">
+              {/* Left Column: Value Proposition & CTAs */}
+              <div className="animate-fade-in">
+                <div className="lp-eyebrow">
+                  <span className="lp-eyebrow-dot">
+                    <Zap size={13} />
+                  </span>
+                  Smart EV Charging &amp; Management Platform
                 </div>
-                <div className="card" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', inset: 0, opacity: 0.05, backgroundImage: 'linear-gradient(var(--color-primary) 1px, transparent 1px), linear-gradient(90deg, var(--color-primary) 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-caption)', marginBottom: 'var(--space-4)' }}>Activity Trend (Illustrative)</div>
-                  <div style={{ width: '100%', height: '100px', background: 'linear-gradient(to top, var(--color-primary-light), transparent)', borderBottom: '2px solid var(--color-primary)', borderRadius: 'var(--radius-sm)' }}></div>
+
+                <h1 className="lp-hero-title">
+                  Charge smarter. <br />
+                  <em>Manage better.</em> <br />
+                  Grow sustainably.
+                </h1>
+
+                <p className="lp-hero-text">
+                  EVNexus is the unified multi-tenant EV charging platform connecting drivers,
+                  station operators, digital wallets, and AI-driven analytics — all in one reliable system.
+                </p>
+
+                <div className="lp-hero-ctas">
+                  <button
+                    type="button"
+                    onClick={() => handleNav('driver-register')}
+                    className="btn btn-primary btn-lg"
+                  >
+                    Find &amp; Start Charging <ArrowRight size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNav('register')}
+                    className="btn btn-secondary btn-lg"
+                  >
+                    Register Company
+                  </button>
+                </div>
+
+                <div className="lp-hero-roles">
+                  <span>
+                    <Check size={16} /> Instant QR-code charging
+                  </span>
+                  <span>
+                    <Check size={16} /> Integrated driver wallet
+                  </span>
+                  <span>
+                    <Check size={16} /> Real-time tenant isolation
+                  </span>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
 
-        {/* Value Proposition */}
-        <section style={{ padding: 'var(--space-16) var(--space-6)', backgroundColor: 'var(--color-background)' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', marginBottom: 'var(--space-12)' }}>
-              <h2 className="text-h2" style={{ marginBottom: 'var(--space-4)' }}>The complete EV charging ecosystem</h2>
-              <p className="text-body" style={{ color: 'var(--color-text-secondary)', maxWidth: '600px', margin: '0 auto' }}>Everything you need to charge your vehicle or manage your charging infrastructure.</p>
-            </div>
-            
-            <div className="grid grid-cols-4" style={{ gap: 'var(--space-6)' }}>
-              {[
-                { icon: MapPin, title: 'Smart Discovery', desc: 'Discover and navigate to charging stations easily with real-time availability.' },
-                { icon: Monitor, title: 'Unified Platform', desc: 'Drivers and charging companies operate through one seamless platform.' },
-                { icon: Shield, title: 'Secure Payments', desc: 'Manage your wallet and process charging payments securely and instantly.' },
-                { icon: BarChart3, title: 'Data & Analytics', desc: 'Gain visibility into revenue, energy usage, and charging activity trends.' }
-              ].map((feature, i) => (
-                <div key={i} className="card card-elevated" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 'var(--space-4)' }}>
-                    <feature.icon size={24} />
-                  </div>
-                  <h3 className="text-h3" style={{ marginBottom: 'var(--space-2)' }}>{feature.title}</h3>
-                  <p className="text-secondary">{feature.desc}</p>
+              {/* Right Column: Hero Visual Photography */}
+              <div className="lp-hero-visual animate-fade-in">
+                <div className="lp-hero-accent" aria-hidden="true" />
+                <div className="lp-hero-img-wrap">
+                  <img
+                    src="/images/hero-ev-charging.jpg"
+                    alt="Modern white electric SUV connected to a clean EVNexus charging station"
+                    width="1376"
+                    height="768"
+                    fetchPriority="high"
+                  />
                 </div>
-              ))}
+
+                {/* Floating Micro-Cards */}
+                <div className="lp-float-card lp-float-card--tl">
+                  <div className="kpi-icon kpi-icon--mint">
+                    <Activity size={20} />
+                  </div>
+                  <div>
+                    <div className="lp-float-title">Active Station Status</div>
+                    <div className="lp-float-text">Live telemetry &amp; meter tracking</div>
+                  </div>
+                </div>
+
+                <div className="lp-float-card lp-float-card--br">
+                  <div className="kpi-icon kpi-icon--forest">
+                    <Sparkles size={20} />
+                  </div>
+                  <div>
+                    <div className="lp-float-title">AI Demand Forecast</div>
+                    <div className="lp-float-text">7-day predicted revenue trends</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* For Drivers Section */}
-        <section style={{ padding: 'var(--space-16) var(--space-6)', maxWidth: '1200px', margin: '0 auto' }}>
-          <div style={{ display: 'flex', gap: 'var(--space-12)', alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ flex: '1 1 400px' }}>
-              <span className="badge badge-info" style={{ marginBottom: 'var(--space-4)' }}>For Drivers</span>
-              <h2 className="text-h2" style={{ fontSize: '2.5rem', marginBottom: 'var(--space-4)' }}>Find and charge with a single tap.</h2>
-              <p className="text-body" style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>
-                Stop downloading a different app for every charging station. EVNexus gives you access to a massive unified network.
+        {/* =========================================================================
+            3. QUICK FEATURE STRIP
+            ========================================================================= */}
+        <div className="lp-feature-strip">
+          <div className="lp-container">
+            <div className="lp-feature-strip-inner">
+              <div className="lp-strip-item">
+                <div className="kpi-icon kpi-icon--teal">
+                  <MapPin size={22} />
+                </div>
+                <div className="lp-strip-title">Station Discovery</div>
+                <div className="lp-strip-text">Real-time GPS map &amp; connector status</div>
+              </div>
+
+              <div className="lp-strip-item">
+                <div className="kpi-icon kpi-icon--forest">
+                  <QrCode size={22} />
+                </div>
+                <div className="lp-strip-title">QR Session Control</div>
+                <div className="lp-strip-text">Scan, start, monitor, and stop with one tap</div>
+              </div>
+
+              <div className="lp-strip-item">
+                <div className="kpi-icon kpi-icon--mint">
+                  <CreditCard size={22} />
+                </div>
+                <div className="lp-strip-title">Digital Wallet</div>
+                <div className="lp-strip-text">Prepaid balance, instant top-ups &amp; refunds</div>
+              </div>
+
+              <div className="lp-strip-item">
+                <div className="kpi-icon kpi-icon--amber">
+                  <Building2 size={22} />
+                </div>
+                <div className="lp-strip-title">Company Portals</div>
+                <div className="lp-strip-text">Dedicated multi-tenant station management</div>
+              </div>
+
+              <div className="lp-strip-item">
+                <div className="kpi-icon kpi-icon--blue">
+                  <BarChart3 size={22} />
+                </div>
+                <div className="lp-strip-title">AI &amp; Analytics</div>
+                <div className="lp-strip-text">Revenue metrics, energy kWh &amp; forecasting</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            4. PLATFORM CAPABILITIES GRID
+            ========================================================================= */}
+        <section id="features" className="lp-section lp-section--muted">
+          <div className="lp-container">
+            <div className="lp-section-head">
+              <span className="lp-kicker">Unified Architecture</span>
+              <h2 className="lp-h2">Everything needed to power electric vehicle charging</h2>
+              <p className="lp-lead">
+                Built specifically for real-world operations — EVNexus provides equal power
+                to daily commuters charging on the go and enterprise networks running dozens of locations.
               </p>
-              
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 var(--space-8) 0', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {[
-                  'Real-time station discovery and status',
-                  'Frictionless QR-code charging',
-                  'Integrated digital wallet for seamless payments',
-                  'Detailed charging history and receipts'
-                ].map((item, i) => (
-                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                    <div style={{ color: 'var(--color-success)' }}><CheckIcon /></div>
-                    <span className="text-secondary" style={{ fontWeight: 'var(--weight-medium)' }}>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <button onClick={() => onNavigate('driver-register')} className="btn btn-primary" style={{ padding: 'var(--space-3) var(--space-6)', height: 'auto' }}>
-                Start Charging <ArrowRight size={18} />
-              </button>
             </div>
-            
-            {/* Visual */}
-            <div style={{ flex: '1 1 400px', display: 'flex', justifyContent: 'center' }}>
-              <div style={{ width: '100%', maxWidth: '320px', backgroundColor: 'var(--color-background)', borderRadius: 'var(--space-6)', border: '8px solid var(--color-border)', height: '600px', padding: 'var(--space-4)', position: 'relative', boxShadow: 'var(--shadow-modal)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-6)' }}>
-                  <div className="skeleton-avatar" style={{ width: 32, height: 32 }}></div>
-                  <div className="skeleton-title" style={{ width: 80, margin: 0, height: 32, borderRadius: 'var(--radius-pill)' }}></div>
+
+            <div className="lp-cap-grid">
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <MapPin size={26} />
                 </div>
-                <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)' }}>
-                    <div style={{ fontWeight: 'var(--weight-bold)' }}>Station A-12</div>
-                    <div className="badge badge-success">Available</div>
-                  </div>
-                  <div style={{ height: 120, background: 'var(--color-background)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <QrCode size={48} color="var(--color-text-muted)" />
-                  </div>
+                <h3 className="lp-cap-title">Intelligent Station Discovery</h3>
+                <p className="lp-cap-text">
+                  Locate nearby charging stations with Leaflet &amp; OpenStreetMap integration. Filter by
+                  distance, connector type (CCS2, Type 2, CHAdeMO), and pricing per kWh.
+                </p>
+                <span className="lp-cap-tag">Driver Portal</span>
+              </div>
+
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <QrCode size={26} />
                 </div>
-                <div className="card">
-                  <div style={{ fontWeight: 'var(--weight-bold)', marginBottom: 'var(--space-2)' }}>Wallet Balance</div>
-                  <div style={{ fontSize: '2rem', fontWeight: 'var(--weight-bold)', color: 'var(--color-primary)' }}>$45.00</div>
+                <h3 className="lp-cap-title">Frictionless QR Sessions</h3>
+                <p className="lp-cap-text">
+                  Point your camera or upload a QR payload to validate the charger instantly.
+                  Stream live charging telemetry, active kWh delivered, and running session costs.
+                </p>
+                <span className="lp-cap-tag">Live Metering</span>
+              </div>
+
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <CreditCard size={26} />
                 </div>
+                <h3 className="lp-cap-title">Automated Wallet &amp; Payments</h3>
+                <p className="lp-cap-text">
+                  Dedicated in-app wallet balances with idempotency protection. Top up securely, track
+                  detailed charging receipts, and benefit from automatic payment finalization.
+                </p>
+                <span className="lp-cap-tag">Secure Transactions</span>
+              </div>
+
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <Building2 size={26} />
+                </div>
+                <h3 className="lp-cap-title">Multi-Tenant Isolation</h3>
+                <p className="lp-cap-text">
+                  Complete tenant boundary protection. Charging companies manage their own stations,
+                  staff operator accounts, and tariffs with zero cross-tenant leakage.
+                </p>
+                <span className="lp-cap-tag">Enterprise Security</span>
+              </div>
+
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <BarChart3 size={26} />
+                </div>
+                <h3 className="lp-cap-title">Financial &amp; Energy Telemetry</h3>
+                <p className="lp-cap-text">
+                  Track revenue today, month-to-date income, completed sessions, and total kWh delivered.
+                  Inspect recent transaction logs with live status badges.
+                </p>
+                <span className="lp-cap-tag">Revenue Reporting</span>
+              </div>
+
+              <div className="lp-cap-card">
+                <div className="lp-cap-icon">
+                  <Sparkles size={26} />
+                </div>
+                <h3 className="lp-cap-title">AI Demand &amp; Revenue Forecast</h3>
+                <p className="lp-cap-text">
+                  Machine-learning assisted 7-day revenue trend forecasting helps charging networks anticipate
+                  peak demand hours, optimize electricity usage, and plan station expansions.
+                </p>
+                <span className="lp-cap-tag">Predictive Analytics</span>
               </div>
             </div>
           </div>
         </section>
 
-        {/* For Companies Section */}
-        <section style={{ padding: 'var(--space-16) var(--space-6)', backgroundColor: 'var(--color-background)' }}>
-          <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: 'var(--space-12)', alignItems: 'center', flexWrap: 'wrap-reverse' }}>
-            
-            {/* Visual */}
-            <div style={{ flex: '1 1 400px' }}>
-              <div style={{ width: '100%', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', padding: 'var(--space-6)', boxShadow: 'var(--shadow-card)' }}>
-                <div style={{ display: 'flex', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
-                  <div className="card" style={{ flex: 1, padding: 'var(--space-4)' }}>
-                     <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-text-muted)' }}>Revenue (Mock)</div>
-                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>$1,240</div>
-                  </div>
-                  <div className="card" style={{ flex: 1, padding: 'var(--space-4)' }}>
-                     <div style={{ fontSize: 'var(--text-caption)', color: 'var(--color-text-muted)' }}>Sessions</div>
-                     <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>142</div>
-                  </div>
-                </div>
-                <div className="table-container" style={{ border: 'none', boxShadow: 'none' }}>
-                  <table className="table" style={{ fontSize: '0.75rem' }}>
-                    <thead>
-                      <tr><th>Station</th><th>Status</th></tr>
-                    </thead>
-                    <tbody>
-                      <tr><td>Downtown Plaza #1</td><td><span className="badge badge-charging">Charging</span></td></tr>
-                      <tr><td>Downtown Plaza #2</td><td><span className="badge badge-available">Available</span></td></tr>
-                      <tr><td>Westside Mall #1</td><td><span className="badge badge-offline">Offline</span></td></tr>
-                    </tbody>
-                  </table>
+        {/* =========================================================================
+            5. DEEP DIVE: FOR DRIVERS
+            ========================================================================= */}
+        <section id="drivers" className="lp-section">
+          <div className="lp-container">
+            <div className="lp-split">
+              <div>
+                <span className="lp-kicker">For Electric Vehicle Drivers</span>
+                <h2 className="lp-h2">Find, charge, and drive away in minutes.</h2>
+                <p className="lp-lead">
+                  Say goodbye to fragmented charging memberships and multiple cards. EVNexus puts
+                  your entire charging journey inside a clean, high-performance web dashboard.
+                </p>
+
+                <ul className="lp-checklist">
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Interactive Station Map:</strong>
+                      <span className="lp-muted"> Search stations by address, radius (5–200 km), and see live power ratings.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>One-Tap QR Charging:</strong>
+                      <span className="lp-muted"> Scan any EVNexus-compatible port to verify tariff and initiate current flow safely.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Live Session Telemetry:</strong>
+                      <span className="lp-muted"> Monitor start meter, current meter, elapsed energy, and estimated charge cost in real-time.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>In-App Digital Wallet:</strong>
+                      <span className="lp-muted"> Top up with preset amounts ($10, $25, $50, $100), view transaction history, and receive digital receipts.</span>
+                    </div>
+                  </li>
+                </ul>
+
+                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleNav('driver-register')}
+                    className="btn btn-primary"
+                  >
+                    Create Driver Account <ArrowRight size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNav('driver-login')}
+                    className="btn btn-secondary"
+                  >
+                    Sign In to Driver Portal
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div style={{ flex: '1 1 400px' }}>
-              <span className="badge badge-primary" style={{ marginBottom: 'var(--space-4)', backgroundColor: 'var(--color-primary-light)', color: 'var(--color-primary-dark)' }}>For Companies</span>
-              <h2 className="text-h2" style={{ fontSize: '2.5rem', marginBottom: 'var(--space-4)' }}>Manage your network from one platform.</h2>
-              <p className="text-body" style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-6)' }}>
-                Scale your EV charging infrastructure with enterprise-grade management tools. Control pricing, monitor health, and analyze revenue.
+              <div className="lp-split-media">
+                <img
+                  src="/images/charging-connector.jpg"
+                  alt="Close-up of EV charging connector plugged into electric car port"
+                  width="1000"
+                  height="747"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================================
+            6. DEEP DIVE: FOR CHARGING COMPANIES
+            ========================================================================= */}
+        <section id="companies" className="lp-section lp-section--cream">
+          <div className="lp-container">
+            <div className="lp-split lp-split--reverse">
+              <div>
+                <span className="lp-kicker">For Charging Network Operators</span>
+                <h2 className="lp-h2">Complete enterprise control of your charging assets.</h2>
+                <p className="lp-lead">
+                  Provision new charging locations, manage individual charger ports, inspect live charging
+                  traffic, and manage operator staff accounts — all secured under your dedicated tenant ID.
+                </p>
+
+                <ul className="lp-checklist">
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Station &amp; Port Management:</strong>
+                      <span className="lp-muted"> Add stations with exact GPS coordinates, configure connector types, and set per-kWh tariffs.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Real-Time Session Monitoring:</strong>
+                      <span className="lp-muted"> Track active charging sessions across all company stations simultaneously.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Role-Based Staff Access:</strong>
+                      <span className="lp-muted"> Invite team members as Operators with restricted permissions scoped to your company tenant.</span>
+                    </div>
+                  </li>
+                  <li>
+                    <span className="lp-check"><Check size={14} /></span>
+                    <div>
+                      <strong>Security Isolation Sandbox:</strong>
+                      <span className="lp-muted"> Built-in simulators to audit cross-tenant isolation and verify RBAC enforcement on demand.</span>
+                    </div>
+                  </li>
+                </ul>
+
+                <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleNav('register')}
+                    className="btn btn-primary"
+                  >
+                    Register Your Company <ArrowRight size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleNav('login')}
+                    className="btn btn-secondary"
+                  >
+                    Company Administrator Sign In
+                  </button>
+                </div>
+              </div>
+
+              <div className="lp-split-media">
+                <img
+                  src="/images/charging-hub.jpg"
+                  alt="Modern solar-canopy public EV charging hub with charging pillars"
+                  width="1100"
+                  height="821"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================================
+            7. AI FORECASTING & REVENUE REPORTING
+            ========================================================================= */}
+        <section id="analytics" className="lp-section">
+          <div className="lp-container">
+            <div className="lp-section-head">
+              <span className="lp-kicker">Data-Driven Operations</span>
+              <h2 className="lp-h2">Forecast demand and optimize revenue</h2>
+              <p className="lp-lead">
+                EVNexus surfaces live operational telemetry into digestible visual charts.
+                Inspect settled revenue trends, analyze peak energy consumption, and anticipate customer volume.
               </p>
-              
-              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 var(--space-8) 0', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                {[
-                  'Comprehensive station and charger management',
-                  'Real-time monitoring and activity logs',
-                  'Automated payment processing and settlement',
-                  'Revenue forecasting and energy analytics'
-                ].map((item, i) => (
-                  <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                    <div style={{ color: 'var(--color-primary)' }}><CheckIcon /></div>
-                    <span className="text-secondary" style={{ fontWeight: 'var(--weight-medium)' }}>{item}</span>
-                  </li>
-                ))}
-              </ul>
-              
-              <button onClick={() => onNavigate('register')} className="btn btn-outline" style={{ padding: 'var(--space-3) var(--space-6)', height: 'auto' }}>
-                Register Your Company
-              </button>
             </div>
 
+            <div className="grid grid-cols-3">
+              <div className="card card-elevated">
+                <div className="kpi-icon kpi-icon--forest" style={{ marginBottom: 'var(--space-4)' }}>
+                  <BarChart3 size={24} />
+                </div>
+                <h3 className="text-h3" style={{ marginBottom: 'var(--space-2)' }}>Revenue Trend Visualizer</h3>
+                <p className="text-secondary" style={{ marginBottom: 'var(--space-4)' }}>
+                  Interactive bar charts tracking daily income generated by completed charging sessions.
+                  Compare daily earnings and measure network growth week over week.
+                </p>
+                <div style={{ padding: 'var(--space-3)', background: 'var(--color-surface-muted)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: 'var(--brand-800)', fontWeight: 600 }}>
+                  ● Integrated in Company Analytics
+                </div>
+              </div>
+
+              <div className="card card-elevated">
+                <div className="kpi-icon kpi-icon--teal" style={{ marginBottom: 'var(--space-4)' }}>
+                  <Sparkles size={24} />
+                </div>
+                <h3 className="text-h3" style={{ marginBottom: 'var(--space-2)' }}>7-Day Predictive Forecast</h3>
+                <p className="text-secondary" style={{ marginBottom: 'var(--space-4)' }}>
+                  Utilizes historical transaction data to predict future daily revenue. Plan maintenance
+                  schedules during forecasted lulls and ensure port readiness during high-traffic windows.
+                </p>
+                <div style={{ padding: 'var(--space-3)', background: 'var(--color-surface-muted)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: 'var(--brand-800)', fontWeight: 600 }}>
+                  ● ML-Powered Revenue Forecast
+                </div>
+              </div>
+
+              <div className="card card-elevated">
+                <div className="kpi-icon kpi-icon--amber" style={{ marginBottom: 'var(--space-4)' }}>
+                  <Activity size={24} />
+                </div>
+                <h3 className="text-h3" style={{ marginBottom: 'var(--space-2)' }}>Session Audit &amp; Settlement</h3>
+                <p className="text-secondary" style={{ marginBottom: 'var(--space-4)' }}>
+                  Transparent logs of every transaction: timestamps, station identifiers, currency,
+                  kWh consumed, and transaction status (Completed, Pending, Failed).
+                </p>
+                <div style={{ padding: 'var(--space-3)', background: 'var(--color-surface-muted)', borderRadius: 'var(--radius-md)', fontSize: '0.82rem', color: 'var(--brand-800)', fontWeight: 600 }}>
+                  ● Complete Audit Traceability
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
-        {/* Trust / Security */}
-        <section style={{ padding: 'var(--space-16) var(--space-6)', maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
-          <Shield size={48} color="var(--color-primary)" style={{ margin: '0 auto var(--space-4) auto' }} />
-          <h2 className="text-h2" style={{ marginBottom: 'var(--space-4)' }}>Enterprise-Grade Reliability</h2>
-          <p className="text-body" style={{ color: 'var(--color-text-secondary)', marginBottom: 'var(--space-10)', maxWidth: '600px', margin: '0 auto var(--space-10) auto' }}>
-            Built on a robust architecture ensuring strict tenant isolation, role-based access control, and secure payment processing.
-          </p>
-          <div className="grid grid-cols-3" style={{ gap: 'var(--space-6)', textAlign: 'left' }}>
-            <div className="card">
-              <h4 style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-2)' }}>Tenant Isolation</h4>
-              <p className="text-caption">Strict data boundaries ensure your company data and customer information remain completely isolated.</p>
+        {/* =========================================================================
+            8. HOW IT WORKS: 4 SIMPLE STEPS
+            ========================================================================= */}
+        <section className="lp-section lp-section--muted">
+          <div className="lp-container">
+            <div className="lp-section-head">
+              <span className="lp-kicker">Simple Workflow</span>
+              <h2 className="lp-h2">How charging works on EVNexus</h2>
+              <p className="lp-lead">
+                From finding an open station to hitting the road fully charged in four simple steps.
+              </p>
             </div>
-            <div className="card">
-              <h4 style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-2)' }}>Secure Payments</h4>
-              <p className="text-caption">End-to-end encrypted wallet transactions and charging settlements.</p>
-            </div>
-            <div className="card">
-              <h4 style={{ fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-2)' }}>Role-Based Access</h4>
-              <p className="text-caption">Granular permissions ensuring the right users have the right level of control.</p>
+
+            <div className="lp-steps">
+              <div className="lp-step">
+                <div className="lp-step-num">1</div>
+                <h3 className="lp-step-title">Discover Stations</h3>
+                <p className="lp-step-text">
+                  Open the map dashboard to find available chargers nearby with distance and pricing.
+                </p>
+              </div>
+
+              <div className="lp-step">
+                <div className="lp-step-num">2</div>
+                <h3 className="lp-step-title">Scan QR Code</h3>
+                <p className="lp-step-text">
+                  Plug your vehicle in and scan the charger's QR code to authenticate the port.
+                </p>
+              </div>
+
+              <div className="lp-step">
+                <div className="lp-step-num">3</div>
+                <h3 className="lp-step-title">Track Live Charge</h3>
+                <p className="lp-step-text">
+                  Monitor energy delivered in kWh, charging rate, and running cost from your screen.
+                </p>
+              </div>
+
+              <div className="lp-step">
+                <div className="lp-step-num">4</div>
+                <h3 className="lp-step-title">Auto Wallet Pay</h3>
+                <p className="lp-step-text">
+                  Stop charging at any time. The exact energy cost is automatically settled from your wallet.
+                </p>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Final CTA */}
-        <section style={{ padding: 'var(--space-16) var(--space-6)', backgroundColor: 'var(--color-primary)', color: 'white', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '2.5rem', fontWeight: 'var(--weight-bold)', marginBottom: 'var(--space-6)' }}>Ready to make EV charging simpler?</h2>
-          <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', justifyContent: 'center' }}>
-            <button 
-              onClick={() => onNavigate('driver-register')}
-              className="btn"
-              style={{ backgroundColor: 'white', color: 'var(--color-primary)', padding: 'var(--space-3) var(--space-6)', height: 'auto', fontSize: '1.125rem' }}
-            >
-              Start as a Driver
-            </button>
-            <button 
-              onClick={() => onNavigate('register')}
-              className="btn"
-              style={{ backgroundColor: 'transparent', border: '1px solid white', color: 'white', padding: 'var(--space-3) var(--space-6)', height: 'auto', fontSize: '1.125rem' }}
-            >
-              Start as a Company
-            </button>
+        {/* =========================================================================
+            9. SUSTAINABILITY & MISSION
+            ========================================================================= */}
+        <section id="mission" className="lp-mission">
+          <img
+            src="/images/ev-road-journey.jpg"
+            alt="Scenic road journey"
+            className="lp-mission-bg"
+            loading="lazy"
+            decoding="async"
+          />
+          <div className="lp-container">
+            <span className="lp-kicker">Clean Transportation Mission</span>
+            <h2 className="lp-h2">Accelerating the transition to zero-emission mobility</h2>
+            <p className="lp-lead">
+              Electric vehicles are only as powerful as the charging network behind them.
+              EVNexus builds reliable digital infrastructure so every driver can travel with confidence,
+              and every network operator can operate efficiently.
+            </p>
+
+            <div className="lp-pillars">
+              <div className="lp-pillar">
+                <div className="lp-pillar-icon">
+                  <Leaf size={22} />
+                </div>
+                <div className="lp-pillar-title">Zero-Emission Future</div>
+                <div className="lp-pillar-text">
+                  Connecting clean energy grids directly with everyday drivers to reduce transportation emissions.
+                </div>
+              </div>
+
+              <div className="lp-pillar">
+                <div className="lp-pillar-icon">
+                  <Shield size={22} />
+                </div>
+                <div className="lp-pillar-title">Reliable &amp; Accessible</div>
+                <div className="lp-pillar-text">
+                  High-availability microservice backend ensures charging sessions start and stop without friction.
+                </div>
+              </div>
+
+              <div className="lp-pillar">
+                <div className="lp-pillar-icon">
+                  <Layers size={22} />
+                </div>
+                <div className="lp-pillar-title">Open Ecosystem</div>
+                <div className="lp-pillar-text">
+                  Multi-tenant design supports charging hardware from multiple operators on a single platform.
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
+        {/* =========================================================================
+            10. FINAL CALL TO ACTION
+            ========================================================================= */}
+        <section className="lp-cta">
+          <div className="lp-container">
+            <div className="lp-cta-box">
+              <div>
+                <h2 className="lp-cta-title">Ready to experience smarter EV charging?</h2>
+                <p className="lp-cta-text">
+                  Create your driver account or register your charging company workspace today.
+                </p>
+              </div>
+              <div className="lp-cta-actions">
+                <button
+                  type="button"
+                  onClick={() => handleNav('driver-register')}
+                  className="btn btn-light btn-lg"
+                >
+                  Start as a Driver <ArrowRight size={18} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNav('register')}
+                  className="btn btn-outline-light btn-lg"
+                >
+                  Register as a Company
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer style={{ backgroundColor: 'var(--bg-sidebar)', color: 'var(--color-text-muted)', padding: 'var(--space-12) var(--space-6) var(--space-6) var(--space-6)' }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 'var(--space-8)', marginBottom: 'var(--space-12)' }}>
+      {/* =========================================================================
+          11. FOOTER
+          ========================================================================= */}
+      <footer className="lp-footer">
+        <div className="lp-container">
+          <div className="lp-footer-grid">
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-4)' }}>
-                <Zap size={24} color="var(--color-primary-light)" />
-                <span style={{ fontSize: '1.25rem', fontWeight: 'var(--weight-bold)', color: 'white' }}>EVNexus</span>
-              </div>
-              <p className="text-caption" style={{ lineHeight: 1.6 }}>
-                The intelligent platform connecting EV drivers with charging network operators seamlessly and securely.
+              <BrandLogo size="md" />
+              <p className="lp-footer-about">
+                The smart electric vehicle charging management platform connecting drivers,
+                charging network operators, digital payments, and predictive analytics.
               </p>
             </div>
+
             <div>
-              <h4 style={{ color: 'white', fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-4)' }}>For Drivers</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigate('driver-login'); }} style={{ color: 'inherit', textDecoration: 'none' }}>Login</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigate('driver-register'); }} style={{ color: 'inherit', textDecoration: 'none' }}>Sign Up</a></li>
+              <h4>Driver Portal</h4>
+              <ul>
+                <li>
+                  <button type="button" className="lp-footer-link" onClick={() => handleNav('driver-login')}>
+                    Driver Sign In
+                  </button>
+                </li>
+                <li>
+                  <button type="button" className="lp-footer-link" onClick={() => handleNav('driver-register')}>
+                    Register as Driver
+                  </button>
+                </li>
+                <li>
+                  <a href="#features" className="lp-footer-link">Charging Map Discovery</a>
+                </li>
+                <li>
+                  <a href="#features" className="lp-footer-link">Digital Wallet &amp; Receipts</a>
+                </li>
               </ul>
             </div>
+
             <div>
-              <h4 style={{ color: 'white', fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-4)' }}>For Companies</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigate('login'); }} style={{ color: 'inherit', textDecoration: 'none' }}>Portal Login</a></li>
-                <li><a href="#" onClick={(e) => { e.preventDefault(); onNavigate('register'); }} style={{ color: 'inherit', textDecoration: 'none' }}>Register Company</a></li>
+              <h4>Company Portal</h4>
+              <ul>
+                <li>
+                  <button type="button" className="lp-footer-link" onClick={() => handleNav('login')}>
+                    Company Sign In
+                  </button>
+                </li>
+                <li>
+                  <button type="button" className="lp-footer-link" onClick={() => handleNav('register')}>
+                    Register Company
+                  </button>
+                </li>
+                <li>
+                  <a href="#companies" className="lp-footer-link">Station Management</a>
+                </li>
+                <li>
+                  <a href="#analytics" className="lp-footer-link">Revenue &amp; AI Analytics</a>
+                </li>
               </ul>
             </div>
+
             <div>
-              <h4 style={{ color: 'white', fontWeight: 'var(--weight-semibold)', marginBottom: 'var(--space-4)' }}>Legal</h4>
-              <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                <li><span style={{ cursor: 'not-allowed' }}>Privacy Policy</span></li>
-                <li><span style={{ cursor: 'not-allowed' }}>Terms of Service</span></li>
+              <h4>Platform</h4>
+              <ul>
+                <li>
+                  <a href="#features" className="lp-footer-link">Platform Capabilities</a>
+                </li>
+                <li>
+                  <a href="#mission" className="lp-footer-link">Sustainability Mission</a>
+                </li>
+                <li>
+                  <a href="#features" className="lp-footer-link">Multi-Tenant Isolation</a>
+                </li>
+                <li>
+                  <span style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>
+                    Enterprise Microservices
+                  </span>
+                </li>
               </ul>
             </div>
           </div>
-          <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 'var(--space-6)', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 'var(--space-4)', fontSize: 'var(--text-caption)' }}>
-            <span>© {new Date().getFullYear()} EVNexus. All rights reserved.</span>
+
+          <div className="lp-footer-bottom">
+            <span>&copy; {new Date().getFullYear()} EVNexus. Charge &bull; Manage &bull; Grow. All rights reserved.</span>
+            <span>Production-Quality EV Charging Management System</span>
           </div>
         </div>
       </footer>
     </div>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-    </svg>
   );
 }

@@ -1060,8 +1060,8 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
                           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
-                          <RechartsTooltip cursor={{ fill: '#f1f5f9' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                          <Bar dataKey="revenue" fill="var(--primary-600)" radius={[4, 4, 0, 0]} />
+                          <RechartsTooltip cursor={{ fill: 'rgba(64, 133, 118, 0.08)' }} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                          <Bar dataKey="revenue" fill="#408576" radius={[6, 6, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     ) : (
@@ -1074,7 +1074,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   {/* AI Forecast */}
                   <div className="dash-card" style={{ padding: '1.5rem' }}>
                     <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Sparkles size={18} color="#8b5cf6" /> 7-Day Revenue Forecast
+                      <Sparkles size={18} color="var(--brand-500)" /> 7-Day Revenue Forecast
                     </h3>
                     {forecastError ? (
                       <div style={{ height: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
@@ -1101,14 +1101,14 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                           <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
                           <RechartsTooltip 
                             cursor={{ stroke: '#cbd5e1' }} 
-                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
+                            contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
                             labelFormatter={(val) => {
                               if (!val) return '';
                               const d = new Date(val);
                               return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString();
                             }} 
                           />
-                          <Line type="monotone" dataKey="predictedRevenue" stroke="#8b5cf6" strokeWidth={3} dot={{ r: 4, fill: '#8b5cf6' }} activeDot={{ r: 6 }} />
+                          <Line type="monotone" dataKey="predictedRevenue" stroke="#408576" strokeWidth={3} dot={{ r: 4, fill: '#8AD8B8', stroke: '#132D28', strokeWidth: 1.5 }} activeDot={{ r: 6, fill: '#8AD8B8', stroke: '#132D28', strokeWidth: 2 }} />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
