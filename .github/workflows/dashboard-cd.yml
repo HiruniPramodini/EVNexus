@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
     paths:
       - 'DashboardAnalyticsService/**'
       - '.github/workflows/dashboard-cd.yml'
@@ -14,6 +15,11 @@ jobs:
   build-test-package:
     name: Build, Test and Package Dashboard Service
     runs-on: ubuntu-latest
+
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=dashboard_db_test;User=evnexus;Password=evnexus_password;"
+      ASPNETCORE_ENVIRONMENT: "Development"
+      JWT_SECRET: "EVNexus_Test_Only_Jwt_Secret_2026_AtLeast32Chars!"
 
     steps:
       - name: Checkout repository

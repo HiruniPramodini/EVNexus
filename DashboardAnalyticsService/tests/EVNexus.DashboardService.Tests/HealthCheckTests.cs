@@ -13,6 +13,8 @@ public class HealthCheckTests : IClassFixture<WebApplicationFactory<Program>>
     {
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.UseSetting("ConnectionStrings:DefaultConnection", "Server=localhost;Port=3306;Database=test;User=root;Password=;");
+            builder.UseSetting("JWT_SECRET", "EVNexus_Test_Only_Jwt_Secret_2026_AtLeast32Chars!");
             builder.ConfigureServices(services =>
             {
                 // In memory test configuration if needed
