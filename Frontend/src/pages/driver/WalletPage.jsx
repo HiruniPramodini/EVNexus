@@ -181,40 +181,38 @@ export default function WalletPage({ authUser }) {
     <div className="animate-fade-in" style={{ maxWidth: '900px', margin: '0 auto' }}>
       
       {/* Wallet Balance Card */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)', 
-        color: 'white', 
-        borderRadius: 'var(--radius-lg)', 
-        padding: 'var(--space-6)', 
-        marginBottom: 'var(--space-6)',
-        boxShadow: 'var(--shadow-md)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div className="wallet-hero" style={{ marginBottom: 'var(--space-6)', boxShadow: 'var(--shadow-md)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-4)' }}>
           <div>
-            <p className="text-caption" style={{ margin: 0, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>My Wallet Balance</p>
-            <h1 className="text-h1" style={{ margin: 'var(--space-2) 0 0 0', fontSize: '3.5rem', color: 'white' }}>
+            <p className="text-caption" style={{ margin: 0, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Current Balance</p>
+            <h1 className="text-h1" style={{ margin: 'var(--space-2) 0', fontSize: '3.5rem', color: '#ffffff', letterSpacing: '-0.03em' }}>
               ${(typeof wallet?.balance === 'number' ? wallet.balance : (parseFloat(wallet?.balance) || 0)).toFixed(2)}
             </h1>
-            <p style={{ margin: 'var(--space-2) 0 0 0', opacity: 0.8, fontSize: '0.9rem' }}>{wallet?.currency || 'USD'}</p>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.15)', padding: '2px 10px', borderRadius: 'var(--radius-pill)', fontSize: '0.8rem' }}>
+              <span className="status-dot status-dot--pulse" style={{ background: 'var(--brand-300)' }} />
+              {wallet?.currency || 'USD'} &bull; Ready for charging
+            </div>
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.1)', padding: 'var(--space-3)', borderRadius: '50%' }}>
-            <CreditCard size={40} />
+          <div style={{ background: 'rgba(255,255,255,0.12)', padding: 'var(--space-3)', borderRadius: 'var(--radius-lg)' }}>
+            <CreditCard size={36} color="var(--brand-300)" />
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+
+        <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-6)', flexWrap: 'wrap' }}>
           <button 
+            type="button"
             onClick={openTopUpModal} 
-            className="btn" 
-            style={{ 
-              background: 'white', color: 'var(--color-primary-dark)', 
-              border: 'none', fontWeight: 'var(--weight-bold)',
-              padding: '0.75rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem'
-            }}
+            className="btn btn-light" 
+            style={{ fontWeight: 700 }}
           >
-            <Plus size={18} strokeWidth={3} /> Add Money
+            <Plus size={18} strokeWidth={2.5} /> Top Up Wallet
+          </button>
+          <button 
+            type="button"
+            onClick={loadWalletData} 
+            className="btn btn-outline-light"
+          >
+            <History size={16} /> Refresh Balance
           </button>
         </div>
       </div>
@@ -222,10 +220,10 @@ export default function WalletPage({ authUser }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-6)' }}>
         
         {/* Transaction History */}
-        <div className="card" style={{ padding: 'var(--space-5)', background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)' }}>
+        <div className="card" style={{ padding: 'var(--space-6)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-5)' }}>
-            <h3 className="text-h3" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text)' }}>
-              <History size={20} color="var(--color-primary)" />
+            <h3 className="text-h3" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <History size={20} color="var(--brand-600)" />
               Recent Transactions
             </h3>
             <button 
@@ -378,11 +376,11 @@ export default function WalletPage({ authUser }) {
 
                   <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
                     <div style={{
-                      background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      color: 'white',
-                      boxShadow: '0 10px 25px rgba(59, 130, 246, 0.5)',
+                      background: 'linear-gradient(135deg, var(--brand-900) 0%, var(--brand-600) 100%)',
+                      borderRadius: '16px',
+                      padding: '22px',
+                      color: '#ffffff',
+                      boxShadow: 'var(--shadow-md)',
                       marginBottom: '20px',
                       position: 'relative',
                       overflow: 'hidden'

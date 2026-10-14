@@ -774,9 +774,9 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                     </div>
                   ) : (
                     <div>
-                      <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', color: 'white', marginBottom: 'var(--space-4)' }}>
-                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: 'var(--space-2)' }}>CURRENT BALANCE</div>
-                        <div style={{ fontSize: '2.5rem', fontWeight: 'var(--weight-bold)', lineHeight: 1 }}>
+                      <div style={{ background: 'linear-gradient(135deg, var(--brand-900) 0%, #1c423a 100%)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', color: 'white', marginBottom: 'var(--space-4)', boxShadow: '0 8px 24px -4px rgba(19, 45, 40, 0.25)', border: '1px solid rgba(138, 216, 184, 0.2)' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--brand-300)', marginBottom: 'var(--space-2)' }}>CURRENT BALANCE</div>
+                        <div style={{ fontSize: '2.5rem', fontWeight: 'var(--weight-bold)', lineHeight: 1, color: 'var(--cream-100)' }}>
                           ${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)}
                         </div>
                       </div>

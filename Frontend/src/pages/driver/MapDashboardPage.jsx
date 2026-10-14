@@ -747,7 +747,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
           {userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number' && (
             <Marker
               position={[userLocation.lat, userLocation.lng]}
-              icon={createUserLocationIcon('#0284c7', 20)}
+              icon={createUserLocationIcon('#132d28', 22)}
             >
               <Popup>
                 <div style={{ padding: '4px', fontSize: '0.85rem' }}>
@@ -761,7 +761,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
           {searchMarker && (
             <Marker
               position={[searchMarker.lat, searchMarker.lng]}
-              icon={createSearchIcon('#e11d48', 38)}
+              icon={createSearchIcon('#d64545', 38)}
             >
               <Popup>
                 <div style={{ padding: '4px', maxWidth: '200px' }}>
@@ -786,7 +786,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               <Marker
                 key={item.station.id}
                 position={[lat, lng]}
-                icon={createStationIcon(isSelected ? '#0284c7' : '#0369a1', isSelected ? 40 : 36)}
+                icon={createStationIcon(isSelected ? '#132d28' : '#408576', isSelected ? 40 : 36)}
                 eventHandlers={{
                   click: () => {
                     setSelectedStation(item.station);

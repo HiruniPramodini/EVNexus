@@ -30,7 +30,7 @@ export default function CompanySessionsPage() {
         <div className="dash-card-header">
           <div>
             <h3 className="dash-card-title">
-              <Activity size={18} color="#d97706" />
+              <Activity size={18} color="var(--brand-600)" />
               Live Charging Sessions
             </h3>
             <p className="dash-card-subtitle">Real-time view of drivers currently charging at your stations.</p>
@@ -39,7 +39,7 @@ export default function CompanySessionsPage() {
             type="button" 
             className="submit-btn" 
             onClick={fetchSessions}
-            style={{ width: 'auto', margin: 0, padding: '0.45rem 1rem', fontSize: '0.8rem', background: '#d97706' }}
+            style={{ width: 'auto', margin: 0, padding: '0.45rem 1rem', fontSize: '0.8rem' }}
           >
             <RefreshCw size={14} className={loading ? 'spinner' : ''} />
             <span>Refresh</span>
