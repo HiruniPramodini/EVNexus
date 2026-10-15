@@ -13,6 +13,6 @@ public class ChargingSessionCompletedEvent
     public decimal EnergyConsumedKwh { get; set; }
     public decimal FinalAmount { get; set; }
     public decimal PricePerKwh { get; set; }
-    public string Currency { get; set; } = "USD";
+    public string Currency { get; set; } = "LKR";
     public DateTime CompletedAt { get; set; }
 }
