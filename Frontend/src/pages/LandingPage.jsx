@@ -131,7 +131,7 @@ export default function LandingPage({ onNavigate }) {
 
                 <p className="lp-hero-text">
                   EVNexus is the unified multi-tenant EV charging platform connecting drivers,
-                  station operators, digital wallets, and AI-driven analytics — all in one reliable system.
+                  station operators, digital wallets, and AI-driven analytics in one reliable system.
                 </p>
 
                 <div className="lp-hero-ctas">
@@ -260,7 +260,7 @@ export default function LandingPage({ onNavigate }) {
               <span className="lp-kicker">Unified Architecture</span>
               <h2 className="lp-h2">Everything needed to power electric vehicle charging</h2>
               <p className="lp-lead">
-                Built specifically for real-world operations — EVNexus provides equal power
+                Built specifically for real-world operations, EVNexus provides equal power
                 to daily commuters charging on the go and enterprise networks running dozens of locations.
               </p>
             </div>
@@ -360,7 +360,7 @@ export default function LandingPage({ onNavigate }) {
                     <span className="lp-check"><Check size={14} /></span>
                     <div>
                       <strong>Interactive Station Map:</strong>
-                      <span className="lp-muted"> Search stations by address, radius (5–200 km), and see live power ratings.</span>
+                      <span className="lp-muted"> Search stations by address, radius (5 to 200 km), and see live power ratings.</span>
                     </div>
                   </li>
                   <li>
@@ -381,7 +381,7 @@ export default function LandingPage({ onNavigate }) {
                     <span className="lp-check"><Check size={14} /></span>
                     <div>
                       <strong>In-App Digital Wallet:</strong>
-                      <span className="lp-muted"> Top up with preset amounts ($10, $25, $50, $100), view transaction history, and receive digital receipts.</span>
+                      <span className="lp-muted"> Top up with preset amounts (LKR 500, LKR 1,000, LKR 2,500, LKR 5,000), view transaction history, and receive digital receipts.</span>
                     </div>
                   </li>
                 </ul>
@@ -429,7 +429,7 @@ export default function LandingPage({ onNavigate }) {
                 <h2 className="lp-h2">Complete enterprise control of your charging assets.</h2>
                 <p className="lp-lead">
                   Provision new charging locations, manage individual charger ports, inspect live charging
-                  traffic, and manage operator staff accounts — all secured under your dedicated tenant ID.
+                  traffic, and manage operator staff accounts, all secured under your dedicated tenant ID.
                 </p>
 
                 <ul className="lp-checklist">
