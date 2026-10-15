@@ -117,7 +117,7 @@ public class ChargingSessionCompletedConsumer : BackgroundService
                 EstimatedAmount = sessionEvent.FinalAmount,
                 FinalAmount = sessionEvent.FinalAmount,
                 EnergyConsumedKwh = sessionEvent.EnergyConsumedKwh,
-                Currency = string.IsNullOrEmpty(sessionEvent.Currency) ? "USD" : sessionEvent.Currency,
+                Currency = string.IsNullOrEmpty(sessionEvent.Currency) ? "LKR" : sessionEvent.Currency,
                 PaymentMethod = "WALLET",
                 Status = "AUTHORIZED"
             };
