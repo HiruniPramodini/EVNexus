@@ -151,7 +151,7 @@ public class SessionsController : ControllerBase
                 EnergyConsumedKwh = updatedSession.EnergyConsumedKwh,
                 FinalAmount = updatedSession.TotalCost,
                 PricePerKwh = price,
-                Currency = "USD",
+                Currency = "LKR",
                 CompletedAt = DateTime.UtcNow
             };
 
