@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreditCard, Plus, History, RefreshCw, AlertCircle, ArrowUpRight, ArrowDownRight, CheckCircle2, ChevronRight, X, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { getDriverWallet, topUpWallet, getWalletTransactions } from '../../services/api';
+import { formatLKR } from '../../utils/currency';
 
 export default function WalletPage({ authUser }) {
   const [wallet, setWallet] = useState(null);
@@ -31,7 +32,7 @@ export default function WalletPage({ authUser }) {
         getDriverWallet(authUser?.accessToken),
         getWalletTransactions(1, 20, authUser?.accessToken)
       ]);
-      setWallet(walletRes?.data || walletRes || { balance: 0, currency: 'USD' });
+      setWallet(walletRes?.data || walletRes || { balance: 0, currency: 'LKR' });
       const rawTxData = txRes?.data ?? txRes;
       setTransactions(Array.isArray(rawTxData) ? rawTxData : []);
     } catch (err) {
@@ -186,11 +187,11 @@ export default function WalletPage({ authUser }) {
           <div>
             <p className="text-caption" style={{ margin: 0, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600 }}>Current Balance</p>
             <h1 className="text-h1" style={{ margin: 'var(--space-2) 0', fontSize: '3.5rem', color: '#ffffff', letterSpacing: '-0.03em' }}>
-              ${(typeof wallet?.balance === 'number' ? wallet.balance : (parseFloat(wallet?.balance) || 0)).toFixed(2)}
+              {formatLKR(wallet?.balance || 0)}
             </h1>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.15)', padding: '2px 10px', borderRadius: 'var(--radius-pill)', fontSize: '0.8rem' }}>
               <span className="status-dot status-dot--pulse" style={{ background: 'var(--brand-300)' }} />
-              {wallet?.currency || 'USD'} &bull; Ready for charging
+              LKR &bull; Ready for charging
             </div>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.12)', padding: 'var(--space-3)', borderRadius: 'var(--radius-lg)' }}>
@@ -274,7 +275,7 @@ export default function WalletPage({ authUser }) {
                       fontWeight: 'var(--weight-bold)', fontSize: '1.1rem',
                       color: tx.type === 'TOP_UP' || tx.type === 'REFUND' ? 'var(--color-success-dark)' : 'var(--color-text)' 
                     }}>
-                      {tx.type === 'TOP_UP' || tx.type === 'REFUND' ? '+' : '-'}${amountVal.toFixed(2)}
+                      {tx.type === 'TOP_UP' || tx.type === 'REFUND' ? '+' : '-'}{formatLKR(amountVal)}
                     </div>
                   </div>
                 );
@@ -315,7 +316,7 @@ export default function WalletPage({ authUser }) {
                   <p className="text-secondary" style={{ marginBottom: 'var(--space-4)' }}>Choose how much you'd like to add to your wallet.</p>
                   
                   <div className="grid grid-cols-2" style={{ gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-                    {[10, 25, 50, 100].map(amt => (
+                    {[500, 1000, 2500, 5000].map(amt => (
                       <button
                         key={amt}
                         type="button"
@@ -328,24 +329,24 @@ export default function WalletPage({ authUser }) {
                           color: topUpAmount === amt.toString() ? 'var(--color-primary-dark)' : 'var(--color-text)'
                         }}
                       >
-                        ${amt.toFixed(2)}
+                        {formatLKR(amt)}
                       </button>
                     ))}
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 'var(--space-5)' }}>
-                    <label className="form-label">Custom Amount</label>
+                    <label className="form-label">Custom Amount (LKR)</label>
                     <div style={{ position: 'relative' }}>
-                      <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }}>$</span>
+                      <span style={{ position: 'absolute', left: '0.8rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600 }}>LKR</span>
                       <input
                         type="number"
                         className="form-input"
                         value={topUpAmount}
                         onChange={(e) => { setTopUpAmount(e.target.value); setCardError(null); }}
                         placeholder="0.00"
-                        step="0.01"
-                        min="0.01"
-                        style={{ paddingLeft: '2rem' }}
+                        step="1"
+                        min="50"
+                        style={{ paddingLeft: '3rem' }}
                       />
                     </div>
                   </div>
@@ -367,11 +368,11 @@ export default function WalletPage({ authUser }) {
                 <form onSubmit={handleCardNext}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-4)', padding: 'var(--space-3)', background: 'var(--color-primary-light)', borderRadius: 'var(--radius-md)', color: 'var(--color-primary-dark)' }}>
                     <span style={{ fontWeight: 'var(--weight-semibold)' }}>Amount to add:</span>
-                    <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>${parseFloat(topUpAmount).toFixed(2)}</span>
+                    <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>{formatLKR(parseFloat(topUpAmount) || 0)}</span>
                   </div>
 
                   <div className="alert alert-info" style={{ marginBottom: 'var(--space-4)', fontSize: '0.85rem' }}>
-                    <ShieldCheck size={16} /> Demo payment — no real money will be charged.
+                    <ShieldCheck size={16} /> Demo payment. No real money will be charged.
                   </div>
 
                   <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
@@ -445,7 +446,7 @@ export default function WalletPage({ authUser }) {
                   <div className="card" style={{ padding: 'var(--space-4)', background: '#fff', marginBottom: 'var(--space-4)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                       <span className="text-secondary">Wallet Top-Up</span>
-                      <span style={{ fontWeight: 'var(--weight-semibold)' }}>${parseFloat(topUpAmount).toFixed(2)}</span>
+                      <span style={{ fontWeight: 'var(--weight-semibold)' }}>{formatLKR(parseFloat(topUpAmount) || 0)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                       <span className="text-secondary">Payment Method</span>
@@ -457,12 +458,12 @@ export default function WalletPage({ authUser }) {
                     <hr style={{ border: 'none', borderTop: '1px dashed var(--color-border)', margin: 'var(--space-3) 0' }} />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>Total Amount</span>
-                      <span className="text-h3" style={{ color: 'var(--color-primary-dark)' }}>${parseFloat(topUpAmount).toFixed(2)}</span>
+                      <span className="text-h3" style={{ color: 'var(--color-primary-dark)' }}>{formatLKR(parseFloat(topUpAmount) || 0)}</span>
                     </div>
                   </div>
 
                   <div className="alert alert-info" style={{ marginBottom: 'var(--space-5)', fontSize: '0.85rem' }}>
-                    <ShieldCheck size={16} /> Demo payment — no real money will be charged.
+                    <ShieldCheck size={16} /> Demo payment. No real money will be charged.
                   </div>
 
                   {submitError && (
@@ -495,7 +496,7 @@ export default function WalletPage({ authUser }) {
                   </div>
                   <h3 className="text-h2" style={{ color: 'var(--color-text)', marginBottom: 'var(--space-2)' }}>Payment Successful</h3>
                   <p className="text-secondary" style={{ marginBottom: 'var(--space-5)' }}>
-                    <strong>${parseFloat(topUpAmount).toFixed(2)}</strong> has been added to your wallet.
+                    <strong>{formatLKR(parseFloat(topUpAmount) || 0)}</strong> has been added to your wallet.
                   </p>
 
                   {submitError && (
@@ -507,7 +508,7 @@ export default function WalletPage({ authUser }) {
                   <div className="card" style={{ padding: 'var(--space-4)', background: '#fff', marginBottom: 'var(--space-5)' }}>
                     <p className="text-caption" style={{ margin: '0 0 var(--space-1) 0', textTransform: 'uppercase' }}>New Wallet Balance</p>
                     <h2 className="text-h2" style={{ margin: 0, color: 'var(--color-primary-dark)' }}>
-                      ${wallet?.balance?.toFixed(2) || '0.00'}
+                      {formatLKR(wallet?.balance || 0)}
                     </h2>
                   </div>
 
