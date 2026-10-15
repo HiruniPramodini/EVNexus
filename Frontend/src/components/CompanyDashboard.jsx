@@ -67,6 +67,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   LineChart, Line
 } from 'recharts';
+import { formatLKR } from '../utils/currency';
 
 const PRESET_LOGOS = [
   { label: 'GreenPulse', url: 'https://images.unsplash.com/photo-1558441719-8b489c652756?w=200' },
@@ -199,6 +200,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const [transactionsError, setTransactionsError] = useState(null);
   const [trendError, setTrendError] = useState(null);
   const [forecastError, setForecastError] = useState(null);
+  const [forecastMeta, setForecastMeta] = useState(null);
 
   // Compute Revenue Today and Revenue This Month from real completed transactions
   const revenueCalculations = React.useMemo(() => {
@@ -270,6 +272,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
     setTransactionsError(null);
     setTrendError(null);
     setForecastError(null);
+    setForecastMeta(null);
 
     const companyId = getEffectiveTenantId();
     if (!companyId) {
@@ -280,12 +283,13 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
 
     const pAnalytics = getDashboardAnalytics(companyId)
       .then(res => {
-        if (res?.data) {
-          const raw = res.data;
+        const raw = res?.data !== undefined ? res.data : res;
+        if (raw) {
           setAnalyticsData({
             totalRevenue: raw.totalRevenue ?? raw.TotalRevenue ?? 0,
             completedTransactions: raw.completedTransactions ?? raw.CompletedTransactions ?? 0,
-            totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0
+            totalEnergyKwh: raw.totalEnergyKwh ?? raw.TotalEnergyKwh ?? 0,
+            totalRevenueToday: raw.totalRevenueToday ?? raw.TotalRevenueToday ?? 0
           });
         }
       })
@@ -296,10 +300,11 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
 
     const pTx = getCompanyTransactions(companyId)
       .then(res => {
-        if (res?.data && Array.isArray(res.data)) {
-          setTransactionsData(res.data);
-        } else if (res?.data) {
-          setTransactionsData([res.data]);
+        const raw = res?.data !== undefined ? res.data : res;
+        if (Array.isArray(raw)) {
+          setTransactionsData(raw);
+        } else if (raw) {
+          setTransactionsData([raw]);
         } else {
           setTransactionsData([]);
         }
@@ -311,8 +316,9 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
 
     const pTrend = getCompanyRevenueTrend(companyId)
       .then(res => {
-        if (res?.data && Array.isArray(res.data)) {
-          const normalized = res.data.map(item => ({
+        const raw = res?.data !== undefined ? res.data : res;
+        if (Array.isArray(raw)) {
+          const normalized = raw.map(item => ({
             date: item.date || item.Date || '',
             revenue: typeof item.revenue === 'number' ? item.revenue : (parseFloat(item.Revenue || item.revenue) || 0)
           }));
@@ -328,12 +334,20 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
 
     const pForecast = getCompanyForecast(companyId)
       .then(res => {
-        if (res?.data) {
-          const arr = Array.isArray(res.data) ? res.data : (res.data.forecast || []);
-          setForecastData(arr);
-        } else {
-          setForecastData([]);
-        }
+        const raw = res?.data !== undefined ? res.data : res;
+        const arr = Array.isArray(raw) ? raw : (Array.isArray(raw?.forecast) ? raw.forecast : []);
+        const normalized = arr.map(item => ({
+          date: item.date || item.Date || '',
+          predictedRevenue: typeof item.predictedRevenue === 'number' ? item.predictedRevenue : (parseFloat(item.predictedRevenue || item.PredictedRevenue) || 0)
+        }));
+        setForecastData(normalized);
+        const hasHistory = res?.hasHistory ?? (normalized.length > 0 && normalized.some(x => x.predictedRevenue > 0));
+        const isBaseline = res?.isBaseline ?? false;
+        setForecastMeta({
+          hasHistory,
+          isBaseline,
+          historicalCount: res?.historicalCount ?? (hasHistory ? normalized.length : 0)
+        });
       })
       .catch(err => {
         console.warn('Forecast API error:', err);
@@ -858,7 +872,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   Welcome back, Company Administrator
                 </h2>
                 <div style={{ fontSize: '1.1rem', color: 'var(--text-muted)' }}>
-                  {activeCompanyName} — Monitor your charging network and business performance.
+                  {activeCompanyName}. Monitor your charging network and business performance.
                 </div>
               </div>
               <button
@@ -899,7 +913,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                       <CreditCard size={16} color="var(--primary-600)" /> Revenue Today
                     </div>
                     <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
-                      ${revenueCalculations.revenueToday.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatLKR(revenueCalculations.revenueToday)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                       Today's settled revenue
@@ -912,7 +926,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                       <CreditCard size={16} color="#059669" /> Revenue This Month
                     </div>
                     <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
-                      ${revenueCalculations.revenueThisMonth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {formatLKR(revenueCalculations.revenueThisMonth)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                       Current month to date
@@ -926,7 +940,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                     </div>
                     <div style={{ fontSize: '1.85rem', fontWeight: 700, color: 'var(--text-main)', marginTop: '0.5rem' }}>
                       {analyticsData ? (
-                        `$${(analyticsData.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        formatLKR(analyticsData.totalRevenue || 0)
                       ) : (
                         <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>Unavailable</span>
                       )}
@@ -1016,8 +1030,8 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                         <BarChart data={revenueTrend}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                           <XAxis dataKey="date" tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
-                          <RechartsTooltip cursor={{ fill: 'rgba(64, 133, 118, 0.08)' }} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `${value}`} />
+                          <RechartsTooltip cursor={{ fill: 'rgba(64, 133, 118, 0.08)' }} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} formatter={(val) => [formatLKR(val), 'Revenue']} />
                           <Bar dataKey="revenue" fill="#408576" radius={[6, 6, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -1030,48 +1044,143 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
 
                   {/* AI Forecast */}
                   <div className="dash-card" style={{ padding: '1.5rem' }}>
-                    <h3 style={{ fontSize: '1.1rem', margin: '0 0 1.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <Sparkles size={18} color="var(--brand-500)" /> 7-Day Revenue Forecast
-                    </h3>
-                    {forecastError ? (
-                      <div style={{ height: '250px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px', padding: '1rem', textAlign: 'center' }}>
-                        <AlertCircle size={24} style={{ marginBottom: '0.5rem' }} />
-                        <div style={{ fontWeight: 600 }}>Failed to load revenue forecast</div>
-                        <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem' }}>{forecastError}</div>
-                        <button type="button" onClick={loadAnalytics} className="submit-btn" style={{ width: 'auto', marginTop: '0.75rem', padding: '0.3rem 0.8rem', fontSize: '0.8rem' }}>Retry</button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '1.1rem', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <Sparkles size={18} color="var(--brand-500)" /> 7-Day Revenue Forecast
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Machine-learning assisted financial projection for the upcoming week.
+                        </p>
                       </div>
-                    ) : forecastData && forecastData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={250}>
-                        <LineChart data={forecastData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                          <XAxis 
-                            dataKey="date" 
-                            tick={{ fontSize: 12, fill: '#64748b' }} 
-                            axisLine={false} 
-                            tickLine={false} 
-                            tickFormatter={(val) => {
-                              if (!val) return '';
-                              const d = new Date(val);
-                              return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-                            }} 
-                          />
-                          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value}`} />
-                          <RechartsTooltip 
-                            cursor={{ stroke: '#cbd5e1' }} 
-                            contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} 
-                            labelFormatter={(val) => {
-                              if (!val) return '';
-                              const d = new Date(val);
-                              return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString();
-                            }} 
-                          />
-                          <Line type="monotone" dataKey="predictedRevenue" stroke="#408576" strokeWidth={3} dot={{ r: 4, fill: '#8AD8B8', stroke: '#132D28', strokeWidth: 1.5 }} activeDot={{ r: 6, fill: '#8AD8B8', stroke: '#132D28', strokeWidth: 2 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
+
+                      {forecastData && forecastData.length > 0 && forecastMeta?.hasHistory && (
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>7-Day Total</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--brand-600)' }}>
+                              {formatLKR(forecastData.reduce((acc, curr) => acc + (curr.predictedRevenue || 0), 0))}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Daily Avg</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                              {formatLKR(forecastData.reduce((acc, curr) => acc + (curr.predictedRevenue || 0), 0) / forecastData.length)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {loadingAnalytics ? (
+                      <div style={{ height: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', color: 'var(--text-muted)', background: 'var(--bg-page)', borderRadius: '8px' }}>
+                        <RefreshCw size={28} className="spinner" color="var(--brand-500)" />
+                        <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>Generating 7-day ML.NET revenue forecast...</div>
+                      </div>
+                    ) : forecastError ? (
+                      <div style={{ height: '280px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#dc2626', background: '#fef2f2', borderRadius: '8px', padding: '1.5rem', textAlign: 'center' }}>
+                        <AlertCircle size={32} style={{ marginBottom: '0.5rem' }} />
+                        <div style={{ fontWeight: 600, fontSize: '1rem' }}>
+                          {forecastError.toLowerCase().includes('unauthorized') || forecastError.toLowerCase().includes('access denied') || forecastError.toLowerCase().includes('tenant mismatch')
+                            ? 'Access Denied to Revenue Forecast'
+                            : 'Unable to Generate Revenue Forecast'}
+                        </div>
+                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.35rem', maxWidth: '420px' }}>
+                          {forecastError.toLowerCase().includes('unauthorized') || forecastError.toLowerCase().includes('access denied') || forecastError.toLowerCase().includes('tenant mismatch')
+                            ? 'Your authenticated session does not have permission to view analytics for this company tenant.'
+                            : forecastError}
+                        </div>
+                        <button type="button" onClick={loadAnalytics} className="submit-btn" style={{ width: 'auto', marginTop: '1rem', padding: '0.4rem 1.1rem', fontSize: '0.85rem' }}>
+                          <RefreshCw size={13} style={{ marginRight: '0.35rem' }} /> Retry Forecast
+                        </button>
+                      </div>
+                    ) : !forecastData || forecastData.length === 0 || !forecastMeta?.hasHistory ? (
+                      <div style={{ height: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', background: 'var(--bg-page)', borderRadius: '8px', flexDirection: 'column', gap: '0.75rem', padding: '2rem', textAlign: 'center' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Sparkles size={24} color="#94a3b8" />
+                        </div>
+                        <div style={{ fontWeight: 600, color: 'var(--text-main)', fontSize: '0.95rem' }}>No Historical Transaction Data Available</div>
+                        <div style={{ fontSize: '0.85rem', maxWidth: '400px', lineHeight: 1.4 }}>
+                          The 7-day predictive revenue model requires past completed charging sessions to calculate demand patterns. Predictions will generate automatically once charging sessions are completed.
+                        </div>
+                      </div>
                     ) : (
-                      <div style={{ height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', background: '#f8fafc', borderRadius: '8px', flexDirection: 'column', gap: '0.5rem' }}>
-                        <Sparkles size={24} color="#cbd5e1" />
-                        <div>Forecast will appear once sufficient historical data is available.</div>
+                      <div>
+                        {forecastMeta?.isBaseline && (
+                          <div className="alert alert-info" style={{ marginBottom: '1rem', padding: '0.6rem 0.9rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Clock size={16} />
+                            <span>
+                              <strong>Baseline Forecast:</strong> Generated using average trends due to limited history ({forecastMeta.historicalCount || '< 7'} days). Full machine-learning seasonality activates once 7+ days of activity are logged.
+                            </span>
+                          </div>
+                        )}
+
+                        <ResponsiveContainer width="100%" height={230}>
+                          <LineChart data={forecastData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                            <XAxis 
+                              dataKey="date" 
+                              tick={{ fontSize: 12, fill: '#64748b' }} 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tickFormatter={(val) => {
+                                if (!val) return '';
+                                const d = new Date(val);
+                                return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric' });
+                              }} 
+                            />
+                            <YAxis 
+                              tick={{ fontSize: 12, fill: '#64748b' }} 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tickFormatter={(value) => `${value}`} 
+                            />
+                            <RechartsTooltip 
+                              cursor={{ stroke: '#cbd5e1', strokeDasharray: '4 4' }} 
+                              contentStyle={{ borderRadius: '8px', border: '1px solid var(--border-subtle)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', background: '#ffffff' }} 
+                              labelFormatter={(val) => {
+                                if (!val) return '';
+                                const d = new Date(val);
+                                return isNaN(d.getTime()) ? String(val) : d.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' });
+                              }}
+                              formatter={(value) => [formatLKR(value), 'Predicted Revenue']}
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="predictedRevenue" 
+                              stroke="#0d9488" 
+                              strokeWidth={3} 
+                              dot={{ r: 4, fill: '#2dd4bf', stroke: '#115e59', strokeWidth: 1.5 }} 
+                              activeDot={{ r: 6, fill: '#14b8a6', stroke: '#042f2e', strokeWidth: 2 }} 
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+
+                        {/* 7-Day Day-by-Day Forecast Breakdown */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.6rem', marginTop: '1.25rem' }}>
+                          {forecastData.map((item, idx) => {
+                            const d = new Date(item.date);
+                            const dayName = isNaN(d.getTime()) ? `Day ${idx + 1}` : d.toLocaleDateString(undefined, { weekday: 'short' });
+                            const dateStr = isNaN(d.getTime()) ? item.date : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                            const amount = Number(item.predictedRevenue || 0).toFixed(2);
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  background: 'var(--bg-page)',
+                                  border: '1px solid var(--border-subtle)',
+                                  borderRadius: '8px',
+                                  padding: '0.65rem 0.5rem',
+                                  textAlign: 'center'
+                                }}
+                              >
+                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>{dayName}</div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{dateStr}</div>
+                                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--brand-600)' }}>{formatLKR(amount)}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1112,7 +1221,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                               </td>
                               <td style={{ padding: '1rem', fontSize: '0.9rem' }}>{tx.stationId || 'Unknown'}</td>
                               <td style={{ padding: '1rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                                {tx.currency || '$'} {(Number(tx.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {formatLKR(tx.amount || 0)}
                               </td>
                               <td style={{ padding: '1rem', fontSize: '0.9rem' }}>
                                 <span className={`badge ${(tx.status || '').toUpperCase() === 'COMPLETED' ? 'badge-success' : 'badge-warning'}`}>
@@ -1339,7 +1448,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                     MONTHLY RATE
                   </span>
                   <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary-700)' }}>
-                    $499.00 / mo
+                    LKR 49,900.00 / mo
                   </span>
                 </div>
               </div>
@@ -1508,7 +1617,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                 {profileResult && (
                   <div style={{ background: 'var(--success-50)', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.85rem', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      <span>HTTP 200 OK — Token Verified</span>
+                      <span>HTTP 200 OK: Token Verified</span>
                       <span>{profileResult.latencyMs}ms</span>
                     </div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
