@@ -14,7 +14,7 @@ export default function DriverRegisterPage({ onSwitchToLogin, onSwitchToCompany 
         </>
       }
       title="Join the future of clean EV mobility."
-      description="Create your unified driver account today. Zero monthly subscription fees — discover stations, top up your wallet, and pay only for the energy you use."
+      description="Create your unified driver account today. Enjoy zero monthly subscription fees. Discover stations, top up your wallet, and pay only for the energy you use."
       highlights={[
         {
           icon: MapPin,
