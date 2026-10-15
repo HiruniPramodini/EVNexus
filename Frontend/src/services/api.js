@@ -608,6 +608,18 @@ export async function getCompanyForecast(companyId) {
   return handleResponse(response, 'Failed to get forecast data.');
 }
 
+export async function getCompanyStationAnalytics(companyId) {
+  const authToken = getAuthToken();
+  const response = await fetch(`${API_GATEWAY_URL}/api/dashboard/company/${companyId}/stations`, {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+  return handleResponse(response, 'Failed to get station analytics.');
+}
+
 export async function testCrossTenantAccess(targetTenantId, token) {
   const authToken = token || getAuthToken();
   const response = await fetch(`${API_GATEWAY_URL}/api/company/tenants/${encodeURIComponent(targetTenantId)}/stations`, {
@@ -624,7 +636,7 @@ export async function testCrossTenantAccess(targetTenantId, token) {
 
 export async function getDriverWallet(token) {
   const authToken = token || getAuthToken();
-  // Wallet is owned by Payment Service — route via /api/payment/wallet
+  // Wallet is owned by Payment Service: route via /api/payment/wallet
   const response = await fetch(`${API_GATEWAY_URL}/api/payment/wallet`, {
     method: 'GET',
     headers: {
