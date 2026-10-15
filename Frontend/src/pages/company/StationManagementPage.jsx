@@ -5,6 +5,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { getCompanyStations, createStation, updateStation, deactivateStation, getStationChargers, addChargerToStation, getChargerQr, updateCharger, deleteCharger } from '../../services/api';
 import { createStationIcon } from '../../utils/leafletIcons';
 import { searchNominatimLocations, reverseGeocodeNominatim } from '../../services/nominatim';
+import { formatLKR } from '../../utils/currency';
 
 function parseCoordinates(input) {
   if (!input || typeof input !== 'string') return null;
@@ -48,9 +49,10 @@ function MapFlyTo({ center }) {
     if (center && typeof center.lat === 'number' && typeof center.lng === 'number' && !isNaN(center.lat) && !isNaN(center.lng)) {
       map.flyTo([center.lat, center.lng], map.getZoom() || 14, { duration: 0.8 });
     }
-  }, [center, map]);
+  }, [center?.lat, center?.lng, map]);
   return null;
 }
+
 
 // Leaflet Map Resize Invalidator Helper Component
 function MapResizeInvalidator() {
@@ -287,10 +289,17 @@ export default function StationManagementPage() {
     longitude: '',
     connectorType: 'CCS2',
     capacityKw: 50,
-    pricePerKwh: 0.50
+    pricePerKwh: 85.00
   };
   const [formData, setFormData] = useState(initialFormState);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Address Geocoding Search & Suggestion State
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState(null);
+  const [localityNotice, setLocalityNotice] = useState(null);
 
   // Delete modal state
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
@@ -302,7 +311,7 @@ export default function StationManagementPage() {
   const [chargerForm, setChargerForm] = useState({
     type: 'CCS2',
     capacityKw: 50,
-    pricePerKwh: 0.50
+    pricePerKwh: 85.00
   });
   const [chargerError, setChargerError] = useState(null);
   const [editingChargerId, setEditingChargerId] = useState(null);
@@ -310,6 +319,47 @@ export default function StationManagementPage() {
   
   // QR Modal State
   const [qrModalData, setQrModalData] = useState(null);
+
+  // Debounced Address Geocoding Effect (450ms)
+  useEffect(() => {
+    if (!formData.address || formData.address.trim().length < 2) {
+      setAddressSuggestions([]);
+      setShowAddressDropdown(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingAddress(true);
+      setAddressSearchError(null);
+      try {
+        const results = await searchNominatimLocations(formData.address, { countryCode: 'lk' });
+        setAddressSuggestions(results);
+        setShowAddressDropdown(true);
+      } catch (err) {
+        console.warn('Address geocoding error:', err);
+        setAddressSearchError('Geocoding service unavailable. You can click on the map below to pinpoint coordinates.');
+      } finally {
+        setIsSearchingAddress(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [formData.address]);
+
+  const handleSelectAddressSuggestion = (item) => {
+    setFormData(prev => ({
+      ...prev,
+      address: item.display_name,
+      latitude: item.lat.toFixed(6),
+      longitude: item.lon.toFixed(6)
+    }));
+    setShowAddressDropdown(false);
+    if (item.isLocality) {
+      setLocalityNotice(`Centered on ${item.display_name} locality. Drag the marker or click on the map below to pinpoint the exact charging bay.`);
+    } else {
+      setLocalityNotice(null);
+    }
+  };
 
   useEffect(() => {
     loadStations();
@@ -367,6 +417,12 @@ export default function StationManagementPage() {
 
     const lat = parseFloat(formData.latitude);
     const lng = parseFloat(formData.longitude);
+
+    if (!formData.address || !formData.address.trim()) {
+      setError("Please enter or select a valid station address.");
+      setIsSubmitting(false);
+      return;
+    }
 
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
       setError("Please select a valid map location or enter valid latitude (-90 to 90) and longitude (-180 to 180).");
@@ -645,10 +701,100 @@ export default function StationManagementPage() {
               <label className="form-label">Station Name</label>
               <input type="text" required className="form-input" disabled={isEditing} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             </div>
-            <div className="form-group">
-              <label className="form-label">Address</label>
-              <input type="text" required className="form-input" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+            <div className="form-group" style={{ position: 'relative' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                <label className="form-label" style={{ fontWeight: 600, margin: 0 }}>
+                  Station Address (Auto-Geocoded)
+                </label>
+                {isSearchingAddress && (
+                  <span style={{ fontSize: '0.78rem', color: '#0284c7', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <RefreshCw size={12} className="spinner" /> Searching Sri Lanka locations...
+                  </span>
+                )}
+              </div>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  required
+                  className="form-input"
+                  style={{ paddingRight: '2.5rem' }}
+                  placeholder="e.g. 410/1/A/Phala Bomiriya, Kaduwela or Kandy"
+                  value={formData.address}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData(prev => ({ ...prev, address: val }));
+                    setLocalityNotice(null);
+                  }}
+                  onFocus={() => {
+                    if (addressSuggestions.length > 0) setShowAddressDropdown(true);
+                  }}
+                />
+                {formData.address && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, address: '' }));
+                      setAddressSuggestions([]);
+                      setShowAddressDropdown(false);
+                      setLocalityNotice(null);
+                    }}
+                    style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex' }}
+                    title="Clear address"
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
+
+              {/* Suggestions Dropdown */}
+              {showAddressDropdown && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 2000, background: '#ffffff', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', border: '1px solid #cbd5e1', maxHeight: '240px', overflowY: 'auto', marginTop: '4px' }}>
+                  {addressSuggestions.length > 0 ? (
+                    addressSuggestions.map((item) => (
+                      <div
+                        key={item.place_id}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          handleSelectAddressSuggestion(item);
+                        }}
+                        style={{ padding: '9px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: '0.84rem', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.6rem' }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+                          <MapPin size={15} color="#0284c7" style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.display_name}
+                          </span>
+                        </div>
+                        <span className={`badge ${item.isLocality ? 'badge-warning' : 'badge-success'}`} style={{ fontSize: '0.7rem', flexShrink: 0 }}>
+                          {item.isLocality ? 'Locality' : 'Address'}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    formData.address.trim().length >= 3 && !isSearchingAddress && (
+                      <div style={{ padding: '10px 14px', fontSize: '0.82rem', color: '#64748b' }}>
+                        No matching locations found in Sri Lanka. You can manually position the marker on the map below.
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {addressSearchError && (
+                <div style={{ fontSize: '0.8rem', color: '#b91c1c', marginTop: '0.3rem' }}>
+                  {addressSearchError}
+                </div>
+              )}
+
+              {localityNotice && (
+                <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.8rem', background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '6px', fontSize: '0.82rem', color: '#92400e' }}>
+                  <strong>Location Note:</strong> {localityNotice}
+                </div>
+              )}
             </div>
+
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
                 <label className="form-label">Latitude</label>
@@ -735,9 +881,10 @@ export default function StationManagementPage() {
               <input type="number" required className="form-input" value={formData.capacityKw} onChange={e => setFormData({...formData, capacityKw: e.target.value})} />
             </div>
             <div className="form-group">
-              <label className="form-label">Price per kWh ($)</label>
+              <label className="form-label">Price per kWh (LKR)</label>
               <input type="number" step="0.01" required className="form-input" value={formData.pricePerKwh} onChange={e => setFormData({...formData, pricePerKwh: e.target.value})} />
             </div>
+
           </div>
 
           {!isEditing && (
@@ -789,7 +936,7 @@ export default function StationManagementPage() {
                     </span>
                     <div style={{ fontSize: '0.8rem', marginTop: '0.3rem' }}>{stn.capacityKw} kW</div>
                   </td>
-                  <td style={{ fontWeight: 600 }}>${stn.pricePerKwh} / kWh</td>
+                  <td style={{ fontWeight: 600 }}>{formatLKR(stn.pricePerKwh)} / kWh</td>
                   <td>
                     <span className="badge" style={{ 
                       background: '#dcfce7',
@@ -852,7 +999,7 @@ export default function StationManagementPage() {
                   <input type="number" required className="form-input" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }} value={chargerForm.capacityKw} onChange={e => setChargerForm({...chargerForm, capacityKw: e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Price ($/kWh)</label>
+                  <label className="form-label" style={{ fontSize: '0.8rem' }}>Price (LKR/kWh)</label>
                   <input type="number" step="0.01" required className="form-input" style={{ padding: '0.4rem 0.6rem', fontSize: '0.85rem' }} value={chargerForm.pricePerKwh} onChange={e => setChargerForm({...chargerForm, pricePerKwh: e.target.value})} />
                 </div>
               </div>
@@ -886,7 +1033,8 @@ export default function StationManagementPage() {
                     <tr key={chg.id}>
                       <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{chg.id.slice(0, 8)}...</td>
                       <td>{chg.type} ({chg.powerKw} kW)</td>
-                      <td>${chg.pricePerKwh} / kWh</td>
+                      <td>{formatLKR(chg.pricePerKwh)} / kWh</td>
+
                       <td>
                         <span className="badge" style={{ background: chg.status === 'Available' ? '#dcfce7' : '#fee2e2', color: chg.status === 'Available' ? '#166534' : '#991b1b' }}>
                           {chg.status}
@@ -946,7 +1094,7 @@ export default function StationManagementPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.4rem', borderTop: '1px solid #e2e8f0' }}>
                 <span>Charger: <code style={{ fontSize: '0.8rem' }}>{qrModalData.chargerId.slice(0, 8)}...</code> ({qrModalData.chargerType} • {qrModalData.powerKw} kW)</span>
-                <span style={{ fontWeight: 700, color: 'var(--color-success-dark)' }}>${qrModalData.pricePerKwh} / kWh</span>
+                <span style={{ fontWeight: 700, color: 'var(--color-success-dark)' }}>{formatLKR(qrModalData.pricePerKwh)} / kWh</span>
               </div>
             </div>
 
