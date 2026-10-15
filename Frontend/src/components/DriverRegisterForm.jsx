@@ -277,7 +277,7 @@ export default function DriverRegisterForm({ onSwitchToLogin, onSwitchToCompany 
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontFamily: 'monospace', fontWeight: 'var(--weight-bold)' }}>{successData.walletId}</div>
-                <div className="text-caption" style={{ color: 'var(--color-success)' }}>Balance: $0.00</div>
+                <div className="text-caption" style={{ color: 'var(--color-success)' }}>Balance: LKR 0.00</div>
               </div>
               <button onClick={() => copyToClipboard(successData.walletId, 'wallet')} className="btn btn-ghost" style={{ padding: '4px', height: 'auto' }}>
                 {copiedWalletId ? <Check size={16} color="var(--color-success)" /> : <Copy size={16} />}
