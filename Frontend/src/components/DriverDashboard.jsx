@@ -55,6 +55,7 @@ import {
 } from '../services/api';
 import MapDashboardPage from '../pages/driver/MapDashboardPage';
 import SessionHistoryPage from '../pages/driver/SessionHistoryPage';
+import { formatLKR } from '../utils/currency';
 
 export default function DriverDashboard({ authUser, activeView, onLogout, onUpdateProfile, onViewChange }) {
   const [activeTab, setActiveTab] = useState('overview');
@@ -358,6 +359,14 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
     if (onLogout) {
       onLogout();
     }
+  };
+
+  const handleProfileFormChange = (e) => {
+    const { name, value } = e.target;
+    setProfileFormData((prev) => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleOpenEditProfile = () => {
@@ -717,7 +726,7 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                         </div>
                         <div style={{ background: 'var(--color-background)', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)' }}>
                           <div className="text-caption">Est. Cost</div>
-                          <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.25rem' }}>${activeSession.estimatedCost?.toFixed(2) || '0.00'}</div>
+                          <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.25rem' }}>{formatLKR(activeSession.estimatedCost || 0)}</div>
                         </div>
                       </div>
                       <button className="btn btn-outline" style={{ width: '100%' }} onClick={() => onViewChange && onViewChange('live')}>
@@ -737,16 +746,31 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
 
                 {/* Driver Profile Summary */}
                 <div className="card">
-                  <div className="card-header">
+                  <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 className="card-title">Driver Profile</h3>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '0.3rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      onClick={handleOpenEditProfile}
+                      aria-label="Edit Driver Profile"
+                    >
+                      <Edit3 size={13} />
+                      <span>Edit</span>
+                    </button>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)' }}>
                     <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--color-primary-light)', color: 'var(--color-primary-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'var(--weight-bold)' }}>
                       {effectiveName.charAt(0)}
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontWeight: 'var(--weight-bold)', fontSize: '1.1rem' }}>{effectiveName}</div>
-                      <div className="text-secondary">{effectiveEmail}</div>
+                      <div className="text-secondary" style={{ wordBreak: 'break-all' }}>{effectiveEmail}</div>
+                      {effectivePhone && (
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          <span style={{ fontWeight: 500 }}>Phone: </span>{effectivePhone}
+                        </div>
+                      )}
                       <div className="text-caption" style={{ marginTop: 'var(--space-1)' }}>
                         {isEmailVerified ? <span style={{ color: 'var(--color-success-dark)', display: 'flex', alignItems: 'center', gap: '4px' }}><CheckCircle2 size={12} /> Verified Driver</span> : <span style={{ color: 'var(--color-warning-dark)' }}>Unverified</span>}
                       </div>
@@ -777,7 +801,7 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                       <div style={{ background: 'linear-gradient(135deg, var(--brand-900) 0%, #1c423a 100%)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', color: 'white', marginBottom: 'var(--space-4)', boxShadow: '0 8px 24px -4px rgba(19, 45, 40, 0.25)', border: '1px solid rgba(138, 216, 184, 0.2)' }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--brand-300)', marginBottom: 'var(--space-2)' }}>CURRENT BALANCE</div>
                         <div style={{ fontSize: '2.5rem', fontWeight: 'var(--weight-bold)', lineHeight: 1, color: 'var(--cream-100)' }}>
-                          ${walletBalance !== null ? Number(walletBalance).toFixed(2) : Number(effectiveBalance).toFixed(2)}
+                          {formatLKR(walletBalance !== null ? Number(walletBalance) : Number(effectiveBalance))}
                         </div>
                       </div>
                       
@@ -800,7 +824,7 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                                   </div>
                                 </div>
                                 <div style={{ fontWeight: 'var(--weight-bold)', color: tx.amount < 0 ? 'var(--color-text)' : 'var(--color-success)' }}>
-                                  {tx.amount < 0 ? '-' : '+'}${Math.abs(tx.amount).toFixed(2)}
+                                  {tx.amount < 0 ? '-' : '+'}{formatLKR(Math.abs(tx.amount))}
                                 </div>
                               </div>
                             ))}
@@ -1092,7 +1116,7 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                 {profileResult && (
                   <div style={{ background: 'var(--success-50)', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.85rem', fontSize: '0.85rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      <span>HTTP 200 OK — Authorized</span>
+                      <span>HTTP 200 OK: Authorized</span>
                       <span>{profileResult.latencyMs}ms</span>
                     </div>
                     <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -1342,6 +1366,17 @@ export default function DriverDashboard({ authUser, activeView, onLogout, onUpda
                 <div className="alert alert-danger">
                   <AlertTriangle size={16} />
                   <span>{profileErrorMsg}</span>
+                </div>
+              )}
+
+              {profileValidationErrors && profileValidationErrors.length > 0 && (
+                <div className="alert alert-danger" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
+                  {profileValidationErrors.map((msg, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem' }}>
+                      <AlertCircle size={14} />
+                      <span>{msg}</span>
+                    </div>
+                  ))}
                 </div>
               )}
 
