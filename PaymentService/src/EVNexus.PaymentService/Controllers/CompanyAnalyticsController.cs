@@ -10,6 +10,7 @@ namespace EVNexus.PaymentService.Controllers;
 
 [ApiController]
 [Route("api/payment/analytics")]
+[Route("api/dashboard")]
 [Authorize]
 public class CompanyAnalyticsController : ControllerBase
 {
@@ -26,8 +27,8 @@ public class CompanyAnalyticsController : ControllerBase
     {
         var roleClaim = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
         
-        // Only allow CompanyAdmin or Operator to access analytics
-        if (roleClaim != "CompanyAdmin" && roleClaim != "Operator")
+        // Allow CompanyAdmin, Operator, or Company role to access analytics
+        if (roleClaim != "CompanyAdmin" && roleClaim != "Operator" && roleClaim != "Company")
         {
             return "Access denied: Requires Company Role.";
         }
@@ -48,7 +49,7 @@ public class CompanyAnalyticsController : ControllerBase
         if (error != null) return Forbid();
 
         var data = await _repository.GetDashboardAnalyticsAsync(companyId, startDate, endDate, stationId);
-        return Ok(data);
+        return Ok(new { success = true, data });
     }
 
     [HttpGet("company/{companyId}/transactions")]
@@ -58,7 +59,7 @@ public class CompanyAnalyticsController : ControllerBase
         if (error != null) return Forbid();
 
         var data = await _repository.GetCompanyTransactionsAsync(companyId, limit, startDate, endDate, stationId);
-        return Ok(data);
+        return Ok(new { success = true, data });
     }
 
     [HttpGet("company/{companyId}/revenue-trend")]
@@ -68,7 +69,7 @@ public class CompanyAnalyticsController : ControllerBase
         if (error != null) return Forbid();
 
         var data = await _repository.GetCompanyRevenueTrendAsync(companyId, startDate, endDate, stationId);
-        return Ok(data);
+        return Ok(new { success = true, data });
     }
 
     [HttpGet("company/{companyId}/stations")]
@@ -78,7 +79,7 @@ public class CompanyAnalyticsController : ControllerBase
         if (error != null) return Forbid();
 
         var data = await _repository.GetStationAnalyticsAsync(companyId, startDate, endDate, stationId);
-        return Ok(data);
+        return Ok(new { success = true, data });
     }
 
     [HttpGet("company/{companyId}/forecast")]
@@ -104,6 +105,14 @@ public class CompanyAnalyticsController : ControllerBase
         }).Where(r => r.Date != DateTime.MinValue).OrderBy(r => r.Date).ToList();
 
         var forecast = _forecastService.PredictNext7Days(revenueData);
-        return Ok(forecast);
+        var hasHistory = revenueData.Count > 0 && revenueData.Any(r => r.Amount > 0);
+        return Ok(new
+        {
+            success = true,
+            data = forecast,
+            historicalCount = revenueData.Count,
+            isBaseline = revenueData.Count < 7,
+            hasHistory
+        });
     }
 }
