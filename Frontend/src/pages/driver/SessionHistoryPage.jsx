@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { History, Zap, Clock, CreditCard, RefreshCw, FileText, X } from 'lucide-react';
 import { getSessionHistory } from '../../services/api';
+import { formatLKR } from '../../utils/currency';
 
 export default function SessionHistoryPage({ authUser }) {
   const [history, setHistory] = useState([]);
@@ -102,7 +103,7 @@ export default function SessionHistoryPage({ authUser }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#0369a1', fontWeight: 700 }}>
-                          <CreditCard size={14} /> ${s.totalCost.toFixed(2)}
+                          <CreditCard size={14} /> {formatLKR(s.totalCost)}
                         </div>
                       </td>
                       <td>
@@ -138,7 +139,7 @@ export default function SessionHistoryPage({ authUser }) {
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
                 <h2 style={{ margin: '0 0 0.5rem 0', color: '#10b981', fontSize: '2rem' }}>
-                  ${selectedReceipt.session.totalCost.toFixed(2)}
+                  {formatLKR(selectedReceipt.session.totalCost)}
                 </h2>
                 <span className="badge badge-success">Payment Successful</span>
               </div>
