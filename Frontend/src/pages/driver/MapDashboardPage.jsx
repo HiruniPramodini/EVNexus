@@ -5,6 +5,7 @@ import { getNearbyStations, getActiveSession, startChargingSession, stopCharging
 import { searchNominatimLocations } from '../../services/nominatim';
 import { createStationIcon, createSearchIcon, createUserLocationIcon } from '../../utils/leafletIcons';
 import jsQR from 'jsqr';
+import { formatLKR } from '../../utils/currency';
 
 // Default map center fallback (Colombo area)
 const defaultCenter = {
@@ -496,13 +497,13 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                   <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Rate</span>
                   <span style={{ fontWeight: 'var(--weight-semibold)' }}>
-                    ${parseFloat(activeSession.pricePerKwh || 0).toFixed(2)} / kWh
+                    {formatLKR(activeSession.pricePerKwh || 0)} / kWh
                   </span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--color-border)', paddingTop: 'var(--space-3)' }}>
                   <span className="text-secondary" style={{ fontSize: '0.9rem', fontWeight: 'var(--weight-semibold)' }}>Estimated Cost</span>
                   <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-info-dark)', fontSize: '1.1rem' }}>
-                    ${parseFloat(activeSession.estimatedCost || 0).toFixed(2)}
+                    {formatLKR(activeSession.estimatedCost || 0)}
                   </span>
                 </div>
               </div>
@@ -804,7 +805,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', marginBottom: 'var(--space-3)' }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-medium)' }}>
-                        💵 ${item.station.pricePerKwh} / kWh
+                        💵 {formatLKR(item.station.pricePerKwh)} / kWh
                       </div>
                       <div style={{ fontSize: '0.85rem', fontWeight: 'var(--weight-medium)' }}>
                         ⚡ {item.station.capacityKw} kW ({item.station.connectorType})
@@ -923,7 +924,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
                       <div className="text-caption">Price per kWh</div>
                       <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text)', fontSize: '0.95rem' }}>
-                        ${validatedData.pricePerKwh || '0.00'} / kWh
+                        {formatLKR(validatedData.pricePerKwh || 0)} / kWh
                       </div>
                     </div>
                     <div style={{ background: '#ffffff', padding: 'var(--space-3)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-light)' }}>
@@ -937,7 +938,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
                   <div style={{ padding: 'var(--space-3)', background: '#ffffff', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-border)' }}>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <AlertTriangle size={15} color="var(--color-warning-dark)" /> 
-                      Estimated session cost: <strong>${(Math.round((parseFloat(validatedData.pricePerKwh) || 0) * Math.min((parseFloat(validatedData.powerKw) || 22) * 1.0, 50) * 100) / 100).toFixed(2)}</strong>
+                      Estimated session cost: <strong>{formatLKR((Math.round((parseFloat(validatedData.pricePerKwh) || 0) * Math.min((parseFloat(validatedData.powerKw) || 22) * 1.0, 50) * 100) / 100))}</strong>
                     </p>
                   </div>
                 </div>
@@ -1023,7 +1024,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                 <span className="text-secondary">Amount due</span>
                 <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-text)' }}>
-                  ${(paymentResult.amount || paymentResult.finalAmount || paymentResult.estimatedAmount || 0).toFixed(2)} {paymentResult.currency || 'USD'}
+                  {formatLKR(paymentResult.amount || paymentResult.finalAmount || paymentResult.estimatedAmount || 0)}
                 </span>
               </div>
               {(paymentResult.sessionId || paymentResult.id) && (
@@ -1040,7 +1041,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               )}
               <div style={{ padding: 'var(--space-3)', background: '#fff1f2', borderRadius: 'var(--radius-md)', border: '1px solid #fecdd3', marginTop: 'var(--space-2)' }}>
                 <p style={{ margin: 0, fontSize: '0.85rem', color: '#9f1239' }}>
-                  Insufficient wallet balance to cover the charging cost. Your wallet balance remains unchanged ($2.00). Please top up your wallet to resolve dues.
+                  Insufficient wallet balance to cover the charging cost. Your wallet balance remains unchanged ({walletBalance !== null ? formatLKR(walletBalance) : 'LKR 0.00'}). Please top up your wallet to resolve dues.
                 </p>
               </div>
             </div>
@@ -1048,7 +1049,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)', padding: 'var(--space-3)', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
               <span className="text-secondary" style={{ fontSize: '0.9rem' }}>Current Wallet Balance</span>
               <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '0.9rem', color: '#dc2626' }}>
-                ${walletBalance !== null ? walletBalance.toFixed(2) : '--'}
+                {walletBalance !== null ? formatLKR(walletBalance) : '--'}
               </span>
             </div>
 
@@ -1102,12 +1103,12 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               {paymentResult.pricePerKwh !== undefined && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                   <span className="text-secondary">Rate</span>
-                  <span style={{ fontWeight: 'var(--weight-semibold)' }}>${parseFloat(paymentResult.pricePerKwh).toFixed(2)} / kWh</span>
+                  <span style={{ fontWeight: 'var(--weight-semibold)' }}>{formatLKR(paymentResult.pricePerKwh)} / kWh</span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                 <span className="text-secondary">Final amount</span>
-                <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-primary-dark)' }}>${paymentResult.amount?.toFixed(2)} {paymentResult.currency || 'USD'}</span>
+                <span style={{ fontWeight: 'var(--weight-bold)', color: 'var(--color-primary-dark)' }}>{formatLKR(paymentResult.amount || 0)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
                 <span className="text-secondary">Payment status</span>
@@ -1129,7 +1130,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-5)', padding: 'var(--space-3)', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
               <span className="text-secondary" style={{ fontSize: '0.9rem' }}>Wallet Balance</span>
-              <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '0.9rem' }}>${walletBalance !== null ? walletBalance.toFixed(2) : '--'}</span>
+              <span style={{ fontWeight: 'var(--weight-bold)', fontSize: '0.9rem' }}>{walletBalance !== null ? formatLKR(walletBalance) : '--'}</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
