@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Zap, RefreshCw, AlertCircle, Clock } from 'lucide-react';
 import { getActiveCompanySessions, getAuthToken } from '../../services/api';
+import { formatLKR } from '../../utils/currency';
 
 export default function CompanySessionsPage() {
   const [sessions, setSessions] = useState([]);
@@ -116,7 +117,7 @@ export default function CompanySessionsPage() {
                       </td>
                       <td>
                         <span style={{ fontWeight: 600, color: '#0369a1' }}>
-                          ${Number(cost).toFixed(2)}
+                          {formatLKR(cost)}
                         </span>
                       </td>
                       <td>
