@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity, X, MapPin } from 'lucide-react';
+import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity, X, MapPin, Building2, User } from 'lucide-react';
 import BrandLogo from './BrandLogo';
 
 export default function Sidebar({ userRole, currentView, onViewChange, onLogout, isOpen = false, onClose }) {
@@ -10,6 +10,7 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout,
     { id: 'map', label: 'Find Chargers', icon: MapPin },
     { id: 'wallet', label: 'My Wallet', icon: CreditCard },
     { id: 'history', label: 'Session History', icon: FileText },
+    { id: 'account', label: 'My Account', icon: User },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -18,6 +19,7 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout,
     { id: 'stations', label: 'Station Management', icon: Zap },
     { id: 'live', label: 'Live Sessions', icon: Activity },
     { id: 'finance', label: 'Revenue', icon: CreditCard },
+    { id: 'company', label: 'Company Profile', icon: Building2 },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -45,7 +47,11 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout,
         <div className="sidebar-section-label">{isCompany ? 'Company Portal' : 'Driver Portal'}</div>
         <div className="sidebar-nav">
           {links.map((link) => {
-            const isActive = currentView === link.id;
+            const isActive = currentView === link.id || 
+              (link.id === 'finance' && currentView === 'revenue') ||
+              (link.id === 'account' && currentView === 'vehicles') ||
+              (link.id === 'company' && currentView === 'company-profile');
+
             return (
               <button
                 key={link.id}
@@ -65,7 +71,7 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout,
           <div className="sidebar-promo">
             <div className="sidebar-promo-title">{isCompany ? 'Network insights' : 'Ready to charge?'}</div>
             <div className="sidebar-promo-text">
-              {isCompany ? 'Revenue, energy and forecasts live on Analytics.' : 'Find a nearby charger and scan its QR code to start.'}
+              {isCompany ? 'Revenue, energy, and forecasts live on Analytics.' : 'Find a nearby charger and scan its QR code to start.'}
             </div>
           </div>
           <button type="button" className="sidebar-item sidebar-item--logout" onClick={onLogout}>
