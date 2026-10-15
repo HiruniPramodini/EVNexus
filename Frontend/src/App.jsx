@@ -14,7 +14,50 @@ import SessionHistoryPage from './pages/driver/SessionHistoryPage';
 import WalletPage from './pages/driver/WalletPage';
 import StationManagementPage from './pages/company/StationManagementPage';
 import CompanySessionsPage from './pages/company/CompanySessionsPage';
+import CompanyRevenuePage from './pages/company/CompanyRevenuePage';
+import CompanyProfilePage from './pages/company/CompanyProfilePage';
+import CompanySettingsPage from './pages/company/CompanySettingsPage';
+import DriverAccountPage from './pages/driver/DriverAccountPage';
 import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink } from './services/api';
+
+function getInitialActiveView() {
+  const user = getStoredUser();
+  const token = getAuthToken();
+  const isAuthenticated = Boolean(user && token);
+  const isDriver = isAuthenticated && (user.role === 'Driver' || Boolean(user.driverId));
+
+  try {
+    const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+    const rawHash = window.location.hash.replace(/^#\/?/, '').toLowerCase();
+    const params = new URLSearchParams(window.location.search);
+    const queryView = (params.get('view') || '').toLowerCase();
+
+    const candidate = queryView || rawHash || rawPath;
+    const normalized = (candidate === 'revenue' || candidate === 'finance') ? 'finance' : candidate;
+
+    const validDashboardViews = [
+      'dashboard', 'driver-dashboard', 'finance', 'revenue', 'map', 'history',
+      'stations', 'wallet', 'live', 'settings', 'staff', 'billing', 'security', 
+      'vehicles', 'company', 'company-profile', 'account'
+    ];
+
+    if (isAuthenticated) {
+      if (normalized && validDashboardViews.includes(normalized)) {
+        return normalized;
+      }
+      return isDriver ? 'driver-dashboard' : 'dashboard';
+    }
+
+    if (normalized && ['login', 'register', 'driver-login', 'driver-register'].includes(normalized)) {
+      return normalized;
+    }
+  } catch (e) {
+    console.warn('Failed to parse URL for initial view', e);
+  }
+
+  return isAuthenticated ? (isDriver ? 'driver-dashboard' : 'dashboard') : 'landing';
+}
+
 
 export default function App() {
   const [authUser, setAuthUser] = useState(() => {
@@ -26,17 +69,37 @@ export default function App() {
     return null;
   });
 
-  const [activeView, setActiveView] = useState(() => {
-    const user = getStoredUser();
-    const token = getAuthToken();
-    if (user && token) {
-      return user.role === 'Driver' || user.driverId ? 'driver-dashboard' : 'dashboard';
-    }
-    return 'landing'; // Default to new landing page
-  });
+  const [activeView, setActiveView] = useState(getInitialActiveView);
 
   const [linkVerificationNotice, setLinkVerificationNotice] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Sync activeView with browser history and URL for direct navigation and refresh
+  useEffect(() => {
+    try {
+      const currentPath = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+      const targetPath = activeView === 'landing' ? '/' : `/${activeView}`;
+      if (currentPath !== activeView && !(currentPath === '' && activeView === 'landing')) {
+        window.history.pushState({ view: activeView }, '', targetPath);
+      }
+    } catch (_) {}
+  }, [activeView]);
+
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (event.state?.view) {
+        setActiveView(event.state.view);
+      } else {
+        const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
+        const norm = (path === 'revenue' || path === 'finance') ? 'finance' : path;
+        if (norm) {
+          setActiveView(norm);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     try {
@@ -117,13 +180,17 @@ export default function App() {
     activeView === 'stations' || 
     activeView === 'wallet' || 
     activeView === 'finance' ||
+    activeView === 'revenue' ||
+    activeView === 'company' ||
+    activeView === 'company-profile' ||
     activeView === 'settings' ||
     activeView === 'analytics' ||
     activeView === 'live' ||
     activeView === 'staff' ||
     activeView === 'billing' ||
     activeView === 'security' ||
-    activeView === 'vehicles'
+    activeView === 'vehicles' ||
+    activeView === 'account'
   );
 
   const renderDashboardContent = () => {
@@ -131,11 +198,18 @@ export default function App() {
       switch (activeView) {
         case 'dashboard':
           return <CompanyDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleProfileUpdated} />;
+        case 'finance':
+        case 'revenue':
+          return <CompanyRevenuePage authUser={authUser} />;
         case 'stations':
           return <StationManagementPage authUser={authUser} />;
         case 'live':
           return <CompanySessionsPage />;
-        // Add more company views here
+        case 'company':
+        case 'company-profile':
+          return <CompanyProfilePage authUser={authUser} onUpdateProfile={handleProfileUpdated} />;
+        case 'settings':
+          return <CompanySettingsPage authUser={authUser} onLogout={handleLogout} />;
         default:
           return <CompanyDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleProfileUpdated} />;
       }
@@ -149,7 +223,12 @@ export default function App() {
           return <SessionHistoryPage authUser={authUser} />;
         case 'wallet':
           return <WalletPage authUser={authUser} />;
-        // Add more driver views here
+        case 'account':
+          return <DriverAccountPage authUser={authUser} onUpdateProfile={handleDriverProfileUpdated} initialTab="profile" />;
+        case 'vehicles':
+          return <DriverAccountPage authUser={authUser} onUpdateProfile={handleDriverProfileUpdated} initialTab="vehicles" />;
+        case 'settings':
+          return <DriverAccountPage authUser={authUser} onUpdateProfile={handleDriverProfileUpdated} initialTab="profile" />;
         default:
           return <DriverDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleDriverProfileUpdated} onViewChange={setActiveView} />;
       }
@@ -161,11 +240,15 @@ export default function App() {
     dashboard: 'Overview',
     analytics: 'Analytics',
     finance: 'Revenue',
+    revenue: 'Revenue',
+    company: 'Company Profile',
+    'company-profile': 'Company Profile',
     map: 'Find Chargers',
     stations: 'Station Management',
     live: 'Live Sessions',
     history: 'Session History',
     wallet: 'My Wallet',
+    account: 'My Account',
     settings: 'Settings',
     staff: 'Staff',
     billing: 'Billing',
