@@ -41,6 +41,9 @@ services:
       - EmailSettings__SenderPassword=${SMTP_PASSWORD:-}
       - EmailSettings__EnableSsl=${SMTP_ENABLE_SSL:-true}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
+      - Uploads__StoragePath=/app/uploads/company-logos
+    volumes:
+      - auth-uploads-data:/app/uploads
     depends_on:
       auth-db:
         condition: service_healthy
@@ -109,9 +112,16 @@ services:
       - "5004:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Development}
-      - ConnectionStrings__DefaultConnection=Server=dashboard-db;Port=3306;Database=${DASHBOARD_DB_NAME:-evnexus_dashboard};User=${MYSQL_USER:-evnexus};Password=${DASHBOARD_DB_PASSWORD};
+      - ConnectionStrings__DefaultConnection=Server=payment-db;Port=3306;Database=${PAYMENT_DB_NAME:-evnexus_payment};User=${MYSQL_USER:-evnexus};Password=${PAYMENT_DB_PASSWORD};
+      - ConnectionStrings__PaymentConnection=Server=payment-db;Port=3306;Database=${PAYMENT_DB_NAME:-evnexus_payment};User=${MYSQL_USER:-evnexus};Password=${PAYMENT_DB_PASSWORD};
+      - ConnectionStrings__DashboardConnection=Server=dashboard-db;Port=3306;Database=${DASHBOARD_DB_NAME:-evnexus_dashboard};User=${MYSQL_USER:-evnexus};Password=${DASHBOARD_DB_PASSWORD};
+      - JWT_SECRET=${JWT_SECRET}
+      - Jwt__Key=${JWT_SECRET}
+      - Jwt__SecretKey=${JWT_SECRET}
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     depends_on:
+      payment-db:
+        condition: service_healthy
       dashboard-db:
         condition: service_healthy
       kafka:
@@ -249,6 +259,7 @@ services:
 # =========================
 volumes:
   auth-db-data:
+  auth-uploads-data:
   map-db-data:
   payment-db-data:
   dashboard-db-data:
