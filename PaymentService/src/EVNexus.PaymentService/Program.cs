@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text;
 using EVNexus.PaymentService.Data;
-using EVNexus.PaymentService.Forecasting;
 using EVNexus.PaymentService.Kafka;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -73,8 +72,6 @@ builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
 builder.Services.AddScoped<IWalletRepository, WalletRepository>();
 builder.Services.AddScoped<IOutboxRepository, OutboxRepository>();
 builder.Services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
-builder.Services.AddScoped<ICompanyAnalyticsRepository, CompanyAnalyticsRepository>();
-builder.Services.AddScoped<IForecastService, ForecastService>();
 
 // Kafka services
 builder.Services.AddSingleton<KafkaProducerService>();
