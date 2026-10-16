@@ -11,6 +11,7 @@ public interface ICompanyAuthService
     Task<CompanyLoginResponseDto> LoginCompanyAsync(CompanyLoginRequestDto request, CancellationToken cancellationToken = default);
     Task<CompanyProfileResponseDto> GetCompanyProfileAsync(string tenantId, CancellationToken cancellationToken = default);
     Task<CompanyProfileResponseDto> UpdateCompanyProfileAsync(string tenantId, UpdateCompanyProfileRequestDto request, CancellationToken cancellationToken = default);
+    Task<CompanyProfileResponseDto> UpdateCompanyLogoAsync(string tenantId, string? logoUrl, CancellationToken cancellationToken = default);
     Task<InitiateEmailChangeResponseDto> InitiateEmailChangeAsync(string tenantId, InitiateEmailChangeRequestDto request, CancellationToken cancellationToken = default);
     Task<VerifyEmailResponseDto> VerifyCompanyEmailAsync(string email, string code, CancellationToken cancellationToken = default);
     Task<InitiateEmailChangeResponseDto> ResendCompanyVerificationCodeAsync(string email, CancellationToken cancellationToken = default);
@@ -351,6 +352,43 @@ public class CompanyAuthService : ICompanyAuthService
             Status = updatedTenant.Status,
             CreatedAt = updatedTenant.CreatedAt,
             UpdatedAt = updatedTenant.UpdatedAt
+        };
+    }
+
+    public async Task<CompanyProfileResponseDto> UpdateCompanyLogoAsync(
+        string tenantId,
+        string? logoUrl,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating company logo for Tenant ID: {TenantId}", tenantId);
+
+        var currentTenant = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        if (currentTenant == null)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        var updated = await _tenantRepository.UpdateTenantLogoUrlAsync(tenantId, logoUrl, cancellationToken);
+        if (!updated)
+        {
+            throw new TenantNotFoundException(tenantId);
+        }
+
+        var refreshed = await _tenantRepository.GetTenantByIdAsync(tenantId, cancellationToken);
+        return new CompanyProfileResponseDto
+        {
+            TenantId = refreshed!.TenantId,
+            CompanyName = refreshed.CompanyName,
+            RegistrationNumber = refreshed.RegistrationNumber,
+            BusinessEmail = refreshed.BusinessEmail,
+            Phone = refreshed.Phone,
+            Address = refreshed.Address,
+            LogoUrl = refreshed.LogoUrl,
+            Role = refreshed.Role,
+            Status = refreshed.Status,
+            IsEmailVerified = refreshed.IsEmailVerified,
+            CreatedAt = refreshed.CreatedAt,
+            UpdatedAt = refreshed.UpdatedAt
         };
     }
 

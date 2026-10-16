@@ -117,6 +117,7 @@ builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IAccountAuditRepository, AccountAuditRepository>();
 builder.Services.AddScoped<IAccountManagementService, AccountManagementService>();
 builder.Services.AddSingleton<IStatusNotificationService, StatusNotificationService>();
+builder.Services.AddSingleton<ICompanyLogoStorageService, CompanyLogoStorageService>();
 
 var app = builder.Build();
 

@@ -19,18 +19,21 @@ public class AuthController : ControllerBase
     private readonly ICompanyAuthService _companyAuthService;
     private readonly IDriverAuthService _driverAuthService;
     private readonly ISessionService? _sessionService;
+    private readonly ICompanyLogoStorageService? _logoStorageService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         ICompanyAuthService companyAuthService,
         IDriverAuthService driverAuthService,
         ILogger<AuthController> logger,
-        ISessionService? sessionService = null)
+        ISessionService? sessionService = null,
+        ICompanyLogoStorageService? logoStorageService = null)
     {
         _companyAuthService = companyAuthService;
         _driverAuthService = driverAuthService;
         _logger = logger;
         _sessionService = sessionService;
+        _logoStorageService = logoStorageService;
     }
 
     /// <summary>
@@ -222,6 +225,96 @@ public class AuthController : ControllerBase
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<object>.Fail("An error occurred while updating profile information."));
         }
+    }
+
+    /// <summary>
+    /// Uploads and sets a new profile picture / logo for the authenticated company.
+    /// Supports JPG, JPEG, PNG, and WEBP formats up to 5 MB with magic-byte validation.
+    /// </summary>
+    [HttpPost("company/profile/picture")]
+    [Authorize(Roles = "CompanyAdmin")]
+    [RequireRole(AppRoles.CompanyAdmin)]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ApiResponse<CompanyProfileResponseDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UploadCompanyProfilePicture(
+        [FromForm] IFormFile? file,
+        CancellationToken cancellationToken)
+    {
+        var tenantId = User.FindFirstValue("tenant_id")
+                    ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(tenantId))
+        {
+            return Unauthorized(ApiResponse<object>.Fail("Tenant identification claim is missing from authentication token."));
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.Fail("No image file was provided for upload."));
+        }
+
+        if (_logoStorageService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented,
+                ApiResponse<object>.Fail("Logo storage service is not configured."));
+        }
+
+        try
+        {
+            var logoUrl = await _logoStorageService.SaveLogoAsync(tenantId, file, cancellationToken);
+            var updatedProfile = await _companyAuthService.UpdateCompanyLogoAsync(tenantId, logoUrl, cancellationToken);
+            return Ok(ApiResponse<CompanyProfileResponseDto>.Ok(updatedProfile, "Company profile picture uploaded successfully."));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (TenantNotFoundException ex)
+        {
+            return NotFound(ApiResponse<object>.Fail(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error occurred while uploading profile picture for Tenant {TenantId}", tenantId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<object>.Fail("An error occurred while uploading the profile picture."));
+        }
+    }
+
+    /// <summary>
+    /// Serves a previously uploaded company profile picture / logo.
+    /// Safe public endpoint preventing directory traversal.
+    /// </summary>
+    [HttpGet("company/profile/picture/{fileName}")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetCompanyProfilePicture(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return BadRequest(ApiResponse<object>.Fail("File name is required."));
+        }
+
+        if (_logoStorageService == null)
+        {
+            return StatusCode(StatusCodes.Status501NotImplemented,
+                ApiResponse<object>.Fail("Logo storage service is not configured."));
+        }
+
+        var result = _logoStorageService.GetLogoFile(fileName);
+        if (result == null)
+        {
+            return NotFound(ApiResponse<object>.Fail("The requested profile picture was not found."));
+        }
+
+        Response.Headers["Cache-Control"] = "public, max-age=86400";
+        return PhysicalFile(result.Value.FilePath, result.Value.ContentType);
     }
 
     /// <summary>

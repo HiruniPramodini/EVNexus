@@ -12,6 +12,7 @@ public interface ITenantRepository
     Task<Tenant?> GetTenantByIdAsync(string tenantId, CancellationToken cancellationToken = default);
     Task<Tenant?> GetTenantByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task<Tenant?> UpdateTenantProfileAsync(string tenantId, string companyName, string phone, string address, string? logoUrl, CancellationToken cancellationToken = default);
+    Task<bool> UpdateTenantLogoUrlAsync(string tenantId, string? logoUrl, CancellationToken cancellationToken = default);
     Task<bool> UpdateTenantEmailAsync(string tenantId, string newEmail, CancellationToken cancellationToken = default);
     Task SaveEmailVerificationCodeAsync(string tenantId, string newEmail, string code, DateTime expiresAt, CancellationToken cancellationToken = default);
     Task<bool> ValidateAndConsumeVerificationCodeAsync(string tenantId, string newEmail, string code, CancellationToken cancellationToken = default);
@@ -200,6 +201,29 @@ public class TenantRepository : ITenantRepository
         }
 
         return await GetTenantByIdAsync(tenantId, cancellationToken);
+    }
+
+    public async Task<bool> UpdateTenantLogoUrlAsync(
+        string tenantId,
+        string? logoUrl,
+        CancellationToken cancellationToken = default)
+    {
+        const string sql = @"
+            UPDATE tenants
+            SET logo_url = @logo_url,
+                updated_at = @updated_at
+            WHERE tenant_id = @tenant_id;
+        ";
+
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken);
+        await using var command = new MySqlCommand(sql, connection);
+
+        command.Parameters.Add("@tenant_id", MySqlDbType.VarChar, 50).Value = tenantId;
+        command.Parameters.Add("@logo_url", MySqlDbType.LongText).Value = (object?)logoUrl?.Trim() ?? DBNull.Value;
+        command.Parameters.Add("@updated_at", MySqlDbType.DateTime).Value = DateTime.UtcNow;
+
+        var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+        return rowsAffected > 0;
     }
 
     public async Task<bool> UpdateTenantEmailAsync(
