@@ -1,0 +1,50 @@
+name: Dashboard Service CD
+
+on:
+  push:
+    branches:
+      - main
+      - EVNexus_Ci_Cd_Pipeline
+    paths:
+      - 'DashboardAnalyticsService/**'
+      - '.github/workflows/dashboard-cd.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build, Test and Deploy Dashboard Service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj
+
+      - name: Build Dashboard Service
+        run: dotnet build DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --no-restore --configuration Release
+
+      - name: Restore test project
+        run: dotnet restore DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj
+
+      - name: Build test project
+        run: dotnet build DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --no-restore --configuration Release
+
+      - name: Run Dashboard Service tests
+        run: dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Publish Dashboard Service
+        run: dotnet publish DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --configuration Release --output ./publish
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-dash-service-prod'
+          publish-profile: ${{ secrets.AZURE_DASHBOARD_PUBLISH_PROFILE }}
+          package: ./publish

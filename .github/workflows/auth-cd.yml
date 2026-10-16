@@ -4,19 +4,19 @@ on:
   push:
     branches:
       - main
+      - EVNexus_Ci_Cd_Pipeline
     paths:
-      - 'AuthenticationService/**' #Path specifying
+      - 'AuthenticationService/**'
       - '.github/workflows/auth-cd.yml'
-
   workflow_dispatch:
 
 jobs:
-  build-publish:
-    name: Build, Test and Package Authentication Service #Create a job named "Build, Test and Package Authentication Service"
-    runs-on: ubuntu-latest #Creatr VM (Runner)
+  build-and-deploy:
+    name: Build, Test and Deploy Authentication Service
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository # download the repository source code into the runner
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup .NET 8
@@ -24,7 +24,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore Authentication Service  #prepares the dependencies.
+      - name: Restore dependencies
         run: dotnet restore AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj
 
       - name: Build Authentication Service
@@ -36,20 +36,15 @@ jobs:
       - name: Build test project
         run: dotnet build AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-restore --configuration Release
 
-      - name: Run Authentication Service tests
+      - name: Run unit & integration tests
         run: dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --no-build --configuration Release --verbosity normal
 
-        #Creates the deployable application output.
       - name: Publish Authentication Service
         run: dotnet publish AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --configuration Release --output ./publish
 
-        # Take application and packages it into a container
-      - name: Build Authentication Docker image
-        run: docker build -t evnexus-auth-service:cd AuthenticationService/src/EVNexus.AuthService
-
-        #uploads the publish folder to GitHub Actions as an artifact.
-      - name: Upload published application
-        uses: actions/upload-artifact@v4
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
         with:
-          name: evnexus-auth-service
-          path: ./publish
+          app-name: 'evnexus-auth-service-prod'
+          publish-profile: ${{ secrets.AZURE_AUTH_PUBLISH_PROFILE }}
+          package: ./publish

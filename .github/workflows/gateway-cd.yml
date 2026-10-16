@@ -1,0 +1,41 @@
+name: API Gateway CD
+
+on:
+  push:
+    branches:
+      - main
+      - EVNexus_Ci_Cd_Pipeline
+    paths:
+      - 'ApiGateway/**'
+      - '.github/workflows/gateway-cd.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy API Gateway
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore ApiGateway/EVNexus.ApiGateway.csproj
+
+      - name: Build API Gateway
+        run: dotnet build ApiGateway/EVNexus.ApiGateway.csproj --no-restore --configuration Release
+
+      - name: Publish API Gateway
+        run: dotnet publish ApiGateway/EVNexus.ApiGateway.csproj --configuration Release --output ./publish
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-api-gateway-prod'
+          publish-profile: ${{ secrets.AZURE_GATEWAY_PUBLISH_PROFILE }}
+          package: ./publish

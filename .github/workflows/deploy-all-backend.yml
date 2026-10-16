@@ -1,0 +1,119 @@
+name: Deploy All Backend Microservices
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy-gateway:
+    name: Deploy API Gateway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet publish ApiGateway/EVNexus.ApiGateway.csproj --configuration Release --output ./publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-api-gateway-prod'
+          publish-profile: ${{ secrets.AZURE_GATEWAY_PUBLISH_PROFILE }}
+          package: ./publish
+
+  deploy-auth:
+    name: Deploy Auth Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release
+      - run: dotnet publish AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj --configuration Release --output ./publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-auth-service-prod'
+          publish-profile: ${{ secrets.AZURE_AUTH_PUBLISH_PROFILE }}
+          package: ./publish
+
+  deploy-map:
+    name: Deploy Map Service
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: map_db_test
+          MYSQL_USER: evnexus
+          MYSQL_PASSWORD: evnexus_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=map_db_test;User=evnexus;Password=evnexus_password;"
+      MAP_DB_PASSWORD: evnexus_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --configuration Release
+      - run: dotnet publish MapService/src/EVNexus.MapService/EVNexus.MapService.csproj --configuration Release --output ./publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-map-service-prod'
+          publish-profile: ${{ secrets.AZURE_MAP_PUBLISH_PROFILE }}
+          package: ./publish
+
+  deploy-payment:
+    name: Deploy Payment Service
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_DATABASE: payment_db_test
+          MYSQL_USER: evnexus
+          MYSQL_PASSWORD: evnexus_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    env:
+      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=payment_db_test;User=evnexus;Password=evnexus_password;"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release
+      - run: dotnet publish PaymentService/src/EVNexus.PaymentService/EVNexus.PaymentService.csproj --configuration Release --output ./publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-payment-service-prod'
+          publish-profile: ${{ secrets.AZURE_PAYMENT_PUBLISH_PROFILE }}
+          package: ./publish
+
+  deploy-dashboard:
+    name: Deploy Dashboard Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --configuration Release
+      - run: dotnet publish DashboardAnalyticsService/src/EVNexus.DashboardService/EVNexus.DashboardService.csproj --configuration Release --output ./publish
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'evnexus-dash-service-prod'
+          publish-profile: ${{ secrets.AZURE_DASHBOARD_PUBLISH_PROFILE }}
+          package: ./publish
