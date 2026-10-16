@@ -1,5 +1,16 @@
 const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
 
+export function resolveImageUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+  const baseUrl = API_GATEWAY_URL.replace(/\/+$/, '');
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${baseUrl}${cleanPath}`;
+}
+
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';
 const USER_STORAGE_KEY = 'evnexus_auth_user';
@@ -747,6 +758,41 @@ export async function updateCompanyProfile(profileData, token) {
   });
 
   return handleResponse(response, 'Failed to update company profile.');
+}
+
+export async function uploadCompanyProfilePicture(file, token) {
+  if (!file) {
+    throw new Error('Please select an image file to upload.');
+  }
+
+  // Client-side file size and format pre-validation
+  const maxSizeBytes = 5 * 1024 * 1024;
+  if (file.size > maxSizeBytes) {
+    throw new Error('Image file exceeds the 5 MB limit. Please select a smaller file.');
+  }
+
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  const ext = file.name ? file.name.substring(file.name.lastIndexOf('.')).toLowerCase() : '';
+  
+  if (!validTypes.includes(file.type?.toLowerCase()) && !validExtensions.includes(ext)) {
+    throw new Error('Invalid image format. Only JPG, JPEG, PNG, and WEBP files are supported.');
+  }
+
+  const authToken = token || getAuthToken();
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_GATEWAY_URL}/api/auth/company/profile/picture`, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${authToken}`
+    },
+    body: formData
+  });
+
+  return handleResponse(response, 'Failed to upload profile picture.');
 }
 
 export async function requestEmailChange(newBusinessEmail, token) {

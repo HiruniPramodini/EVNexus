@@ -12,6 +12,12 @@ import {
 export default function DriverAccountPage({ authUser, onUpdateProfile, initialTab = 'profile' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
 
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
   // Profile State
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
