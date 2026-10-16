@@ -34,7 +34,8 @@ import {
   Send,
   BarChart3,
   Settings,
-  Shield
+  Shield,
+  Upload
 } from 'lucide-react';
 
 import StationManagementPage from '../pages/company/StationManagementPage';
@@ -42,6 +43,8 @@ import CompanySessionsPage from '../pages/company/CompanySessionsPage';
 import {
   getCompanyProfile,
   updateCompanyProfile,
+  uploadCompanyProfilePicture,
+  resolveImageUrl,
   requestEmailChange,
   clearAuthSession,
   getCompanyStations,
@@ -126,6 +129,9 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
   const [profileUpdateSuccess, setProfileUpdateSuccess] = useState(null);
   const [profileUpdateError, setProfileUpdateError] = useState(null);
   const [profileUpdateValidationErrors, setProfileUpdateValidationErrors] = useState([]);
+  const modalFileInputRef = useRef(null);
+  const [isUploadingModalPic, setIsUploadingModalPic] = useState(false);
+  const [modalPicError, setModalPicError] = useState(null);
 
   // Email re-verification state
   const [showEmailChangeSection, setShowEmailChangeSection] = useState(false);
@@ -656,6 +662,46 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
       }
     } finally {
       setIsUpdatingProfile(false);
+    }
+  };
+
+  const handleModalFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setModalPicError(null);
+
+    const maxSizeBytes = 5 * 1024 * 1024;
+    if (file.size > maxSizeBytes) {
+      setModalPicError('Selected image exceeds the 5 MB limit. Please choose a smaller file.');
+      return;
+    }
+
+    const validExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const ext = file.name ? file.name.substring(file.name.lastIndexOf('.')).toLowerCase() : '';
+
+    if (!validTypes.includes(file.type?.toLowerCase()) && !validExtensions.includes(ext)) {
+      setModalPicError('Unsupported image format. Please select a JPG, JPEG, PNG, or WEBP file.');
+      return;
+    }
+
+    setIsUploadingModalPic(true);
+    try {
+      const res = await uploadCompanyProfilePicture(file, authUser?.accessToken);
+      const newLogoUrl = res?.data?.logoUrl;
+      if (newLogoUrl) {
+        setProfileFormData((prev) => ({ ...prev, logoUrl: newLogoUrl }));
+        setProfileResult((prev) => ({
+          ...prev,
+          data: { ...(prev?.data || {}), logoUrl: newLogoUrl }
+        }));
+        onUpdateProfile?.({ ...authUser, logoUrl: newLogoUrl });
+      }
+    } catch (err) {
+      setModalPicError(err.message || 'Failed to upload profile picture.');
+    } finally {
+      setIsUploadingModalPic(false);
     }
   };
 
@@ -1718,7 +1764,7 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                   <div className="dash-avatar" style={{ width: '60px', height: '60px' }}>
                     {activeLogoUrl ? (
-                      <img src={activeLogoUrl} alt="Logo" />
+                      <img src={resolveImageUrl(activeLogoUrl)} alt="Logo" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     ) : (
                       <Building2 size={28} color="var(--primary-600)" />
                     )}
@@ -1869,54 +1915,60 @@ export default function CompanyDashboard({ authUser, activeView, onLogout, onUpd
                   </div>
                 </div>
 
-                {/* Logo Presets & Custom URL */}
+                {/* Profile Picture Upload from Computer */}
                 <div style={{ background: 'var(--bg-page)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
-                  <label className="form-label" style={{ marginBottom: '0.4rem' }}>
+                  <label className="form-label" style={{ marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <ImageIcon size={16} color="var(--primary-600)" />
-                    Company Logo URL
+                    Company Profile Picture
                   </label>
 
-                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
-                    {PRESET_LOGOS.map((preset) => (
-                      <button
-                        key={preset.label}
-                        type="button"
-                        onClick={() => setProfileFormData({ ...profileFormData, logoUrl: preset.url })}
-                        style={{
-                          background: profileFormData.logoUrl === preset.url ? 'var(--primary-600)' : '#ffffff',
-                          color: profileFormData.logoUrl === preset.url ? '#ffffff' : 'var(--text-main)',
-                          border: '1px solid var(--border-subtle)',
-                          borderRadius: '6px',
-                          padding: '0.2rem 0.5rem',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.25rem'
-                        }}
-                      >
-                        <Sparkles size={11} />
-                        <span>{preset.label}</span>
-                      </button>
-                    ))}
-                  </div>
+                  {modalPicError && (
+                    <div className="alert alert-danger" style={{ padding: '0.45rem 0.65rem', fontSize: '0.78rem', marginBottom: '0.6rem' }}>
+                      <AlertTriangle size={14} />
+                      <span>{modalPicError}</span>
+                    </div>
+                  )}
 
-                  <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                    <input
-                      type="url"
-                      value={profileFormData.logoUrl || ''}
-                      onChange={(e) => setProfileFormData({ ...profileFormData, logoUrl: e.target.value })}
-                      className="form-input"
-                      style={{ paddingLeft: '0.85rem', flex: 1 }}
-                      placeholder="https://example.com/logo.png"
-                    />
-                    <div className="dash-avatar" style={{ width: '40px', height: '40px' }}>
+                  <input
+                    type="file"
+                    ref={modalFileInputRef}
+                    onChange={handleModalFileSelect}
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    style={{ display: 'none' }}
+                  />
+
+                  <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div className="dash-avatar" style={{ width: '48px', height: '48px', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-subtle)', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {profileFormData.logoUrl ? (
-                        <img src={profileFormData.logoUrl} alt="Preview" />
+                        <img src={resolveImageUrl(profileFormData.logoUrl)} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                       ) : (
-                        <Building2 size={18} color="var(--text-muted)" />
+                        <Building2 size={22} color="var(--primary-600)" />
                       )}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => modalFileInputRef.current?.click()}
+                        disabled={isUploadingModalPic}
+                        style={{ padding: '0.45rem 0.9rem', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        {isUploadingModalPic ? (
+                          <>
+                            <RefreshCw size={13} className="spinner" />
+                            <span>Uploading Image...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={13} />
+                            <span>{profileFormData.logoUrl ? 'Change Profile Picture' : 'Upload Profile Picture'}</span>
+                          </>
+                        )}
+                      </button>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                        Select JPG, PNG, or WEBP (Max 5 MB) from your computer.
+                      </div>
                     </div>
                   </div>
                 </div>

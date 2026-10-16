@@ -308,6 +308,21 @@ h4 { font-weight: 700; }
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+.user-chip:hover {
+  background: var(--brand-50);
+  border-color: var(--brand-300);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+.user-chip:active {
+  transform: translateY(0);
 }
 .user-chip-avatar {
   width: 32px;

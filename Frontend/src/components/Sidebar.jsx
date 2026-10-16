@@ -1,8 +1,9 @@
 import React from 'react';
 import { LayoutDashboard, Zap, CreditCard, Settings, LogOut, FileText, Activity, X, MapPin, Building2, User } from 'lucide-react';
 import BrandLogo from './BrandLogo';
+import { resolveImageUrl } from '../services/api';
 
-export default function Sidebar({ userRole, currentView, onViewChange, onLogout, isOpen = false, onClose }) {
+export default function Sidebar({ userRole, currentView, onViewChange, onLogout, isOpen = false, onClose, authUser }) {
   const isCompany = userRole === 'CompanyAdmin' || userRole === 'Company';
 
   const driverLinks = [
@@ -43,6 +44,26 @@ export default function Sidebar({ userRole, currentView, onViewChange, onLogout,
             <X size={20} />
           </button>
         </div>
+
+        {isCompany && authUser && (
+          <div style={{ padding: '0.2rem 1rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div style={{ width: '32px', height: '32px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--color-border-light, rgba(255,255,255,0.15))', background: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              {authUser.logoUrl ? (
+                <img src={resolveImageUrl(authUser.logoUrl)} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+              ) : (
+                <Building2 size={16} color="var(--brand-600, #0284c7)" />
+              )}
+            </div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-text, #0f172a)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {authUser.companyName || 'Enterprise'}
+              </div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {authUser.tenantId || 'Company Admin'}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="sidebar-section-label">{isCompany ? 'Company Portal' : 'Driver Portal'}</div>
         <div className="sidebar-nav">

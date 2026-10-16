@@ -18,7 +18,8 @@ import CompanyRevenuePage from './pages/company/CompanyRevenuePage';
 import CompanyProfilePage from './pages/company/CompanyProfilePage';
 import CompanySettingsPage from './pages/company/CompanySettingsPage';
 import DriverAccountPage from './pages/driver/DriverAccountPage';
-import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink } from './services/api';
+import DriverSettingsPage from './pages/driver/DriverSettingsPage';
+import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink, resolveImageUrl } from './services/api';
 
 function getInitialActiveView() {
   const user = getStoredUser();
@@ -228,7 +229,7 @@ export default function App() {
         case 'vehicles':
           return <DriverAccountPage authUser={authUser} onUpdateProfile={handleDriverProfileUpdated} initialTab="vehicles" />;
         case 'settings':
-          return <DriverAccountPage authUser={authUser} onUpdateProfile={handleDriverProfileUpdated} initialTab="profile" />;
+          return <DriverSettingsPage authUser={authUser} onLogout={handleLogout} />;
         default:
           return <DriverDashboard authUser={authUser} activeView={activeView} onUpdateProfile={handleDriverProfileUpdated} onViewChange={setActiveView} />;
       }
@@ -270,6 +271,7 @@ export default function App() {
             onLogout={handleLogout} 
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
+            authUser={authUser}
           />
           <div className="main-area">
             <header className="topbar">
@@ -291,10 +293,16 @@ export default function App() {
                 <button type="button" className="icon-btn" aria-label="Notifications">
                   <Bell size={18} />
                 </button>
-                <div className="user-chip">
+                <button
+                  type="button"
+                  className="user-chip user-chip--clickable"
+                  onClick={() => setActiveView(isCompanyUser ? 'company-profile' : 'account')}
+                  title={isCompanyUser ? 'Go to Company Profile' : 'Go to My Account'}
+                  aria-label={isCompanyUser ? 'Go to Company Profile' : 'Go to My Account'}
+                >
                   <div className="user-chip-avatar" aria-hidden="true">
                     {isCompanyUser && authUser.logoUrl ? (
-                      <img src={authUser.logoUrl} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <img src={resolveImageUrl(authUser.logoUrl)} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                     ) : (
                       displayName.charAt(0).toUpperCase()
                     )}
@@ -303,7 +311,7 @@ export default function App() {
                     <div className="user-chip-name">{displayName}</div>
                     <div className="user-chip-role">{isCompanyUser ? (resolvedRole === 'Company' ? 'Company' : 'Company Admin') : 'EV Driver'}</div>
                   </div>
-                </div>
+                </button>
               </div>
             </header>
             <main className={`content-scrollable ${activeView === 'map' ? 'content-scrollable--flush' : ''}`}>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Zap, User, LogIn, UserPlus, ShieldCheck, LogOut, Home, Menu, X } from 'lucide-react';
 import BrandLogo from './BrandLogo';
+import { resolveImageUrl } from '../services/api';
 
 export default function Navbar({
   activeView = 'login',
@@ -73,7 +74,7 @@ export default function Navbar({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {authUser.logoUrl && !isDriver ? (
               <img
-                src={authUser.logoUrl}
+                src={resolveImageUrl(authUser.logoUrl)}
                 alt={`${authUser.companyName || 'Company'} Logo`}
                 style={{ width: '32px', height: '32px', borderRadius: '8px', objectFit: 'cover', border: '1px solid var(--border-subtle)', background: '#ffffff' }}
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
