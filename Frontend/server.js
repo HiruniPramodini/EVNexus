@@ -1,0 +1,104 @@
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PORT = process.env.PORT || 8080;
+const DIST_DIR = path.join(__dirname, 'dist');
+
+const MIME_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.mjs': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.eot': 'application/vnd.ms-fontobject',
+  '.map': 'application/json'
+};
+
+const server = http.createServer((req, res) => {
+  // Only handle GET and HEAD requests
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.statusCode = 405;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('Method Not Allowed');
+    return;
+  }
+
+  // Parse clean URL path
+  const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  let safePath = path.normalize(decodeURIComponent(parsedUrl.pathname)).replace(/^(\.\.[\/\\])+/, '');
+
+  let filePath = path.join(DIST_DIR, safePath);
+
+  // Security check: ensure path is within DIST_DIR
+  if (!filePath.startsWith(DIST_DIR)) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'text/plain');
+    res.end('Forbidden');
+    return;
+  }
+
+  fs.stat(filePath, (err, stats) => {
+    let targetPath = filePath;
+
+    if (!err && stats.isDirectory()) {
+      targetPath = path.join(filePath, 'index.html');
+    }
+
+    fs.stat(targetPath, (err2, stats2) => {
+      // If file not found, fallback to index.html for Single Page Application client-side routing
+      if (err2 || !stats2.isFile()) {
+        targetPath = path.join(DIST_DIR, 'index.html');
+      }
+
+      const ext = path.extname(targetPath).toLowerCase();
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+      // Caching: hashed assets get long cache, index.html gets no-cache so updates propagate immediately
+      const isHtml = ext === '.html';
+      const cacheControl = isHtml
+        ? 'no-cache, no-store, must-revalidate'
+        : 'public, max-age=31536000, immutable';
+
+      fs.readFile(targetPath, (readErr, content) => {
+        if (readErr) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'text/plain');
+          res.end('Internal Server Error');
+          return;
+        }
+
+        res.writeHead(200, {
+          'Content-Type': contentType,
+          'Content-Length': content.length,
+          'Cache-Control': cacheControl,
+          'X-Content-Type-Options': 'nosniff'
+        });
+
+        if (req.method === 'HEAD') {
+          res.end();
+        } else {
+          res.end(content);
+        }
+      });
+    });
+  });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`EVNexus Frontend production server listening on port ${PORT}`);
+});

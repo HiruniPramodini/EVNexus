@@ -12,17 +12,17 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build and Deploy Frontend to Azure Static Web Apps
+    name: Build and Deploy Frontend to Azure App Service
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: Frontend/package-lock.json
 
@@ -36,12 +36,28 @@ jobs:
         env:
           VITE_API_GATEWAY_URL: "https://evnexus-api-gateway-prod-gne4dzcag2b6dsdx.centralindia-01.azurewebsites.net"
 
-      - name: Deploy to Azure Static Web Apps
-        uses: Azure/static-web-apps-deploy@v1
+      - name: Prepare Deployment Package
+        run: |
+          mkdir -p publish
+          cp -r Frontend/dist publish/dist
+          cp Frontend/server.js publish/server.js
+          cp Frontend/package.json publish/package.json
+
+      - name: Extract App Name from Publish Profile
+        env:
+          PROFILE: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
+        run: |
+          APP_NAME=$(node -e "
+            const xml = process.env.PROFILE || '';
+            const match = xml.match(/msdeploySite=[\"']([^\"']+)[\"']/i) || xml.match(/publishProfile\s+profileName=[\"']([^\"']+)[\"']/i);
+            console.log(match ? match[1] : 'evnexus-frontend-prod');
+          ")
+          echo "Discovered App Name: $APP_NAME"
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
         with:
-          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          action: "upload"
-          app_location: "Frontend"
-          output_location: "dist"
-          skip_app_build: true
+          app-name: ${{ env.APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_FRONTEND_PUBLISH_PROFILE }}
+          package: ./publish
