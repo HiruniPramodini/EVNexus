@@ -31,6 +31,8 @@ public class ChargingSessionCompletedConsumer : BackgroundService
         _topic = config.GetValue<string>("Kafka:Topics:ChargingSessionCompleted") ?? "charging-session-completed";
         var groupId = config.GetValue<string>("Kafka:ConsumerGroup") ?? "evnexus-payment-service";
 
+        var saslPassword = config.GetValue<string>("Kafka:SaslPassword");
+
         var consumerConfig = new ConsumerConfig
         {
             BootstrapServers = bootstrapServers,
@@ -38,6 +40,14 @@ public class ChargingSessionCompletedConsumer : BackgroundService
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false
         };
+
+        if (!string.IsNullOrWhiteSpace(saslPassword))
+        {
+            consumerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+            consumerConfig.SaslMechanism = SaslMechanism.Plain;
+            consumerConfig.SaslUsername = "$ConnectionString";
+            consumerConfig.SaslPassword = saslPassword;
+        }
 
         _consumer = new ConsumerBuilder<string, string>(consumerConfig).Build();
     }

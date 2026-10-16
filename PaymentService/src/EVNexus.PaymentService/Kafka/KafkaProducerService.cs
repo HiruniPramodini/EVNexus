@@ -19,8 +19,22 @@ public class KafkaProducerService
         
         var brokerList = config.GetValue<string>("Kafka:BootstrapServers") ?? "kafka:9092";
         _topic = config.GetValue<string>("Kafka:Topics:PaymentCompleted") ?? "payment-completed";
+        var saslPassword = config.GetValue<string>("Kafka:SaslPassword");
 
-        var producerConfig = new ProducerConfig { BootstrapServers = brokerList, Acks = Acks.All };
+        var producerConfig = new ProducerConfig 
+        { 
+            BootstrapServers = brokerList, 
+            Acks = Acks.All 
+        };
+
+        if (!string.IsNullOrWhiteSpace(saslPassword))
+        {
+            producerConfig.SecurityProtocol = SecurityProtocol.SaslSsl;
+            producerConfig.SaslMechanism = SaslMechanism.Plain;
+            producerConfig.SaslUsername = "$ConnectionString";
+            producerConfig.SaslPassword = saslPassword;
+        }
+
         _producer = new ProducerBuilder<string, string>(producerConfig).Build();
     }
 

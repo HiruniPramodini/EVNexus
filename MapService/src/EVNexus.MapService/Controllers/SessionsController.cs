@@ -132,12 +132,22 @@ public class SessionsController : ControllerBase
         try
         {
             var bootstrapServers = _config.GetValue<string>("Kafka:BootstrapServers") ?? "kafka:9092";
+            var saslPassword = _config.GetValue<string>("Kafka:SaslPassword");
             var config = new Confluent.Kafka.ProducerConfig 
             { 
                 BootstrapServers = bootstrapServers,
                 MessageTimeoutMs = 3000,
                 SocketTimeoutMs = 3000
             };
+
+            if (!string.IsNullOrWhiteSpace(saslPassword))
+            {
+                config.SecurityProtocol = Confluent.Kafka.SecurityProtocol.SaslSsl;
+                config.SaslMechanism = Confluent.Kafka.SaslMechanism.Plain;
+                config.SaslUsername = "$ConnectionString";
+                config.SaslPassword = saslPassword;
+            }
+
             using var producer = new Confluent.Kafka.ProducerBuilder<string, string>(config).Build();
 
             var eventPayload = new
