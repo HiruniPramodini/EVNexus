@@ -289,10 +289,28 @@ export default function WalletPage({ authUser }) {
       {/* MULTI-STEP TOP UP MODAL */}
       {isTopUpModalOpen && (
         <div className="modal-backdrop" style={{ zIndex: 1000 }}>
-          <div className="modal-dialog animate-fade-in" style={{ maxWidth: '450px', padding: 0, overflow: 'hidden' }}>
+          <div 
+            className="modal-dialog animate-fade-in" 
+            style={{ 
+              maxWidth: '450px', 
+              maxHeight: '90vh', 
+              padding: 0, 
+              display: 'flex', 
+              flexDirection: 'column', 
+              overflow: 'hidden' 
+            }}
+          >
             
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: 'var(--space-4) var(--space-5)', 
+              borderBottom: '1px solid var(--color-border)', 
+              background: 'var(--color-surface)',
+              flexShrink: 0
+            }}>
               <h3 className="text-h3" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <CreditCard size={20} color="var(--color-primary)" />
                 {topUpStep === 1 && 'Add Money'}
@@ -308,7 +326,13 @@ export default function WalletPage({ authUser }) {
             </div>
 
             {/* Modal Body */}
-            <div style={{ padding: 'var(--space-5)', background: 'var(--color-background)' }}>
+            <div style={{ 
+              padding: 'var(--space-5)', 
+              background: 'var(--color-background)', 
+              overflowY: 'auto', 
+              flex: 1,
+              WebkitOverflowScrolling: 'touch'
+            }}>
               
               {/* STEP 1: AMOUNT SELECTION */}
               {topUpStep === 1 && (
@@ -375,32 +399,32 @@ export default function WalletPage({ authUser }) {
                     <ShieldCheck size={16} /> Demo payment. No real money will be charged.
                   </div>
 
-                  <div className="form-group" style={{ marginBottom: 'var(--space-4)' }}>
+                  <div className="form-group" style={{ marginBottom: 'var(--space-3)' }}>
                     <div style={{
                       background: 'linear-gradient(135deg, var(--brand-900) 0%, var(--brand-600) 100%)',
-                      borderRadius: '16px',
-                      padding: '22px',
+                      borderRadius: '14px',
+                      padding: '16px 20px',
                       color: '#ffffff',
                       boxShadow: 'var(--shadow-md)',
-                      marginBottom: '20px',
+                      marginBottom: '16px',
                       position: 'relative',
                       overflow: 'hidden'
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <ShieldCheck size={28} />
-                        <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '1.2rem' }}>Visa / Mastercard</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <ShieldCheck size={24} />
+                        <span style={{ fontStyle: 'italic', fontWeight: 'bold', fontSize: '1.1rem' }}>Visa / Mastercard</span>
                       </div>
-                      <div style={{ fontSize: '1.4rem', letterSpacing: '2px', marginBottom: '15px', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: '1.25rem', letterSpacing: '2px', marginBottom: '12px', fontFamily: 'monospace' }}>
                         {cardNumber ? cardNumber.padEnd(16, '•').replace(/(.{4})/g, '$1 ') : '•••• •••• •••• ••••'}
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <div>
                           <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.8 }}>Cardholder Name</div>
-                          <div style={{ fontSize: '1rem', textTransform: 'uppercase' }}>{cardName || 'JANE DOE'}</div>
+                          <div style={{ fontSize: '0.9rem', textTransform: 'uppercase', fontWeight: 600 }}>{cardName || 'JANE DOE'}</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', opacity: 0.8 }}>Valid Thru</div>
-                          <div style={{ fontSize: '1rem' }}>{cardExpiry || 'MM/YY'}</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{cardExpiry || 'MM/YY'}</div>
                         </div>
                       </div>
                     </div>
