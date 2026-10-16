@@ -3,6 +3,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure CORS for Frontend communication
 builder.Services.AddCors(options =>
 {
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
     options.AddPolicy("AllowAll", policy =>
     {
         policy.AllowAnyOrigin()
@@ -16,6 +22,7 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
+app.UseRouting();
 app.UseCors("AllowAll");
 
 app.MapReverseProxy();
