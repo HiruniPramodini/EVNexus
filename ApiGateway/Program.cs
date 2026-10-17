@@ -22,8 +22,34 @@ builder.Services.AddReverseProxy()
 
 var app = builder.Build();
 
+// Global preflight interceptor and CORS response header guarantor
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        await context.Response.CompleteAsync();
+        return;
+    }
+
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = "*";
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+        return Task.CompletedTask;
+    });
+
+    await next();
+});
+
 app.UseRouting();
 app.UseCors("AllowAll");
+
+app.MapGet("/health", () => Results.Ok(new { status = "Healthy", service = "EVNexus API Gateway" }));
 
 app.MapReverseProxy();
 
