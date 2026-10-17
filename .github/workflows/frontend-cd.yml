@@ -34,7 +34,7 @@ jobs:
         run: npm run build
         working-directory: Frontend
         env:
-          VITE_API_GATEWAY_URL: "https://evnexus-api-gateway-prod-gne4dzcag2b6dsdx.centralindia-01.azurewebsites.net"
+          VITE_API_GATEWAY_URL: ""
 
       - name: Prepare Deployment Package
         run: |

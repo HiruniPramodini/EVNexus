@@ -1,4 +1,6 @@
-const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL || 'http://localhost:5000';
+const API_GATEWAY_URL = import.meta.env.VITE_API_GATEWAY_URL !== undefined
+  ? import.meta.env.VITE_API_GATEWAY_URL
+  : (import.meta.env.DEV ? 'http://localhost:5000' : '');
 
 const TOKEN_STORAGE_KEY = 'evnexus_auth_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'evnexus_refresh_token';

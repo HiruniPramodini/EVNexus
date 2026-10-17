@@ -1,4 +1,5 @@
 import http from 'node:http';
+import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 8080;
 const DIST_DIR = path.join(__dirname, 'dist');
+const API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'https://evnexus-api-gateway-prod-gne4dzcag2b6dsdx.centralindia-01.azurewebsites.net';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -30,7 +32,51 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  // Only handle GET and HEAD requests
+  // 1. Transparent Reverse Proxy for /api/* to eliminate browser CORS
+  if (req.url?.startsWith('/api/')) {
+    try {
+      const targetUrl = new URL(req.url, API_GATEWAY_URL);
+      const isHttps = targetUrl.protocol === 'https:';
+      const transport = isHttps ? https : http;
+
+      const proxyHeaders = { ...req.headers, host: targetUrl.host };
+      delete proxyHeaders['origin'];
+      delete proxyHeaders['referer'];
+
+      const proxyReq = transport.request(targetUrl, {
+        method: req.method,
+        headers: proxyHeaders,
+        timeout: 60000
+      }, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+      });
+
+      proxyReq.on('timeout', () => {
+        proxyReq.destroy(new Error('Gateway request timed out'));
+      });
+
+      proxyReq.on('error', (err) => {
+        console.error('API Gateway proxy error:', err.message);
+        if (!res.headersSent) {
+          res.writeHead(502, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ message: 'API Gateway unreachable', error: err.message }));
+        }
+      });
+
+      req.pipe(proxyReq);
+      return;
+    } catch (err) {
+      console.error('Failed to proxy API request:', err);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: 'Internal Proxy Error' }));
+      }
+      return;
+    }
+  }
+
+  // 2. Only handle GET and HEAD requests for static files
   if (req.method !== 'GET' && req.method !== 'HEAD') {
     res.statusCode = 405;
     res.setHeader('Content-Type', 'text/plain');
@@ -38,13 +84,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Parse clean URL path
+  // 3. Static asset serving and SPA fallback
   const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  let safePath = path.normalize(decodeURIComponent(parsedUrl.pathname)).replace(/^(\.\.[\/\\])+/, '');
+  let safePath = path.normalize(decodeURIComponent(parsedUrl.pathname)).replace(/^(\.\.[/\\])+/, '');
 
   let filePath = path.join(DIST_DIR, safePath);
 
-  // Security check: ensure path is within DIST_DIR
   if (!filePath.startsWith(DIST_DIR)) {
     res.statusCode = 403;
     res.setHeader('Content-Type', 'text/plain');
@@ -60,7 +105,6 @@ const server = http.createServer((req, res) => {
     }
 
     fs.stat(targetPath, (err2, stats2) => {
-      // If file not found, fallback to index.html for Single Page Application client-side routing
       if (err2 || !stats2.isFile()) {
         targetPath = path.join(DIST_DIR, 'index.html');
       }
@@ -68,7 +112,6 @@ const server = http.createServer((req, res) => {
       const ext = path.extname(targetPath).toLowerCase();
       const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
-      // Caching: hashed assets get long cache, index.html gets no-cache so updates propagate immediately
       const isHtml = ext === '.html';
       const cacheControl = isHtml
         ? 'no-cache, no-store, must-revalidate'
@@ -101,4 +144,5 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`EVNexus Frontend production server listening on port ${PORT}`);
+  console.log(`Proxying /api/* requests to: ${API_GATEWAY_URL}`);
 });
