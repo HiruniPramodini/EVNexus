@@ -4,7 +4,9 @@
  * Course: SE3112 Advanced Software Engineering
  * 
  * Implements 12 distinct browser journeys across React SPA:
- * TC-SEL-01 to TC-SEL-12
+ * - Enterprise & Operator Portals (TC-SEL-01 to TC-SEL-04)
+ * - Fleet Management & Live Telemetry (TC-SEL-05 to TC-SEL-08)
+ * - EV Driver Experience & Billing (TC-SEL-09 to TC-SEL-12)
  */
 
 const fs = require('fs');
