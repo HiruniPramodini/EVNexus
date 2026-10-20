@@ -1,0 +1,85 @@
+name: EVNexus Microservice Automated Testing Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  unified-testing-pipeline:
+    name: Execute Full Testing Pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 3. Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: 'Frontend/package-lock.json'
+
+      - name: 4. Setup Chrome & WebDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: 5. Restore .NET Tools (Stryker & ReportGenerator)
+        run: |
+          dotnet tool restore
+
+      # ----------------------------------------------------------------------
+      # STAGE 1: Unit Testing & Mocking (Lead: N.P.K.N. Pathirana - IT24610784)
+      # ----------------------------------------------------------------------
+      - name: 6. Run Unit Tests with Code Coverage (xUnit + Moq)
+        run: |
+          dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+          dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+          dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+          dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      - name: 7. Generate Code Coverage HTML Report (ReportGenerator)
+        run: |
+          dotnet reportgenerator -reports:"TestResults/**/coverage.cobertura.xml" -targetdir:"tests/reports/coverage-report" -reporttypes:HtmlInline_AzurePipelines_Dark
+
+      # ----------------------------------------------------------------------
+      # STAGE 2: Mutation Testing Quality Gate (Lead: K.T.L. Perera - IT24610793)
+      # ----------------------------------------------------------------------
+      - name: 8. Execute Mutation Testing (Stryker.NET)
+        run: |
+          cd AuthenticationService/tests/EVNexus.AuthService.Tests
+          dotnet stryker --mutate "AccountManagementService.cs" --reporters "['progress', 'cleartext', 'html', 'json']" --output "../../../tests/reports/mutation" --concurrency 2 || true
+
+      # ----------------------------------------------------------------------
+      # STAGE 3: UI / E2E Browser Testing (Lead: A.G.H. Pramodini - IT24610786)
+      # ----------------------------------------------------------------------
+      - name: 9. Execute Selenium E2E Browser Journeys (12 Journeys)
+        run: |
+          node tests/e2e-selenium/seleniumRunner.js
+
+      # ----------------------------------------------------------------------
+      # STAGE 4: Load & Performance Testing (Lead: J.M. Asmal - IT24610803)
+      # ----------------------------------------------------------------------
+      - name: 10. Execute API Performance & Concurrency Load Test (Apache JMeter)
+        run: |
+          node tests/load-jmeter/loadRunner.js
+
+      # ----------------------------------------------------------------------
+      # STAGE 5: Artifact Archival & Unified Reporting
+      # ----------------------------------------------------------------------
+      - name: 11. Archive All Test Reports & Dashboards
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evnexus-unified-testing-reports
+          path: tests/reports/
+          retention-days: 14
