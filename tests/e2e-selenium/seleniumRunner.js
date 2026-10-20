@@ -12,6 +12,13 @@
 const fs = require('fs');
 const path = require('path');
 
+// Headless Chrome configuration standards (1920x1080 viewport, W3C compliant)
+const BROWSER_CONFIG = {
+    headless: true,
+    viewport: { width: 1920, height: 1080 },
+    defaultTimeoutMs: 10000
+};
+
 const testCases = [
     {
         id: "TC-SEL-01",
