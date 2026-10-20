@@ -33,8 +33,10 @@ const puppeteer = require('puppeteer');
   
   await new Promise(r => setTimeout(r, 1000));
   
-  await page.type('input[type="email"]', 'testdriver999@example.com');
-  await page.type('input[type="password"]', 'Password123!');
+  const testEmail = process.env.TEST_DRIVER_EMAIL || 'testdriver999@example.com';
+  const testPassword = process.env.TEST_DRIVER_PASSWORD || 'TestPass_2026_LocalOnly!';
+  await page.type('input[type="email"]', testEmail);
+  await page.type('input[type="password"]', testPassword);
   await page.click('button[type="submit"]');
   
   await new Promise(r => setTimeout(r, 5000));

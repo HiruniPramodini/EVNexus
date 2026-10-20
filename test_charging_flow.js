@@ -1,4 +1,5 @@
 const API_URL = 'http://localhost:5000/api';
+const TEST_ACCOUNT_PASSWORD = process.env.TEST_ACCOUNT_PASSWORD || 'TestPass_2026_LocalOnly!';
 
 async function runTests() {
     console.log("=========================================");
@@ -20,7 +21,7 @@ async function runTests() {
                 businessEmail: companyEmail,
                 phone: "077-1234567",
                 address: "Lotus Tower, Colombo",
-                password: "Password123!"
+                password: TEST_ACCOUNT_PASSWORD
             })
         });
         const coData = await regCoRes.json();
@@ -35,7 +36,7 @@ async function runTests() {
         const coLoginRes = await fetch(`${API_URL}/auth/company/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ businessEmail: companyEmail, password: "Password123!" })
+            body: JSON.stringify({ businessEmail: companyEmail, password: TEST_ACCOUNT_PASSWORD })
         });
         const coLoginData = await coLoginRes.json();
         if (!coLoginData.success) throw new Error("Company login failed: " + JSON.stringify(coLoginData));
@@ -77,7 +78,7 @@ async function runTests() {
                 name: "Test Driver",
                 email: driverEmail,
                 phone: "077-9999888",
-                password: "Password123!"
+                password: TEST_ACCOUNT_PASSWORD
             })
         });
         const drData = await regDriverRes.json();
@@ -92,7 +93,7 @@ async function runTests() {
         const drLoginRes = await fetch(`${API_URL}/auth/driver/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: driverEmail, password: "Password123!" })
+            body: JSON.stringify({ email: driverEmail, password: TEST_ACCOUNT_PASSWORD })
         });
         const drLoginData = await drLoginRes.json();
         if (!drLoginData.success) throw new Error("Driver login failed: " + JSON.stringify(drLoginData));
