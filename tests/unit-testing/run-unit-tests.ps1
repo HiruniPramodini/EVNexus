@@ -13,6 +13,7 @@ Write-Host "`n=======================================================" -Foregrou
 Write-Host "     EVNexus Unit Testing & Mocking Suite            " -ForegroundColor Yellow
 Write-Host "   Student: N.P.K.N. Pathirana (IT24610784)           " -ForegroundColor Cyan
 Write-Host "   Framework: xUnit, Moq, [Theory]/[InlineData]        " -ForegroundColor Green
+Write-Host "   Coverage: Cobertura XML -> ReportGenerator HTML     " -ForegroundColor Green
 Write-Host "=======================================================`n" -ForegroundColor Cyan
 
 $workspaceRoot = Resolve-Path "$PSScriptRoot\..\.."
