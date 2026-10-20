@@ -26,6 +26,11 @@ yarn-error.log*
 # Logs
 *.log
 
+# Test Artifacts & Generated Reports
+TestResults/
+tests/reports/
+*.jtl
+
 # OS
 .DS_Store
 Thumbs.db
