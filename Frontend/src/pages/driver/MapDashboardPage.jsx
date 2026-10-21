@@ -60,7 +60,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
   const [activeChargerInfo, setActiveChargerInfo] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [sessionError, setSessionError] = useState(null);
-  
+
   const [showStartModal, setShowStartModal] = useState(false);
   const [qrPayload, setQrPayload] = useState('');
   const [validatedData, setValidatedData] = useState(null);
@@ -225,7 +225,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
         setValidatedData(res.data);
       }
     } catch (err) {
-      setSessionError(err.message || "This QR code is invalid or no longer available.");
+      setSessionError(err.message || "Incorrect QR Code — this QR code does not belong to a valid EVNexus charging port.");
     }
   };
 
@@ -248,7 +248,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
       const estimatedKwh = Math.min(powerKw * 1.0, 50);
       const estimatedAmount = Math.round(pricePerKwh * estimatedKwh * 100) / 100;
 
-      // Start Session directly using real verified QR charger & station data
+      // 1. Start Session
       const sessionPayload = {
         chargingCode: validatedData.chargingCode,
         companyId: validatedData.companyId,
