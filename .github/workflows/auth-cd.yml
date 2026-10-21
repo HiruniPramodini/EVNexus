@@ -11,6 +11,9 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-and-deploy:
+    name: Build, Test and Deploy Authentication Service
+    runs-on: ubuntu-latest
   build-publish:
     name: Build, Test and Package Authentication Service #Create a job named "Build, Test and Package Authentication Service"
     runs-on: ubuntu-latest #Creatr VM (Runner)
