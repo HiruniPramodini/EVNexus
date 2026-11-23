@@ -6,7 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:all": "playwright test --workers=1",
+    "test:a11y": "playwright test --project=ui --grep @a11y",
+    "test:ui": "playwright test --project=ui",
+    "test:headed": "playwright test --project=ui --headed",
+    "test:report": "playwright show-report",
+    "test:list": "playwright test --list",
+    "test:responsive": "playwright test --project=ui --grep @responsive"
   },
   "dependencies": {
     "jsqr": "^1.4.0",
