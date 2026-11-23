@@ -698,12 +698,12 @@ export default function StationManagementPage() {
           
           <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="form-group">
-              <label className="form-label">Station Name</label>
-              <input type="text" required className="form-input" disabled={isEditing} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+              <label htmlFor="station-name" className="form-label">Station Name</label>
+              <input id="station-name" type="text" required className="form-input" disabled={isEditing} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
             </div>
             <div className="form-group" style={{ position: 'relative' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-                <label className="form-label" style={{ fontWeight: 600, margin: 0 }}>
+                <label htmlFor="station-address" className="form-label" style={{ fontWeight: 600, margin: 0 }}>
                   Station Address (Auto-Geocoded)
                 </label>
                 {isSearchingAddress && (
@@ -719,6 +719,7 @@ export default function StationManagementPage() {
                   className="form-input"
                   style={{ paddingRight: '2.5rem' }}
                   placeholder="e.g. 410/1/A/Phala Bomiriya, Kaduwela or Kandy"
+                  id="station-address"
                   value={formData.address}
                   onChange={e => {
                     const val = e.target.value;
@@ -797,24 +798,26 @@ export default function StationManagementPage() {
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
               <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Latitude</label>
+                <label htmlFor="station-latitude" className="form-label">Latitude</label>
                 <input 
                   type="text" 
                   className="form-input" 
                   value={formData.latitude}
                   onChange={handleLatChange}
                   placeholder="e.g. 6.927100 or 6°54'45.4&quot;N"
+                  id="station-latitude"
                   required
                 />
               </div>
               <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Longitude</label>
+                <label htmlFor="station-longitude" className="form-label">Longitude</label>
                 <input 
                   type="text" 
                   className="form-input" 
                   value={formData.longitude}
                   onChange={handleLngChange}
                   placeholder="e.g. 79.861200"
+                  id="station-longitude"
                   required
                 />
               </div>
@@ -869,20 +872,20 @@ export default function StationManagementPage() {
             <LocationPickerMap formData={formData} setFormData={setFormData} />
 
             <div className="form-group">
-              <label className="form-label">Connector Type</label>
-              <select className="form-input" value={formData.connectorType} onChange={e => setFormData({...formData, connectorType: e.target.value})}>
+              <label htmlFor="station-connector" className="form-label">Connector Type</label>
+              <select id="station-connector" className="form-input" value={formData.connectorType} onChange={e => setFormData({...formData, connectorType: e.target.value})}>
                 <option value="CCS2">CCS2</option>
                 <option value="CHAdeMO">CHAdeMO</option>
                 <option value="Type 2">Type 2</option>
               </select>
             </div>
             <div className="form-group">
-              <label className="form-label">Capacity (kW)</label>
-              <input type="number" required className="form-input" value={formData.capacityKw} onChange={e => setFormData({...formData, capacityKw: e.target.value})} />
+              <label htmlFor="station-capacity" className="form-label">Capacity (kW)</label>
+              <input id="station-capacity" type="number" required className="form-input" value={formData.capacityKw} onChange={e => setFormData({...formData, capacityKw: e.target.value})} />
             </div>
             <div className="form-group">
-              <label className="form-label">Price per kWh (LKR)</label>
-              <input type="number" step="0.01" required className="form-input" value={formData.pricePerKwh} onChange={e => setFormData({...formData, pricePerKwh: e.target.value})} />
+              <label htmlFor="station-price" className="form-label">Price per kWh (LKR)</label>
+              <input id="station-price" type="number" step="0.01" required className="form-input" value={formData.pricePerKwh} onChange={e => setFormData({...formData, pricePerKwh: e.target.value})} />
             </div>
 
           </div>
