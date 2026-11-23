@@ -1,0 +1,40 @@
+name: UI and UX browser checks
+
+on:
+  pull_request:
+    paths:
+      - 'Frontend/**'
+      - '.github/workflows/ui-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: Frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - run: npm run test:ui
+      - name: Retain browser results including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-test-results
+          path: |
+            Frontend/playwright-report/
+            Frontend/test-results/
+          retention-days: 7
+          if-no-files-found: warn
