@@ -21,6 +21,9 @@ on:
 
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build-test:
     name: Build, Test and Docker Check
@@ -30,24 +33,40 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: root_password
+          MYSQL_ROOT_PASSWORD: ci_map_root_only_password
           MYSQL_DATABASE: map_db_test
-          MYSQL_USER: evnexus
-          MYSQL_PASSWORD: evnexus_password
+          MYSQL_USER: evnexus_ci
+          MYSQL_PASSWORD: ci_map_only_password
         ports:
-          - 3306:3306
+          - 3306/tcp
         options: >-
-          --health-cmd="mysqladmin ping -h localhost -u root -proot_password"
-          --health-interval=10s
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=30
 
     env:
-      ConnectionStrings__DefaultConnection: "Server=127.0.0.1;Port=3306;Database=map_db_test;User=evnexus;Password=evnexus_password;"
+      MAP_TEST_CONNECTION_STRING: "Server=127.0.0.1;Port=${{ job.services.mysql.ports[3306] }};Database=map_db_test;User=evnexus_ci;Password=ci_map_only_password;"
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Wait for authenticated Map test database readiness
+        env:
+          MAP_MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          for attempt in {1..30}; do
+            if docker exec -e MYSQL_PWD=ci_map_only_password "$MAP_MYSQL_CONTAINER" \
+              mysql --protocol=TCP -h 127.0.0.1 -u evnexus_ci map_db_test -N -e 'SELECT 1'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Isolated Map MySQL service did not become ready.' >&2
+          exit 1
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
