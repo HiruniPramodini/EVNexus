@@ -14,6 +14,8 @@
     "test:report": "playwright show-report",
     "test:list": "playwright test --list",
     "test:e2e": "playwright test --project=e2e --workers=1",
+    "test:seed": "node tests/helpers/seed-local.js",
+    "test:prepare": "node tests/helpers/prepare-local.js",
     "test:responsive": "playwright test --project=ui --grep @responsive"
   },
   "dependencies": {
