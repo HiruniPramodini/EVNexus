@@ -414,6 +414,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               type="text" 
               className="form-input" 
               placeholder="Search station, city, connector..." 
+              aria-label="Search charging stations"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               style={{ paddingLeft: '38px' }}
@@ -422,6 +423,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
               <button 
                 type="button" 
                 onClick={() => setSearchQuery('')}
+                aria-label="Clear station search"
                 style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}
               >
                 <X size={16} />
@@ -433,6 +435,8 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
             <span className="text-secondary" style={{ fontSize: '0.85rem' }}>Radius: <strong>{radius} km</strong></span>
             <input 
               type="range" 
+              aria-label="Search radius"
+              aria-valuetext={`${radius} kilometres`}
               min="5" 
               max="200" 
               step="5" 
@@ -747,6 +751,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
           {/* Live Driver Location Marker */}
           {userLocation && typeof userLocation.lat === 'number' && typeof userLocation.lng === 'number' && (
             <Marker
+              title="Your location"
               position={[userLocation.lat, userLocation.lng]}
               icon={createUserLocationIcon('#132d28', 22)}
             >
@@ -761,6 +766,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
           {/* Searched Location Pin */}
           {searchMarker && (
             <Marker
+              title="Searched location"
               position={[searchMarker.lat, searchMarker.lng]}
               icon={createSearchIcon('#d64545', 38)}
             >
@@ -786,6 +792,7 @@ export default function MapDashboardPage({ authUser, onViewChange }) {
             return (
               <Marker
                 key={item.station.id}
+                title={`Charging station: ${item.station.name}`}
                 position={[lat, lng]}
                 icon={createStationIcon(isSelected ? '#132d28' : '#408576', isSelected ? 40 : 36)}
                 eventHandlers={{

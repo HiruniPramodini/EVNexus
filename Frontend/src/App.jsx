@@ -20,11 +20,18 @@ import CompanySettingsPage from './pages/company/CompanySettingsPage';
 import DriverAccountPage from './pages/driver/DriverAccountPage';
 import { getStoredUser, getAuthToken, clearAuthSession, updateStoredUser, verifyEmailFromLink } from './services/api';
 
+function getAuthorizedDashboardView(view, user) {
+  const isCompany = user.role === 'CompanyAdmin' || user.role === 'Company';
+  const views = isCompany
+    ? ['dashboard', 'analytics', 'finance', 'revenue', 'stations', 'live', 'settings', 'staff', 'billing', 'security', 'company', 'company-profile']
+    : ['driver-dashboard', 'map', 'history', 'wallet', 'settings', 'vehicles', 'account'];
+  return views.includes(view) ? view : isCompany ? 'dashboard' : 'driver-dashboard';
+}
+
 function getInitialActiveView() {
   const user = getStoredUser();
   const token = getAuthToken();
   const isAuthenticated = Boolean(user && token);
-  const isDriver = isAuthenticated && (user.role === 'Driver' || Boolean(user.driverId));
 
   try {
     const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
@@ -35,17 +42,8 @@ function getInitialActiveView() {
     const candidate = queryView || rawHash || rawPath;
     const normalized = (candidate === 'revenue' || candidate === 'finance') ? 'finance' : candidate;
 
-    const validDashboardViews = [
-      'dashboard', 'driver-dashboard', 'finance', 'revenue', 'map', 'history',
-      'stations', 'wallet', 'live', 'settings', 'staff', 'billing', 'security', 
-      'vehicles', 'company', 'company-profile', 'account'
-    ];
-
     if (isAuthenticated) {
-      if (normalized && validDashboardViews.includes(normalized)) {
-        return normalized;
-      }
-      return isDriver ? 'driver-dashboard' : 'dashboard';
+      return getAuthorizedDashboardView(normalized, user);
     }
 
     if (normalized && ['login', 'register', 'driver-login', 'driver-register'].includes(normalized)) {
@@ -55,7 +53,7 @@ function getInitialActiveView() {
     console.warn('Failed to parse URL for initial view', e);
   }
 
-  return isAuthenticated ? (isDriver ? 'driver-dashboard' : 'dashboard') : 'landing';
+  return isAuthenticated ? getAuthorizedDashboardView('', user) : 'landing';
 }
 
 
@@ -86,20 +84,28 @@ export default function App() {
   }, [activeView]);
 
   useEffect(() => {
+    const applyHistoryView = (view) => {
+      const nextView = authUser ? getAuthorizedDashboardView(view, authUser) : view;
+      if (nextView !== view) {
+        // Canonicalize even when the resolved view equals the current React state.
+        window.history.replaceState({ view: nextView }, '', `/${nextView}`);
+      }
+      setActiveView(nextView);
+    };
     const handlePopState = (event) => {
       if (event.state?.view) {
-        setActiveView(event.state.view);
+        applyHistoryView(event.state.view);
       } else {
         const path = window.location.pathname.replace(/^\/+|\/+$/g, '').toLowerCase();
         const norm = (path === 'revenue' || path === 'finance') ? 'finance' : path;
         if (norm) {
-          setActiveView(norm);
+          applyHistoryView(norm);
         }
       }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [authUser]);
 
   useEffect(() => {
     try {

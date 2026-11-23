@@ -7,24 +7,47 @@ on:
     branches: [ main, develop ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   unified-testing-pipeline:
     name: Execute Full Testing Pipeline
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      map-mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: map_db_test
+          MYSQL_USER: evnexus_ci
+          MYSQL_PASSWORD: ci_map_only_password
+          MYSQL_ROOT_PASSWORD: ci_map_root_only_password
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
 
     steps:
       - name: 1. Checkout Repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - name: 2. Setup .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: 3. Setup Node.js 20
+      - name: 3. Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           cache: 'npm'
           cache-dependency-path: 'Frontend/package-lock.json'
 
@@ -37,6 +60,20 @@ jobs:
         run: |
           dotnet tool restore
 
+      - name: Wait for authenticated Map test database readiness
+        env:
+          MAP_MYSQL_CONTAINER: ${{ job.services.map-mysql.id }}
+        run: |
+          for attempt in {1..30}; do
+            if docker exec -e MYSQL_PWD=ci_map_only_password "$MAP_MYSQL_CONTAINER" \
+              mysql --protocol=TCP -h 127.0.0.1 -u evnexus_ci map_db_test -N -e 'SELECT 1'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo 'Isolated Map MySQL service did not become ready.' >&2
+          exit 1
+
       # ----------------------------------------------------------------------
       # STAGE 1: Unit Testing & Mocking (Lead: N.P.K.N. Pathirana - IT24610784)
       # ----------------------------------------------------------------------
@@ -44,7 +81,10 @@ jobs:
         run: |
           dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
           dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
-          dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
+          # Schema creation is performed by the actual Map Program startup:
+          # IDatabaseInitializer.InitializeAsync(), exercised by WebApplicationFactory.
+          MAP_TEST_CONNECTION_STRING='Server=127.0.0.1;Port=${{ job.services.map-mysql.ports[3306] }};Database=map_db_test;User=evnexus_ci;Password=ci_map_only_password;' \
+            dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --logger 'trx;LogFileName=map-tests.trx' --results-directory ./TestResults/Map
           dotnet test DashboardAnalyticsService/tests/EVNexus.DashboardService.Tests/EVNexus.DashboardService.Tests.csproj --configuration Release --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
       - name: 7. Generate Code Coverage HTML Report (ReportGenerator)
@@ -81,5 +121,7 @@ jobs:
         if: always()
         with:
           name: evnexus-unified-testing-reports
-          path: tests/reports/
+          path: |
+            tests/reports/
+            TestResults/
           retention-days: 14

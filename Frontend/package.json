@@ -6,7 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:all": "playwright test --workers=1",
+    "test:a11y": "playwright test --project=ui --grep @a11y",
+    "test:ui": "playwright test --project=ui",
+    "test:headed": "playwright test --project=ui --headed",
+    "test:report": "playwright show-report",
+    "test:list": "playwright test --list",
+    "test:e2e": "playwright test --project=e2e --workers=1",
+    "test:seed": "node tests/helpers/seed-local.js",
+    "test:prepare": "node tests/helpers/prepare-local.js",
+    "test:record": "node tests/helpers/record-results.js",
+    "test:responsive": "playwright test --project=ui --grep @responsive"
   },
   "dependencies": {
     "jsqr": "^1.4.0",
@@ -20,6 +31,8 @@
     "recharts": "^3.10.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.1",
     "@vitejs/plugin-react": "^4.3.3",
     "vite": "^5.4.10"
   }
