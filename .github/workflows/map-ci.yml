@@ -45,9 +45,6 @@ jobs:
           --health-timeout=5s
           --health-retries=30
 
-    env:
-      MAP_TEST_CONNECTION_STRING: "Server=127.0.0.1;Port=${{ job.services.mysql.ports[3306] }};Database=map_db_test;User=evnexus_ci;Password=ci_map_only_password;"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -86,6 +83,8 @@ jobs:
         run: dotnet build MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-restore --configuration Release
 
       - name: Run Map Service tests
+        env:
+          MAP_TEST_CONNECTION_STRING: "Server=127.0.0.1;Port=${{ job.services.mysql.ports['3306'] }};Database=map_db_test;User=evnexus_ci;Password=ci_map_only_password;"
         run: dotnet test MapService/tests/EVNexus.MapService.Tests/EVNexus.MapService.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test_results.trx" --results-directory ./TestResults
 
       - name: Publish test results
