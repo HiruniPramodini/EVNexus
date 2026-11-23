@@ -1,10 +1,28 @@
-fetch('http://localhost:5000/api/payment/wallet', {
-    method: 'GET',
-    headers: { 
-        'Accept': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJEUlYtMDFEM0IzRkJEN0VDNEE4QzlBNzkzNDRGM0VDQTZBMDAiLCJuYW1laWQiOiJEUlYtMDFEM0IzRkJEN0VDNEE4QzlBNzkzNDRGM0VDQTZBMDAiLCJkcml2ZXJfaWQiOiJEUlYtMDFEM0IzRkJEN0VDNEE4QzlBNzkzNDRGM0VDQTZBMDAiLCJlbWFpbCI6WyJ0ZXN0ZHJpdmVyOTk5QGV4YW1wbGUuY29tIiwidGVzdGRyaXZlcjk5OUBleGFtcGxlLmNvbSJdLCJuYW1lIjoiVGVzdCBEcml2ZXIiLCJ1bmlxdWVfbmFtZSI6IlRlc3QgRHJpdmVyIiwicm9sZSI6WyJEcml2ZXIiLCJEcml2ZXIiXSwianRpIjoiN2YxODE4ZmYtYWMwZC00MDExLWEzNGEtZDQ2NTYzMmZmODgxIiwibmJmIjoxNzkwNjgzNzQ2LCJleHAiOjE3OTA2ODczNDYsImlhdCI6MTc5MDY4Mzc0NiwiaXNzIjoiRVZOZXh1cy5BdXRoU2VydmljZSIsImF1ZCI6IkVWTmV4dXMuTWljcm9zZXJ2aWNlcyJ9.MBdmUe13oBJrydAVubIZRcLH_iDjDLtq5T1Mz8td5aY`
+// Test-only scratch script: dynamically authenticates to get a fresh token
+async function testWallet() {
+    const loginRes = await fetch('http://localhost:5000/api/auth/driver/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: process.env.TEST_DRIVER_EMAIL || 'testdriver999@example.com',
+            password: process.env.TEST_DRIVER_PASSWORD || 'Password123!'
+        })
+    });
+    const loginData = await loginRes.json();
+    const token = loginData?.data?.accessToken;
+    if (!token) {
+        console.error('Failed to obtain test token:', loginData);
+        return;
     }
-})
-.then(res => { console.log(res.status); return res.text(); })
-.then(data => console.log(data))
-.catch(console.error);
+
+    const res = await fetch('http://localhost:5000/api/payment/wallet', {
+        headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+        }
+    });
+    console.log('Status:', res.status);
+    console.log(await res.text());
+}
+
+testWallet().catch(console.error);

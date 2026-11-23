@@ -1,0 +1,33 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/stryker-config.schema.json",
+  "stryker-config": {
+    "project": "../../AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj",
+    "test-projects": [
+      "../../AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj"
+    ],
+    "reporters": [
+      "html",
+      "progress",
+      "cleartext",
+      "json"
+    ],
+    "mutation-level": "Standard",
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
+    "mutate": [
+      "Services/**",
+      "Controllers/**",
+      "Repositories/**",
+      "!Data/**",
+      "!Migrations/**",
+      "!Program.cs"
+    ],
+    "dashboard-url": "https://dashboard.stryker-mutator.io",
+    "output": "../reports/mutation",
+    "concurrency": 4,
+    "timeout-ms": 5000
+  }
+}

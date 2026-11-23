@@ -1,0 +1,12 @@
+{
+  "name": "evnexus-e2e-selenium",
+  "version": "1.0.0",
+  "description": "EVNexus Automated End-to-End Browser Testing Suite (12 Journeys)",
+  "main": "seleniumRunner.js",
+  "scripts": {
+    "test": "node seleniumRunner.js"
+  },
+  "dependencies": {
+    "selenium-webdriver": "^4.25.0"
+  }
+}
