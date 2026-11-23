@@ -29,3 +29,12 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+# Browser test output and local integration data
+**/playwright-report/
+**/test-results/
+**/blob-report/
+**/.e2e-seed.json
+**/.e2e-artifacts/
+.e2e-playwright-state.json
+Frontend/docs/VERIFIED_RESULTS.md
