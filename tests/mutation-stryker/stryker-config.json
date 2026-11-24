@@ -1,33 +1,42 @@
 {
   "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/stryker-config.schema.json",
   "stryker-config": {
-    "project": "../../AuthenticationService/src/EVNexus.AuthService/EVNexus.AuthService.csproj",
+    "project": "EVNexus.AuthService.csproj",
     "test-projects": [
-      "../../AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj"
+      "EVNexus.AuthService.Tests.csproj"
     ],
     "reporters": [
-      "html",
       "progress",
       "cleartext",
+      "html",
       "json"
     ],
     "mutation-level": "Standard",
+    "coverage-analysis": "perTest",
     "thresholds": {
-      "high": 80,
-      "low": 60,
-      "break": 0
+      "high": 85,
+      "low": 70,
+      "break": 70
     },
     "mutate": [
-      "Services/**",
-      "Controllers/**",
-      "Repositories/**",
-      "!Data/**",
-      "!Migrations/**",
-      "!Program.cs"
+      "**/Services/AccountManagementService.cs",
+      "**/Services/SessionService.cs",
+      "**/Services/JwtTokenService.cs",
+      "**/Middleware/RoleAuthorizationMiddleware.cs",
+      "**/Middleware/TenantResolutionMiddleware.cs"
     ],
-    "dashboard-url": "https://dashboard.stryker-mutator.io",
-    "output": "../reports/mutation",
+    "ignore-methods": [
+      "*Log*",
+      "LogInformation",
+      "LogWarning",
+      "LogError",
+      "LogDebug",
+      "LogTrace",
+      "LogCritical",
+      "ConfigureAwait"
+    ],
     "concurrency": 4,
-    "timeout-ms": 5000
+    "additional-timeout": 5000,
+    "break-on-initial-test-failure": true
   }
 }

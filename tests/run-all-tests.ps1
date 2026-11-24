@@ -52,8 +52,11 @@ if ($Layer -eq "All" -or $Layer -eq "Mutation") {
         
         # Execute focused mutation run for fast, reliable demo execution
         & "$PSScriptRoot\mutation-stryker\run-mutation.ps1" -QuickDemo
-        
-        $pipelineResults["2. Mutation Testing"] = @{ Status = "PASS"; Details = "Stryker.NET calculated mutation score (killed/survived mutants)"; Duration = "$([math]::Round(((Get-Date) - $stageStart).TotalSeconds, 1))s" }
+        if ($LASTEXITCODE -eq 0) {
+            $pipelineResults["2. Mutation Testing"] = @{ Status = "PASS"; Details = "Stryker.NET quality gates passed across microservices"; Duration = "$([math]::Round(((Get-Date) - $stageStart).TotalSeconds, 1))s" }
+        } else {
+            $pipelineResults["2. Mutation Testing"] = @{ Status = "FAIL"; Details = "Mutation score fell below configured quality gate"; Duration = "$([math]::Round(((Get-Date) - $stageStart).TotalSeconds, 1))s" }
+        }
     }
 }
 
@@ -155,7 +158,7 @@ $indexHtml = @"
             <span class="badge badge-pass">STAGE 2: MUTATION QUALITY</span>
             <h3>Mutation Testing</h3>
             <p>Stryker.NET fault-tolerance evaluation injecting arithmetic, logical, and equality mutants into core service logic to evaluate the defect-killing capacity of test suites.</p>
-            <a href="mutation/reports/mutation-report.html" class="btn" target="_blank">Open Stryker.NET Dashboard</a>
+            <a href="mutation/index.html" class="btn" target="_blank">Open Stryker.NET Dashboard</a>
             <div class="author">Lead: K.T.L. Perera (IT24610793)</div>
         </div>
 

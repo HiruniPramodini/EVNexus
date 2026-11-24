@@ -1,0 +1,116 @@
+name: Mutation Testing Quality Gate (Stryker.NET)
+
+on:
+  push:
+    branches: [ main, develop, feature/mutation_testing ]
+    paths:
+      - 'AuthenticationService/**'
+      - 'PaymentService/**'
+      - 'tests/mutation-stryker/**'
+      - '.config/dotnet-tools.json'
+      - 'dotnet-tools.json'
+      - '.github/workflows/mutation-testing.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'AuthenticationService/**'
+      - 'PaymentService/**'
+      - 'tests/mutation-stryker/**'
+      - '.config/dotnet-tools.json'
+      - 'dotnet-tools.json'
+      - '.github/workflows/mutation-testing.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Target microservice scope'
+        required: true
+        default: 'All'
+        type: choice
+        options:
+          - All
+          - Auth
+          - Payment
+      quick_demo:
+        description: 'Run fast QuickDemo mode'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  mutation-testing:
+    name: Stryker.NET Mutation Testing (${{ inputs.service || 'All' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: 2. Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 3. Restore Local .NET Tools (Stryker.NET 5.0.0)
+        run: dotnet tool restore
+
+      - name: 4. Verify Unit Test Baselines
+        run: |
+          dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release --verbosity minimal
+          dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release --verbosity minimal
+
+      - name: 5. Run Stryker.NET Mutation Testing & Enforce Quality Gates
+        shell: pwsh
+        run: |
+          $service = "${{ inputs.service }}"
+          if ([string]::IsNullOrWhiteSpace($service)) { $service = "All" }
+          $quick = "${{ inputs.quick_demo }}" -eq "true"
+
+          $params = @{
+            Service     = $service
+            SkipRestore = $true
+            Concurrency = 2
+          }
+          if ($quick) { $params["QuickDemo"] = $true }
+
+          & ./tests/mutation-stryker/run-mutation.ps1 @params
+          exit $LASTEXITCODE
+
+      - name: 6. Publish Mutation Metrics to Job Summary
+        if: always()
+        shell: pwsh
+        run: |
+          $summaryPath = "tests/reports/mutation/summary.json"
+          if (-not (Test-Path $summaryPath)) {
+            "## Mutation Testing Summary`n`nNo summary.json was produced." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            exit 0
+          }
+          $s = Get-Content $summaryPath -Raw | ConvertFrom-Json
+          $lines = @(
+            "## Stryker.NET Mutation Testing Quality Gate",
+            "",
+            "- **Overall Weighted Mutation Score:** **$($s.overallScore)%**",
+            "- **Mutants:** Killed=$($s.totalKilled) | Timeout=$($s.totalTimeout) | Survived=$($s.totalSurvived) | NoCoverage=$($s.totalNoCov) | Ignored=$($s.totalIgnored)",
+            "- **Quality Gate:** $(if ($s.allGatesPassed) { 'PASSED' } else { 'FAILED' })",
+            "- **Duration:** $($s.durationSec)s",
+            "",
+            "| Microservice | Score | Killed | Survived | NoCoverage | Gate |",
+            "| :--- | :---: | :---: | :---: | :---: | :---: |"
+          )
+          foreach ($svc in $s.services) {
+            $lines += "| $($svc.name) | **$($svc.score)%** | $($svc.killed) | $($svc.survived) | $($svc.noCoverage) | $(if ($svc.passed) { 'PASS' } else { 'FAIL' }) |"
+          }
+          $lines -join "`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append
+
+      - name: 7. Upload Stryker HTML & JSON Mutation Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evnexus-mutation-testing-reports
+          path: tests/reports/mutation/
+          retention-days: 14

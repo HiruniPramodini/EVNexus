@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stryker-mutator/stryker-net/master/src/Stryker.Core/Stryker.Core/stryker-config.schema.json",
+  "stryker-config": {
+    "project": "EVNexus.AuthService.csproj",
+    "test-projects": [
+      "EVNexus.AuthService.Tests.csproj"
+    ],
+    "reporters": [
+      "progress",
+      "cleartext",
+      "html",
+      "json"
+    ],
+    "mutation-level": "Standard",
+    "coverage-analysis": "perTest",
+    "thresholds": {
+      "high": 85,
+      "low": 70,
+      "break": 70
+    },
+    "mutate": [
+      "**/Services/AccountManagementService.cs",
+      "**/Services/SessionService.cs",
+      "**/Services/JwtTokenService.cs",
+      "**/Middleware/RoleAuthorizationMiddleware.cs",
+      "**/Middleware/TenantResolutionMiddleware.cs"
+    ],
+    "ignore-methods": [
+      "*Log*",
+      "LogInformation",
+      "LogWarning",
+      "LogError",
+      "LogDebug",
+      "LogTrace",
+      "LogCritical",
+      "ConfigureAwait"
+    ],
+    "concurrency": 4,
+    "additional-timeout": 5000,
+    "break-on-initial-test-failure": true
+  }
+}
