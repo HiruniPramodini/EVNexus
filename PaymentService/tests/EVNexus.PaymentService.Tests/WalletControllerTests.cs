@@ -117,30 +117,49 @@ public class WalletControllerTests : IClassFixture<TestWebApplicationFactory>
         _mockRepo.Verify(x => x.TopUpAsync("d-1", 50, It.IsAny<string?>()), Times.Once);
     }
 
-    [Fact]
-    public async Task NegativeOrZeroAmount_Rejected()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-10)]
+    [InlineData(5000.01)]
+    [InlineData(10000)]
+    public async Task TopUp_InvalidAmount_ReturnsBadRequest(decimal invalidAmount)
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("Driver", "d-1"));
-        
-        var responseZero = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = 0 });
-        var responseNeg = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = -10 });
-        
-        Assert.Equal(HttpStatusCode.BadRequest, responseZero.StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, responseNeg.StatusCode);
-        _mockRepo.Verify(x => x.TopUpAsync(It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>()), Times.Never);
+
+        var response = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = invalidAmount });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        _mockRepo.Verify(x => x.TopUpAsync(It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string?>()), Times.Never);
     }
 
     [Fact]
-    public async Task ExcessiveAmount_Rejected()
+    public async Task TopUp_WhenRepositoryFails_ReturnsBadRequest()
     {
         var client = _factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("Driver", "d-1"));
-        
-        var responseExcess = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = 10000 });
-        
-        Assert.Equal(HttpStatusCode.BadRequest, responseExcess.StatusCode);
-        _mockRepo.Verify(x => x.TopUpAsync(It.IsAny<string>(), It.IsAny<decimal>(), It.IsAny<string>()), Times.Never);
+
+        _mockRepo.Setup(x => x.TopUpAsync("d-1", 50, It.IsAny<string?>())).ReturnsAsync(false);
+
+        var response = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = 50 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        _mockRepo.Verify(x => x.TopUpAsync("d-1", 50, It.IsAny<string?>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task TopUp_MaximumAllowedAmount_Succeeds()
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("Driver", "d-1"));
+
+        _mockRepo.Setup(x => x.TopUpAsync("d-1", 5000m, It.IsAny<string?>())).ReturnsAsync(true);
+        _mockRepo.Setup(x => x.GetWalletByDriverIdAsync("d-1")).ReturnsAsync(new Wallet { DriverId = "d-1", Balance = 5000m });
+
+        var response = await client.PostAsJsonAsync("/api/payment/wallet/topup", new { Amount = 5000m });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        _mockRepo.Verify(x => x.TopUpAsync("d-1", 5000m, It.IsAny<string?>()), Times.Once);
     }
 
     [Fact]
@@ -174,6 +193,21 @@ public class WalletControllerTests : IClassFixture<TestWebApplicationFactory>
         
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         _mockRepo.Verify(x => x.GetWalletTransactionsAsync("d-1", 1, 20), Times.Once);
+    }
+
+    [Theory]
+    [InlineData(0, 20)]
+    [InlineData(1, 0)]
+    [InlineData(1, 101)]
+    public async Task GetWalletTransactions_InvalidPagination_ReturnsBadRequest(int page, int pageSize)
+    {
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", GenerateToken("Driver", "d-1"));
+
+        var response = await client.GetAsync($"/api/payment/wallet/transactions?page={page}&pageSize={pageSize}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        _mockRepo.Verify(x => x.GetWalletTransactionsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>()), Times.Never);
     }
 
     [Fact]

@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # EVNexus Unit Testing & Mocking Runner (xUnit + Moq + ReportGenerator)
 # Owner: N.P.K.N. Pathirana (IT24610784) - Unit Testing & Mocking Specialist
 # Course: SE3112 Advanced Software Engineering
@@ -26,7 +26,7 @@ New-Item -ItemType Directory -Path $coverageReportDir -Force | Out-Null
 
 $testProjects = @(
     @{ Name = "AuthenticationService.Tests"; Path = "$workspaceRoot\AuthenticationService\tests\EVNexus.AuthService.Tests\EVNexus.AuthService.Tests.csproj"; Expected = 192; Filter = "" },
-    @{ Name = "PaymentService.Tests";        Path = "$workspaceRoot\PaymentService\tests\EVNexus.PaymentService.Tests\EVNexus.PaymentService.Tests.csproj"; Expected = 63;  Filter = "" },
+    @{ Name = "PaymentService.Tests";        Path = "$workspaceRoot\PaymentService\tests\EVNexus.PaymentService.Tests\EVNexus.PaymentService.Tests.csproj"; Expected = 70;  Filter = "" },
     @{ Name = "MapService.Tests";            Path = "$workspaceRoot\MapService\tests\EVNexus.MapService.Tests\EVNexus.MapService.Tests.csproj"; Expected = 12;  Filter = "FullyQualifiedName~MapDomainUnitTests" },
     @{ Name = "DashboardService.Tests";      Path = "$workspaceRoot\DashboardAnalyticsService\tests\EVNexus.DashboardService.Tests\EVNexus.DashboardService.Tests.csproj"; Expected = 1;   Filter = "" }
 )
@@ -49,18 +49,40 @@ foreach ($proj in $testProjects) {
             @filterArg
     }
     
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "  ✅ Passed: $($proj.Expected) / $($proj.Expected) tests" -ForegroundColor Green
-        $totalPassed += $proj.Expected
+    $passed = 0
+    $failed = 0
+    $total = 0
+    foreach ($line in $result) {
+        if ($line -match 'Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+),\s*Total:\s*(\d+)') {
+            $failed = [int]$matches[1]
+            $passed = [int]$matches[2]
+            $total = [int]$matches[4]
+        }
+    }
+
+    if ($total -eq 0 -and $LASTEXITCODE -eq 0) {
+        $passed = $proj.Expected
+        $total = $proj.Expected
+    }
+
+    if ($LASTEXITCODE -eq 0 -and $failed -eq 0) {
+        Write-Host "  ✅ Passed: $passed / $total tests" -ForegroundColor Green
+        $totalPassed += $passed
     } else {
-        Write-Host "  ❌ Failure detected in $($proj.Name)" -ForegroundColor Red
-        $totalFailed += 1
+        Write-Host "  ❌ Failure detected in $($proj.Name) (Failed: $failed)" -ForegroundColor Red
+        $totalFailed += [Math]::Max(1, $failed)
+        $totalPassed += $passed
     }
 }
 
+$totalExecuted = $totalPassed + $totalFailed
+$passRate = if ($totalExecuted -gt 0) {
+    [Math]::Round(($totalPassed / $totalExecuted) * 100, 1)
+} else { 0 }
+
 Write-Host "`n=======================================================" -ForegroundColor Cyan
-Write-Host "🎯 TOTAL UNIT TESTS EXECUTED: $totalPassed / $($totalPassed + $totalFailed)" -ForegroundColor Green
-Write-Host "   Pass Rate: 100.0% (0 Failed)" -ForegroundColor Green
+Write-Host "🎯 TOTAL UNIT TESTS EXECUTED: $totalPassed / $totalExecuted" -ForegroundColor Green
+Write-Host "   Pass Rate: $passRate% ($totalFailed Failed)" -ForegroundColor Green
 Write-Host "=======================================================" -ForegroundColor Cyan
 
 if (-not $NoCoverage) {
