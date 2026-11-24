@@ -88,8 +88,14 @@ tests/load-jmeter/
 Execute the PowerShell automation runner from the repository root:
 
 ```powershell
-pwsh ./tests/load-jmeter/run-jmeter.ps1 -OpenDashboard
+# Windows PowerShell (5.1 / 7+) - View verified 5,000 results & open dashboard:
+powershell -ExecutionPolicy Bypass -File ".\tests\load-jmeter\run-jmeter.ps1" -OpenDashboard
+
+# Re-run live 5,000 requests against running microservices during viva demonstration:
+powershell -ExecutionPolicy Bypass -File ".\tests\load-jmeter\run-jmeter.ps1" -Rerun -OpenDashboard
 ```
+
+> **Note on Compatibility:** The runner is natively compatible with both standard Windows PowerShell (`powershell.exe` v5.1) and PowerShell 7 (`pwsh.exe`). Existing test results are automatically preserved unless the `-Rerun` switch is explicitly provided.
 
 The automation script will automatically:
 1. Verify the local MySQL 8.0 instance on port 3307 (or initialize and launch it).
