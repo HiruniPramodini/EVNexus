@@ -27,9 +27,18 @@ jobs:
     env:
       CI: 'true'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
+      - name: Retrieve exact event revision
+        # The repository contains an unrelated EVNexus gitlink without a
+        # .gitmodules URL. checkout's submodule auth cleanup fails on that link.
+        # Retrieve the exact immutable SHA without persisting Git credentials.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          archive="$RUNNER_TEMP/playwright-source-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
+          gh api "repos/$GITHUB_REPOSITORY/tarball/$GITHUB_SHA" > "$archive"
+          tar -xzf "$archive" --strip-components=1 --directory "$GITHUB_WORKSPACE"
+          rm -- "$archive"
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
