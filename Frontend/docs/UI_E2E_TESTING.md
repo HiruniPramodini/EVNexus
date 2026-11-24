@@ -34,7 +34,11 @@ These are explicitly safe derived reports, not the native interactive Playwright
 
 On 24 November 2026, the new worktree passed frontend build and all **53 mocked UI tests** (66.80 seconds), with no retries. Discovery found the approved **60 cases**. Nine Node helper tests passed, covering complete/missing/duplicate results, global errors, skipped/flaky/interrupted/blocked cases, secret exclusion, strict outcomes, hosted-runner guards, partial-stack ownership and bounded readiness. The summary CLI was also run against the actual 53-case report and correctly failed the completeness gate with seven missing E2E cases. Actionlint 1.7.12 validated the standalone workflow without errors (ShellCheck unavailable). Test fixtures exercise reporting logic only and are not presented as application E2E results.
 
-Docker is unavailable on the implementation shell. The new Ubuntu provisioning, seven real backend tests and live cleanup therefore remain unverified until the first authorized hosted workflow run. No CI success or new 60-test pass is claimed. No commit, push or workflow dispatch was performed during implementation.
+Hosted validation on 24 November 2026 subsequently passed on Ubuntu 24.04 / Node 22.23.5 at implementation commit `902876262ee7b88368a4d1f7c573e4ff6264e53e`: [run 45372434312](https://github.com/HiruniPramodini/EVNexus/actions/runs/45372434312). The downloaded actual results contain **60/60 passed: 53 UI and 7 real E2E; 0 failed, skipped, flaky, interrupted, blocked or missing; 100% strict pass rate**. Playwright execution took **78.517088 seconds**; the job ran from 10:11:51 to 10:15:34 UTC (15:41:51 to 15:45:34 Asia/Colombo), approximately 3 minutes 43 seconds including setup.
+
+All installation/build, provisioning, readiness, account preparation, seeding, browser execution, summary, upload and cleanup steps succeeded. The artifact confirms eleven running services, all four databases plus Kafka and Mailpit healthy; application readiness uses HTTP/SQL probes rather than Docker health labels. `REAL-CHARGE-01` passed once, retaining its real Kafka completion, amount, history, receipt, wallet deduction and transaction assertions. JUnit reports 60 tests, zero failures and zero skips. The artifact contains exactly `index.html`, `results.json`, `results.xml`, `summary.md` and `services.json`, expires after fourteen days, and passed allowlist/sensitive-pattern checks. Cleanup logged that only dedicated CI resources were removed and the baseline was preserved.
+
+Manual dispatch became available after workflow registration even though the workflow was absent from main: dispatch for `feature/playwright-full-ci` was accepted as [run 45373190142](https://github.com/HiruniPramodini/EVNexus/actions/runs/45373190142). This confirms pre-merge dispatch availability; the passing evidence above is from the completed push-triggered run. Only the feature branch has been committed/pushed; main and the group pipeline remain unchanged. Docker is still unavailable locally, and the retained safe reports intentionally omit raw authenticated traces, screenshots and payloads.
 
 Run helper validation from the repository root:
 
@@ -42,7 +46,7 @@ Run helper validation from the repository root:
 node --test Infrastructure/docker/e2e-ci.test.mjs Frontend/tests/helpers/ci-summary.test.mjs
 ```
 
-After approval to commit/push, run the standalone workflow on the feature branch and review all 60 actual outcomes, service readiness, report completeness, artifact contents and cleanup. Do not integrate the group pipeline until that hosted run succeeds. The workflow API returned 404 before its first feature-branch push; the narrowly scoped push trigger enables validation without modifying main or opening a group pipeline run. Manual dispatch availability must be checked after GitHub registers the new workflow.
+For subsequent individual validation, dispatch the workflow on the feature branch or push to `feature/playwright-full-ci`, then inspect the actual 60-case results, readiness, artifact and cleanup. The workflow API initially returned 404 before registration; the narrowly scoped push trigger enabled pre-merge validation, and manual dispatch was subsequently confirmed. Group integration and Selenium replacement remain postponed and require separate authorization.
 
 Student: **Hiruni Pramodini — IT24610786**
 
