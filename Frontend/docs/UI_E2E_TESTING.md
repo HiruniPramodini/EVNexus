@@ -1,5 +1,53 @@
 # EVNexus individual UI/UX and E2E testing
 
+## Standalone full-suite CI (24 November 2026)
+
+`.github/workflows/playwright-tests.yml` is the individual full-suite workflow. It supports pushes only to `feature/playwright-full-ci` for pre-merge hosted validation, manual dispatch once available, relevant pull requests and `workflow_call` for later integration. It does not call or modify the group pipeline. The existing `.github/workflows/ui-tests.yml` remains the quick mocked UI check. A frontend PR can therefore run both checks intentionally.
+
+The full workflow uses a fresh GitHub-hosted Ubuntu 24.04 runner and Node 22. It installs locked frontend dependencies and Chromium with OS dependencies, builds the frontend, discovers the complete test inventory, provisions the existing standalone Compose stack, waits for bounded readiness, prepares accounts and seeds data, then runs `npm run test:all -- --retries=0`. This executes 53 UI cases and 7 real backend cases with one worker and no retries. Existing assertions, mocks, axe scans, responsive viewports, real APIs and Kafka settlement polling are unchanged. The browser uses the managed Vite development server; the build step separately validates production compilation.
+
+The first hosted attempt (`45372054905`, commit `f960c18`) failed in `actions/checkout@v4` credential removal: the existing unrelated `EVNexus` gitlink has no `.gitmodules` URL. No browser tests executed. The individual workflow therefore retrieves GitHub's source tarball for the exact `GITHUB_SHA` using the ephemeral read-only job token, extracts it on the fresh hosted runner and removes the temporary archive. No Git credentials persist, no gitlink or application files are changed, and no `.git` history is required by this suite. Setup failure was correctly reported as 60 missing cases and safe artifacts still uploaded.
+
+No repository application secrets are required: the existing initializer generates disposable database/JWT/internal/SMTP values. Preparation creates disposable `@e2e.invalid` accounts, reads verification mail from isolated Mailpit, verifies through the actual API and funds the synthetic wallet. No external SMTP or payment provider is used. Real E2E is still restricted to the attested isolated gateway.
+
+`Infrastructure/docker/e2e-ci.mjs` is a CI-only adapter. It refuses local and self-hosted execution, retains the local wrapper unchanged, claims run/attempt/job ownership before startup, and retries only read-only readiness probes for up to four minutes (individual Docker/HTTP commands also have time limits). It checks container health, the six existing HTTP probes and authenticated database readiness before account mutation. Startup/build has a twelve-minute subprocess limit; the workflow has a forty-minute job limit.
+
+Diagnostics, cleanup, summary generation and artifact upload use `if: always()` so ordinary setup/test failures do not suppress them. A generated, ignored Compose override adds only run/attempt/job ownership labels to testing containers, volumes and network; the source Compose file stays unchanged. Cleanup validates that exact label-only override, resource labels and the effective base Compose configuration, rejects baseline resources and foreign attachments, accepts partial startup, removes only the dedicated project and declared volumes, then verifies no dedicated resources remain and baseline resources are preserved. It never prunes Docker, uses development Compose, removes images, or changes local teardown behavior. A missing ownership record causes cleanup to remove nothing. Abrupt runner loss/forced termination can prevent final steps; the hosted runner is disposable.
+
+### Actual results and safe artifacts
+
+`Frontend/tests/helpers/ci-summary.js` reads fresh `test-inventory.json` and `test-results/results.json`. It checks the approved 60 stable IDs and project membership, duplicates, unknown identities, missing execution results, runner errors/statistics, test exit outcome and cleanup outcome. The expected inventory is a completeness contract, not a fabricated result. Update it only when intentionally changing the authored test inventory.
+
+The Actions summary contains per-suite and total passed/failed/skipped/flaky/interrupted/missing counts, blocked prerequisite failures, execution duration and strict pass rate (`passed / 60 expected`). Skips, flakes, expected-failure annotations and interrupted/missing tests do not meet the strict success gate. Blocked prerequisites are a subset of failures. Setup failure produces an incomplete report and never claims a successful test run. Duration is the Playwright-reported test execution duration, not total Docker setup/job time.
+
+The artifact `playwright-individual-<run ID>-<attempt>` is retained for 14 days and contains only `Frontend/ci-report/`:
+
+- `index.html`: readable per-case HTML generated from allowlisted actual results.
+- `results.json`: safe normalized results, integrity issues and per-case durations/statuses.
+- `results.xml`: safe JUnit XML; missing/interrupted/flaky cases fail, and infrastructure/integrity issues add a separate failing testcase.
+- `summary.md`: the individual GitHub Actions summary.
+- `services.json`: allowlisted service running/health states when Docker diagnostics succeed.
+
+These are explicitly safe derived reports, not the native interactive Playwright HTML bundle or raw Playwright JSON/XML. Native reporters still run unchanged locally and in the runner. Raw reports, errors, source snippets, stdout, network payloads, emails, screenshots and trace archives are **never uploaded** by the full workflow, since they can contain credentials/tokens and opaque archives cannot be safely sanitized by string replacement. Raw preparation/test output is redirected to ignored runner-only logs. Allowlisted artifacts retain case outcomes and safe service states; detailed authenticated network/visual debugging must be reproduced privately in the existing local isolated environment. The quick UI-only workflow's existing artifact policy remains unchanged.
+
+### Validation and limitations
+
+On 24 November 2026, the new worktree passed frontend build and all **53 mocked UI tests** (66.80 seconds), with no retries. Discovery found the approved **60 cases**. Nine Node helper tests passed, covering complete/missing/duplicate results, global errors, skipped/flaky/interrupted/blocked cases, secret exclusion, strict outcomes, hosted-runner guards, partial-stack ownership and bounded readiness. The summary CLI was also run against the actual 53-case report and correctly failed the completeness gate with seven missing E2E cases. Actionlint 1.7.12 validated the standalone workflow without errors (ShellCheck unavailable). Test fixtures exercise reporting logic only and are not presented as application E2E results.
+
+Hosted validation on 24 November 2026 subsequently passed on Ubuntu 24.04 / Node 22.23.5 at implementation commit `902876262ee7b88368a4d1f7c573e4ff6264e53e`: [run 45372434312](https://github.com/HiruniPramodini/EVNexus/actions/runs/45372434312). The downloaded actual results contain **60/60 passed: 53 UI and 7 real E2E; 0 failed, skipped, flaky, interrupted, blocked or missing; 100% strict pass rate**. Playwright execution took **78.517088 seconds**; the job ran from 10:11:51 to 10:15:34 UTC (15:41:51 to 15:45:34 Asia/Colombo), approximately 3 minutes 43 seconds including setup.
+
+All installation/build, provisioning, readiness, account preparation, seeding, browser execution, summary, upload and cleanup steps succeeded. The artifact confirms eleven running services, all four databases plus Kafka and Mailpit healthy; application readiness uses HTTP/SQL probes rather than Docker health labels. `REAL-CHARGE-01` passed once, retaining its real Kafka completion, amount, history, receipt, wallet deduction and transaction assertions. JUnit reports 60 tests, zero failures and zero skips. The artifact contains exactly `index.html`, `results.json`, `results.xml`, `summary.md` and `services.json`, expires after fourteen days, and passed allowlist/sensitive-pattern checks. Cleanup logged that only dedicated CI resources were removed and the baseline was preserved.
+
+Manual dispatch became available after workflow registration even though the workflow was absent from main: dispatch for `feature/playwright-full-ci` was accepted as [run 45373190142](https://github.com/HiruniPramodini/EVNexus/actions/runs/45373190142). This confirms pre-merge dispatch availability; the passing evidence above is from the completed push-triggered run. Only the feature branch has been committed/pushed; main and the group pipeline remain unchanged. Docker is still unavailable locally, and the retained safe reports intentionally omit raw authenticated traces, screenshots and payloads.
+
+Run helper validation from the repository root:
+
+```text
+node --test Infrastructure/docker/e2e-ci.test.mjs Frontend/tests/helpers/ci-summary.test.mjs
+```
+
+For subsequent individual validation, dispatch the workflow on the feature branch or push to `feature/playwright-full-ci`, then inspect the actual 60-case results, readiness, artifact and cleanup. The workflow API initially returned 404 before registration; the narrowly scoped push trigger enabled pre-merge validation, and manual dispatch was subsequently confirmed. Group integration and Selenium replacement remain postponed and require separate authorization.
+
 Student: **Hiruni Pramodini — IT24610786**
 
 Module: SE3112 Advanced Software Engineering

@@ -1,0 +1,115 @@
+name: Individual Playwright UI and real E2E
+
+on:
+  push:
+    branches: [feature/playwright-full-ci]
+  workflow_dispatch:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'Frontend/**'
+      - 'Infrastructure/docker/**'
+      - 'ApiGateway/**'
+      - 'AuthenticationService/src/**'
+      - 'MapService/src/**'
+      - 'PaymentService/src/**'
+      - 'DashboardAnalyticsService/src/**'
+      - '.github/workflows/playwright-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  playwright:
+    name: 53 UI and 7 real backend tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      CI: 'true'
+    steps:
+      - name: Retrieve exact event revision
+        # The repository contains an unrelated EVNexus gitlink without a
+        # .gitmodules URL. checkout's submodule auth cleanup fails on that link.
+        # Retrieve the exact immutable SHA without persisting Git credentials.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          archive="$RUNNER_TEMP/playwright-source-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.tar.gz"
+          gh api "repos/$GITHUB_REPOSITORY/tarball/$GITHUB_SHA" > "$archive"
+          tar -xzf "$archive" --strip-components=1 --directory "$GITHUB_WORKSPACE"
+          rm -- "$archive"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - name: Validate individual CI helpers
+        run: node --test Infrastructure/docker/e2e-ci.test.mjs Frontend/tests/helpers/ci-summary.test.mjs
+      - name: Install frontend dependencies
+        working-directory: Frontend
+        run: npm ci
+      - name: Install Chromium and OS dependencies
+        working-directory: Frontend
+        run: npx playwright install --with-deps chromium
+      - name: Build frontend
+        working-directory: Frontend
+        run: npm run build
+      - name: Record complete test inventory
+        working-directory: Frontend
+        run: npx playwright test --list --reporter=json > test-inventory.json
+      - name: Provision dedicated backend
+        run: node Infrastructure/docker/e2e-ci.mjs start
+      - name: Wait for backend readiness
+        run: node Infrastructure/docker/e2e-ci.mjs wait
+      - name: Prepare verified test accounts and wallet
+        working-directory: Frontend
+        # Capture raw output privately: even unexpected application errors must not
+        # disclose secrets in the Actions console. Only the allowlisted report uploads.
+        run: |
+          mkdir -p .e2e-artifacts
+          if ! npm run test:prepare > .e2e-artifacts/prepare.log 2>&1; then
+            echo 'Dedicated account preparation failed; no raw logs published.' >&2
+            exit 1
+          fi
+      - name: Seed dedicated station and charger
+        working-directory: Frontend
+        run: |
+          if ! npm run test:seed > .e2e-artifacts/seed.log 2>&1; then
+            echo 'Dedicated station preparation failed; no raw logs published.' >&2
+            exit 1
+          fi
+      - name: Execute all Playwright tests
+        id: tests
+        working-directory: Frontend
+        run: |
+          if npm run test:all -- --retries=0 > .e2e-artifacts/playwright.log 2>&1; then
+            echo 'exit_code=0' >> "$GITHUB_OUTPUT"
+          else
+            result=$?
+            echo "exit_code=$result" >> "$GITHUB_OUTPUT"
+            echo 'Playwright failed; consult the safe per-case report.' >&2
+            exit "$result"
+          fi
+      - name: Collect safe service diagnostics
+        if: always()
+        run: node Infrastructure/docker/e2e-ci.mjs diagnostics
+      - name: Clean up only this CI environment
+        id: cleanup
+        if: always()
+        run: node Infrastructure/docker/e2e-ci.mjs cleanup
+      - name: Generate actual individual results
+        if: always()
+        env:
+          PLAYWRIGHT_EXIT_CODE: ${{ steps.tests.outputs.exit_code }}
+          PLAYWRIGHT_STEP_OUTCOME: ${{ steps.tests.outcome }}
+          E2E_CLEANUP_OUTCOME: ${{ steps.cleanup.outcome }}
+        run: node Frontend/tests/helpers/ci-summary.js
+      - name: Retain safe individual reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-individual-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Frontend/ci-report/
+          retention-days: 14
+          if-no-files-found: error

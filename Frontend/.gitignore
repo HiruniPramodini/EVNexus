@@ -1,0 +1,3 @@
+# Individual CI discovery and allowlisted report output
+/test-inventory.json
+/ci-report/
