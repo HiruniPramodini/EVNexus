@@ -1,4 +1,4 @@
-# ==============================================================================
+﻿# ==============================================================================
 # EVNexus Unified Test Automation Pipeline Framework
 # ==============================================================================
 
@@ -13,7 +13,7 @@ $ErrorActionPreference = "Continue"
 $startTime = Get-Date
 
 Write-Host "======================================================================" -ForegroundColor Cyan
-Write-Host "   ⚡ EVNexus Unified Microservice Test Automation Pipeline          " -ForegroundColor Yellow
+Write-Host "   EVNexus Unified Microservice Test Automation Pipeline             " -ForegroundColor Yellow
 Write-Host "   Module: SE3112 Advanced Software Engineering | Team 32            " -ForegroundColor Cyan
 Write-Host "======================================================================`n" -ForegroundColor Cyan
 
@@ -184,7 +184,7 @@ $indexHtml = @"
 "@
 
 Set-Content -Path "$reportsBase\index.html" -Value $indexHtml
-Write-Host "`n📁 Unified Pipeline Dashboard Generated:" -ForegroundColor Cyan
+Write-Host "`n[INFO] Unified Pipeline Dashboard Generated:" -ForegroundColor Cyan
 Write-Host "   $reportsBase\index.html`n" -ForegroundColor White
 
 if ($OpenReports) {
