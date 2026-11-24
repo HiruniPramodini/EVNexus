@@ -19,8 +19,8 @@ param(
 $ErrorActionPreference = "Stop"
 $overallStart = Get-Date
 
-$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
-$reportRoot = Join-Path $workspaceRoot "tests\reports\mutation"
+$workspaceRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+$reportRoot = Join-Path $workspaceRoot "tests/reports/mutation"
 if (-not (Test-Path $reportRoot)) {
     New-Item -ItemType Directory -Path $reportRoot -Force | Out-Null
 }
@@ -236,7 +236,7 @@ $allTargets = @(
     @{
         Key                = "auth"
         DisplayName        = "AuthenticationService (EVNexus.AuthService)"
-        TestProjectDir     = Join-Path $workspaceRoot "AuthenticationService\tests\EVNexus.AuthService.Tests"
+        TestProjectDir     = Join-Path $workspaceRoot "AuthenticationService/tests/EVNexus.AuthService.Tests"
         ConfigFile         = Join-Path $PSScriptRoot "stryker-auth.json"
         RelativeConfigFile = "../../../tests/mutation-stryker/stryker-auth.json"
         QuickDemoMutate    = "**/Services/JwtTokenService.cs"
@@ -247,7 +247,7 @@ $allTargets = @(
     @{
         Key                = "payment"
         DisplayName        = "PaymentService (EVNexus.PaymentService)"
-        TestProjectDir     = Join-Path $workspaceRoot "PaymentService\tests\EVNexus.PaymentService.Tests"
+        TestProjectDir     = Join-Path $workspaceRoot "PaymentService/tests/EVNexus.PaymentService.Tests"
         ConfigFile         = Join-Path $PSScriptRoot "stryker-payment.json"
         RelativeConfigFile = "../../../tests/mutation-stryker/stryker-payment.json"
         QuickDemoMutate    = "**/Forecasting/ForecastService.cs"

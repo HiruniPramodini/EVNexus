@@ -56,13 +56,18 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: 2b. Install Native OpenMP Runtime for ML.NET SSA on Linux
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgomp1 libomp-dev
+
       - name: 3. Restore Local .NET Tools (Stryker.NET 5.0.0)
         run: dotnet tool restore
 
       - name: 4. Verify Unit Test Baselines
         run: |
-          dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release --verbosity minimal
-          dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release --verbosity minimal
+          dotnet test AuthenticationService/tests/EVNexus.AuthService.Tests/EVNexus.AuthService.Tests.csproj --configuration Release --logger "console;verbosity=normal"
+          dotnet test PaymentService/tests/EVNexus.PaymentService.Tests/EVNexus.PaymentService.Tests.csproj --configuration Release --logger "console;verbosity=normal"
 
       - name: 5. Run Stryker.NET Mutation Testing & Enforce Quality Gates
         shell: pwsh

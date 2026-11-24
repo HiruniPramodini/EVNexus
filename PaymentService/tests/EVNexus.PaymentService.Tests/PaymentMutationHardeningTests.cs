@@ -220,28 +220,28 @@ public class PaymentMutationHardeningTests
     public async Task OutboxPublisher_ExecuteAsync_PollsAndStopsCleanlyOnCancellation()
     {
         var (service, outboxRepo, kafkaProducer) = CreateOutboxSut(pollingMs: 30, batchSize: 10);
-        using var cts = new CancellationTokenSource();
+        var publishedSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var calls = 0;
         outboxRepo.Setup(r => r.GetPendingMessagesAsync(10))
             .ReturnsAsync(() =>
             {
                 calls++;
-                if (calls >= 1)
-                {
-                    cts.CancelAfter(15);
-                }
                 return new List<OutboxMessage>
                 {
                     new() { Id = 100, AggregateId = "PAY-LOOP", Payload = "{}" }
                 };
             });
         kafkaProducer.Setup(k => k.PublishMessageAsync("PAY-LOOP", "{}")).Returns(Task.CompletedTask);
+        outboxRepo.Setup(r => r.MarkAsPublishedAsync(100))
+            .Callback(() => publishedSignal.TrySetResult(true))
+            .Returns(Task.CompletedTask);
 
-        await service.StartAsync(cts.Token);
-        await Task.Delay(120);
+        await service.StartAsync(CancellationToken.None);
+        var completed = await Task.WhenAny(publishedSignal.Task, Task.Delay(5000));
         await service.StopAsync(CancellationToken.None);
 
+        Assert.Same(publishedSignal.Task, completed);
         Assert.True(calls >= 1);
         outboxRepo.Verify(r => r.MarkAsPublishedAsync(100), Times.AtLeastOnce);
     }
