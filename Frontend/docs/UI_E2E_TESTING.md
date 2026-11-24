@@ -1,5 +1,47 @@
 # EVNexus individual UI/UX and E2E testing
 
+## Standalone full-suite CI (24 November 2026)
+
+`.github/workflows/playwright-tests.yml` is the individual full-suite workflow. It supports pushes only to `feature/playwright-full-ci` for pre-merge hosted validation, manual dispatch once available, relevant pull requests and `workflow_call` for later integration. It does not call or modify the group pipeline. The existing `.github/workflows/ui-tests.yml` remains the quick mocked UI check. A frontend PR can therefore run both checks intentionally.
+
+The full workflow uses a fresh GitHub-hosted Ubuntu 24.04 runner and Node 22. It installs locked frontend dependencies and Chromium with OS dependencies, builds the frontend, discovers the complete test inventory, provisions the existing standalone Compose stack, waits for bounded readiness, prepares accounts and seeds data, then runs `npm run test:all -- --retries=0`. This executes 53 UI cases and 7 real backend cases with one worker and no retries. Existing assertions, mocks, axe scans, responsive viewports, real APIs and Kafka settlement polling are unchanged. The browser uses the managed Vite development server; the build step separately validates production compilation.
+
+No repository application secrets are required: the existing initializer generates disposable database/JWT/internal/SMTP values. Preparation creates disposable `@e2e.invalid` accounts, reads verification mail from isolated Mailpit, verifies through the actual API and funds the synthetic wallet. No external SMTP or payment provider is used. Real E2E is still restricted to the attested isolated gateway.
+
+`Infrastructure/docker/e2e-ci.mjs` is a CI-only adapter. It refuses local and self-hosted execution, retains the local wrapper unchanged, claims run/attempt/job ownership before startup, and retries only read-only readiness probes for up to four minutes (individual Docker/HTTP commands also have time limits). It checks container health, the six existing HTTP probes and authenticated database readiness before account mutation. Startup/build has a twelve-minute subprocess limit; the workflow has a forty-minute job limit.
+
+Diagnostics, cleanup, summary generation and artifact upload use `if: always()` so ordinary setup/test failures do not suppress them. A generated, ignored Compose override adds only run/attempt/job ownership labels to testing containers, volumes and network; the source Compose file stays unchanged. Cleanup validates that exact label-only override, resource labels and the effective base Compose configuration, rejects baseline resources and foreign attachments, accepts partial startup, removes only the dedicated project and declared volumes, then verifies no dedicated resources remain and baseline resources are preserved. It never prunes Docker, uses development Compose, removes images, or changes local teardown behavior. A missing ownership record causes cleanup to remove nothing. Abrupt runner loss/forced termination can prevent final steps; the hosted runner is disposable.
+
+### Actual results and safe artifacts
+
+`Frontend/tests/helpers/ci-summary.js` reads fresh `test-inventory.json` and `test-results/results.json`. It checks the approved 60 stable IDs and project membership, duplicates, unknown identities, missing execution results, runner errors/statistics, test exit outcome and cleanup outcome. The expected inventory is a completeness contract, not a fabricated result. Update it only when intentionally changing the authored test inventory.
+
+The Actions summary contains per-suite and total passed/failed/skipped/flaky/interrupted/missing counts, blocked prerequisite failures, execution duration and strict pass rate (`passed / 60 expected`). Skips, flakes, expected-failure annotations and interrupted/missing tests do not meet the strict success gate. Blocked prerequisites are a subset of failures. Setup failure produces an incomplete report and never claims a successful test run. Duration is the Playwright-reported test execution duration, not total Docker setup/job time.
+
+The artifact `playwright-individual-<run ID>-<attempt>` is retained for 14 days and contains only `Frontend/ci-report/`:
+
+- `index.html`: readable per-case HTML generated from allowlisted actual results.
+- `results.json`: safe normalized results, integrity issues and per-case durations/statuses.
+- `results.xml`: safe JUnit XML; missing/interrupted/flaky cases fail, and infrastructure/integrity issues add a separate failing testcase.
+- `summary.md`: the individual GitHub Actions summary.
+- `services.json`: allowlisted service running/health states when Docker diagnostics succeed.
+
+These are explicitly safe derived reports, not the native interactive Playwright HTML bundle or raw Playwright JSON/XML. Native reporters still run unchanged locally and in the runner. Raw reports, errors, source snippets, stdout, network payloads, emails, screenshots and trace archives are **never uploaded** by the full workflow, since they can contain credentials/tokens and opaque archives cannot be safely sanitized by string replacement. Raw preparation/test output is redirected to ignored runner-only logs. Allowlisted artifacts retain case outcomes and safe service states; detailed authenticated network/visual debugging must be reproduced privately in the existing local isolated environment. The quick UI-only workflow's existing artifact policy remains unchanged.
+
+### Validation and limitations
+
+On 24 November 2026, the new worktree passed frontend build and all **53 mocked UI tests** (66.80 seconds), with no retries. Discovery found the approved **60 cases**. Nine Node helper tests passed, covering complete/missing/duplicate results, global errors, skipped/flaky/interrupted/blocked cases, secret exclusion, strict outcomes, hosted-runner guards, partial-stack ownership and bounded readiness. The summary CLI was also run against the actual 53-case report and correctly failed the completeness gate with seven missing E2E cases. Actionlint 1.7.12 validated the standalone workflow without errors (ShellCheck unavailable). Test fixtures exercise reporting logic only and are not presented as application E2E results.
+
+Docker is unavailable on the implementation shell. The new Ubuntu provisioning, seven real backend tests and live cleanup therefore remain unverified until the first authorized hosted workflow run. No CI success or new 60-test pass is claimed. No commit, push or workflow dispatch was performed during implementation.
+
+Run helper validation from the repository root:
+
+```text
+node --test Infrastructure/docker/e2e-ci.test.mjs Frontend/tests/helpers/ci-summary.test.mjs
+```
+
+After approval to commit/push, run the standalone workflow on the feature branch and review all 60 actual outcomes, service readiness, report completeness, artifact contents and cleanup. Do not integrate the group pipeline until that hosted run succeeds. The workflow API returned 404 before its first feature-branch push; the narrowly scoped push trigger enables validation without modifying main or opening a group pipeline run. Manual dispatch availability must be checked after GitHub registers the new workflow.
+
 Student: **Hiruni Pramodini — IT24610786**
 
 Module: SE3112 Advanced Software Engineering

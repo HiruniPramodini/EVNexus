@@ -1,5 +1,11 @@
 # Isolated Playwright backend
 
+## Standalone hosted CI
+
+The individual `.github/workflows/playwright-tests.yml` now automates this same environment on a fresh GitHub-hosted Ubuntu runner. The local safety wrapper and all local startup/preservation behavior below remain unchanged. CI-specific bounded readiness, run ownership, partial-start cleanup and safe diagnostics are implemented separately in `e2e-ci.mjs`. Its cleanup refuses local/self-hosted use and checks ownership/baseline preservation before removing the dedicated project. No development Compose resources are targeted.
+
+The full workflow reuses `test:prepare`, private Mailpit verification and `test:seed`, then executes all 60 cases serially without retries. It uploads only allowlisted derived reports and service states, never raw authenticated traces/screenshots/logs or local secret/state files. See [the individual guide](../../Frontend/docs/UI_E2E_TESTING.md#standalone-full-suite-ci-24-november-2026) for the full artifact policy, validation results and first-run limitations. The original UI-only workflow remains unchanged. The hosted backend run is not yet verified; previous local results below do not establish CI success.
+
 This is the supported local real-E2E environment. **Do not use the development `docker-compose.yml` for browser E2E**, even with a different `-p` value. Use the standalone `compose.e2e.yml` through the safety wrapper below.
 
 ## Original collision and isolation audit
