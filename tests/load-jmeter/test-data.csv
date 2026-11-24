@@ -1,0 +1,11 @@
+userId,tenantId,companyId,latitude,longitude,stationId
+usr-001,tenant-001,1,6.9271,79.8612,st-01
+usr-002,tenant-001,1,6.9344,79.8428,st-02
+usr-003,tenant-002,2,6.9034,79.8512,st-03
+usr-004,tenant-002,2,6.8912,79.8654,st-04
+usr-005,tenant-003,3,6.9150,79.8600,st-05
+usr-006,tenant-003,3,6.9300,79.8500,st-06
+usr-007,tenant-001,1,6.9100,79.8700,st-01
+usr-008,tenant-002,2,6.9200,79.8650,st-03
+usr-009,tenant-001,1,6.9400,79.8400,st-02
+usr-010,tenant-003,3,6.9050,79.8550,st-05
