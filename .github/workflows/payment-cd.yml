@@ -18,11 +18,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: false
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+
+      - name: Install Native OpenMP Runtime for ML.NET SSA on Linux
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgomp1 libomp-dev
 
       - name: Restore Payment Service
         run: dotnet restore PaymentService/src/EVNexus.PaymentService/EVNexus.PaymentService.csproj

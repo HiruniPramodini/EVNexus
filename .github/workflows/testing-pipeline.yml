@@ -44,6 +44,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: 2b. Install Native OpenMP Runtime for ML.NET SSA on Linux
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgomp1 libomp-dev
+
       - name: 3. Setup Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -95,9 +100,10 @@ jobs:
       # STAGE 2: Mutation Testing Quality Gate (Lead: K.T.L. Perera - IT24610793)
       # ----------------------------------------------------------------------
       - name: 8. Execute Mutation Testing (Stryker.NET)
+        shell: pwsh
         run: |
-          cd AuthenticationService/tests/EVNexus.AuthService.Tests
-          dotnet stryker --mutate "AccountManagementService.cs" --reporters "['progress', 'cleartext', 'html', 'json']" --output "../../../tests/reports/mutation" --concurrency 2 || true
+          & ./tests/mutation-stryker/run-mutation.ps1 -Service All -SkipRestore -Concurrency 2
+          exit $LASTEXITCODE
 
       # ----------------------------------------------------------------------
       # STAGE 3: UI / E2E Browser Testing (Lead: A.G.H. Pramodini - IT24610786)

@@ -85,19 +85,20 @@ pwsh ./tests/unit-testing/run-unit-tests.ps1 -OpenReport
 ---
 
 ### 2. Mutation Testing — K.T.L. Perera (`IT24610793`)
-Executes Stryker.NET mutation testing against core domain logic to verify fault-tolerance and test assertion strength:
+Executes **Stryker.NET 5.0.0** mutation testing across both `AuthenticationService` and `PaymentService` with `perTest` coverage analysis, logging noise filtering, and enforced quality gates:
 
 ```powershell
-# Fast live demonstration on AccountManagementService
-pwsh ./tests/mutation-stryker/run-mutation.ps1 -QuickDemo -OpenReport
+# Fast live demonstration (~45s, ideal for 2-minute live VIVA)
+powershell -ExecutionPolicy Bypass -File ".\tests\mutation-stryker\run-mutation.ps1" -Service Auth -QuickDemo -OpenReport
 
-# Full microservice mutation run
-pwsh ./tests/mutation-stryker/run-mutation.ps1 -OpenReport
+# Full multi-microservice mutation quality gate (AuthenticationService + PaymentService)
+powershell -ExecutionPolicy Bypass -File ".\tests\mutation-stryker\run-mutation.ps1" -Service All -OpenReport
 ```
-- **Key Verifications:**
-  - Seeds artificial defects (mutations in Boolean logic, equality operators `==` to `!=`, string literals, arithmetic).
-  - Calculates Killed vs. Survived mutants.
-  - Proves that unit tests actively detect seeded defects rather than merely executing code blindly.
+- **Key Verifications & Verified Results (see [tests/mutation-stryker/README.md](mutation-stryker/README.md)):**
+  - Seeds artificial AST defects (arithmetic, boundary equality `<` vs `<=`, boolean/logical `&&` vs `||`, LINQ `Any()` vs `All()`, statement removals).
+  - Raised **AuthenticationService** mutation score from **43.99% -> 90.67%** (272/300 killed, 0 NoCoverage, Gate >= 70%).
+  - Raised **PaymentService** mutation score from **43.81% -> 90.52%** (191/211 killed, 0 NoCoverage, Gate >= 65%) — including exposing a silent ML.NET SSA fallback bug in `ForecastService.cs` and unverified exponential backoff math in `OutboxPublisherService.cs`.
+  - Combined weighted mutation score: **90.61%** (463/511 killed) with full equivalent-mutant analysis and dedicated CI workflow (`.github/workflows/mutation-testing.yml`).
 
 ---
 
@@ -148,6 +149,6 @@ pwsh ./tests/load-jmeter/run-jmeter.ps1 -OpenDashboard
 All pipeline runs store their interactive HTML dashboards in `tests/reports/`:
 - **Unified Pipeline Hub:** `tests/reports/index.html`
 - **Code Coverage:** `tests/reports/coverage-report/index.html`
-- **Mutation Dashboard:** `tests/reports/mutation/reports/mutation-report.html`
+- **Mutation Dashboard:** `tests/reports/mutation/index.html` (per-service interactive reports in `tests/reports/mutation/auth/` & `tests/reports/mutation/payment/`)
 - **Selenium E2E Dashboard:** `tests/reports/selenium-report/index.html`
 - **JMeter Load Dashboard:** `tests/reports/jmeter-dashboard/index.html`
